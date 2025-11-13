@@ -1,0 +1,51 @@
+// Type definitions for renderer process
+declare global {
+  interface Window {
+    electronAPI: {
+      accounts: {
+        list: () => Promise<any[]>
+        add: (account: any) => Promise<any>
+        update: (id: string, account: any) => Promise<any>
+        remove: (id: string) => Promise<any>
+        test: (account: any) => Promise<{ success: boolean; message: string }>
+      }
+      emails: {
+        list: (folderId: string, page: number, limit: number) => Promise<any[]>
+        get: (id: string) => Promise<any>
+        sync: (accountId: string) => Promise<any>
+        send: (email: any) => Promise<any>
+        delete: (id: string) => Promise<any>
+      }
+      folders: {
+        list: (accountId: string) => Promise<any[]>
+        create: (accountId: string, name: string) => Promise<any>
+        delete: (accountId: string, name: string) => Promise<any>
+        rename: (accountId: string, oldName: string, newName: string) => Promise<any>
+        subscribe: (accountId: string, name: string, subscribed: boolean) => Promise<any>
+      }
+      reminders: {
+        list: () => Promise<any[]>
+        create: (reminder: any) => Promise<any>
+        update: (id: string, reminder: any) => Promise<any>
+        delete: (id: string) => Promise<any>
+      }
+      signatures: {
+        list: (accountId: string) => Promise<any[]>
+        create: (accountId: string, signature: any) => Promise<any>
+        update: (id: string, signature: any) => Promise<any>
+        delete: (id: string) => Promise<any>
+      }
+      gpg: {
+        listKeys: () => Promise<any[]>
+        importKey: (keyData: string) => Promise<any>
+        encrypt: (data: string, recipientKeys: string[]) => Promise<any>
+        decrypt: (encryptedData: string) => Promise<any>
+        sign: (data: string, keyId: string) => Promise<any>
+        verify: (data: string, signature: string) => Promise<any>
+      }
+    }
+  }
+}
+
+export {}
+

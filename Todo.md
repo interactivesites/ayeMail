@@ -1,0 +1,4 @@
+- Inbox (default) / Folders as tree
+- HTML
+- Attachments
+- CC/BCC
