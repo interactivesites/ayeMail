@@ -44,6 +44,32 @@
           <ArrowUpOnSquareIcon class="w-5 h-5" />
           <span>Forward</span>
         </button>
+        <div class="ml-auto flex items-center space-x-1">
+          <button
+            type="button"
+            @click="setMailLayout('list')"
+            :aria-pressed="preferences.mailLayout === 'list'"
+            class="p-2 rounded-md border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+            :class="preferences.mailLayout === 'list'
+              ? 'border-blue-600 text-blue-600 bg-blue-50'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-200'"
+            title="List view"
+          >
+            <ListBulletIcon class="w-5 h-5" />
+          </button>
+          <button
+            type="button"
+            @click="setMailLayout('grid')"
+            :aria-pressed="preferences.mailLayout === 'grid'"
+            class="p-2 rounded-md border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+            :class="preferences.mailLayout === 'grid'
+              ? 'border-blue-600 text-blue-600 bg-blue-50'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-200'"
+            title="Grid view"
+          >
+            <Squares2X2Icon class="w-5 h-5" />
+          </button>
+        </div>
       </nav>
     </header>
     <main class="flex-1 flex overflow-hidden">
@@ -92,16 +118,22 @@
         </div>
       </div>
       <div v-else class="flex-1 flex overflow-hidden">
-        <div class="w-1/3 border-r border-gray-200">
-          <EmailList
+        <div
+          :class="[
+            'transition-all duration-200',
+            isGridLayout ? 'flex-1 px-2' : 'w-1/3 border-r border-gray-200'
+          ]"
+        >
+          <component
             v-if="selectedFolderId"
+            :is="isGridLayout ? EmailGrid : EmailList"
             :folder-id="selectedFolderId"
             :folder-name="selectedFolderName"
             :selected-email-id="selectedEmailId"
             @select-email="handleEmailSelect"
           />
         </div>
-        <div class="flex-1">
+        <div v-if="!isGridLayout" class="flex-1">
           <EmailViewer
             :email-id="selectedEmailId"
             @reply="handleReply"
@@ -131,18 +163,44 @@
       @close="showReminderModal = false; reminderEmail = null"
       @saved="handleReminderSaved"
     />
+    <div
+      v-if="isGridLayout && selectedEmailId"
+      class="fixed inset-0 bg-black/60 z-40 flex items-center justify-center p-4"
+      @click.self="clearSelectedEmail"
+    >
+      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-4xl h-[90vh] flex flex-col relative">
+        <button
+          type="button"
+          class="absolute top-4 right-4 text-gray-500 hover:text-gray-700"
+          @click="clearSelectedEmail"
+          title="Close"
+        >
+          ✕
+        </button>
+        <EmailViewer
+          class="flex-1"
+          :email-id="selectedEmailId"
+          @reply="handleReply"
+          @forward="handleForward"
+          @set-reminder="handleSetReminder"
+          @delete="handleDeleteEmail"
+        />
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { ArrowPathIcon, PencilSquareIcon, ArrowUturnLeftIcon, ArrowUpOnSquareIcon } from '@heroicons/vue/24/outline'
+import { ref, onMounted, computed } from 'vue'
+import { ArrowPathIcon, PencilSquareIcon, ArrowUturnLeftIcon, ArrowUpOnSquareIcon, ListBulletIcon, Squares2X2Icon } from '@heroicons/vue/24/outline'
 import FolderList from './components/FolderList.vue'
 import EmailList from './components/EmailList.vue'
+import EmailGrid from './components/EmailGrid.vue'
 import EmailViewer from './components/EmailViewer.vue'
 import ComposeEmail from './components/ComposeEmail.vue'
 import SettingsModal from './components/SettingsModal.vue'
 import ReminderModal from './components/ReminderModal.vue'
+import { usePreferencesStore } from './stores/preferences'
 
 const selectedAccount = ref<any>(null)
 const selectedFolderId = ref<string>('')
@@ -156,6 +214,17 @@ const replyToEmail = ref<any>(undefined)
 const reminderEmail = ref<any>(null)
 const syncing = ref(false)
 const syncProgress = ref({ show: false, current: 0, total: 0, folder: '' })
+const preferences = usePreferencesStore()
+const isGridLayout = computed(() => preferences.mailLayout === 'grid')
+
+const setMailLayout = (layout: 'list' | 'grid') => {
+  preferences.setMailLayout(layout)
+}
+
+const clearSelectedEmail = () => {
+  selectedEmailId.value = ''
+  selectedEmail.value = null
+}
 
 const handleFolderSelect = async (folder: any) => {
   selectedFolderId.value = folder.id

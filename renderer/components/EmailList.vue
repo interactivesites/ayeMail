@@ -57,6 +57,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, watch, onUnmounted } from 'vue'
+import { getSenderInitials } from '../utils/email'
 
 const props = defineProps<{
   folderId: string
@@ -97,31 +98,6 @@ const formatDate = (timestamp: number) => {
   } else {
     return date.toLocaleDateString([], { month: 'short', day: 'numeric' })
   }
-}
-
-const getSenderInitials = (email: any) => {
-  const sender = email.from?.[0]
-  const fallback = '?'
-  if (!sender) return fallback
-
-  const raw =
-    (typeof sender.name === 'string' && sender.name.trim()) ||
-    (typeof sender.address === 'string' && sender.address.split('@')[0]) ||
-    ''
-  if (!raw) return fallback
-
-  const cleaned = raw.replace(/[^A-Za-z0-9]+/g, ' ').trim()
-  if (!cleaned) return fallback
-
-  const parts = cleaned.split(/\s+/).filter(Boolean)
-  if (parts.length >= 2) {
-    return (parts[0][0] + parts[1][0]).toUpperCase()
-  }
-
-  const word = parts[0]
-  if (!word) return fallback
-
-  return word.slice(0, 2).toUpperCase()
 }
 
 const refreshEmails = () => {
