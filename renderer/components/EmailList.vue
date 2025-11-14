@@ -19,22 +19,30 @@
           :class="{ 'bg-blue-50': selectedEmailId === email.id }"
         >
           <div class="flex items-start justify-between">
-            <div class="flex-1 min-w-0">
-              <div class="flex items-center space-x-2">
-                <span class="font-medium text-gray-900 truncate">
-                  {{ email.from[0]?.name || email.from[0]?.address }}
-                </span>
-                <span v-if="email.encrypted" class="text-blue-600" title="Encrypted">🔒</span>
-                <span v-if="email.signed" class="text-green-600" title="Signed">✓</span>
+            <div class="flex items-start flex-1 min-w-0 space-x-4">
+              <div
+                class="flex-shrink-0 w-10 h-10 rounded-full bg-blue-100 text-blue-700 font-semibold uppercase flex items-center justify-center"
+                aria-hidden="true"
+              >
+                {{ getSenderInitials(email) }}
               </div>
-              <div class="mt-1 flex items-center space-x-2">
-                <span class="text-sm font-medium text-gray-900 truncate">
-                  {{ email.subject || '(No subject)' }}
-                </span>
-                <span v-if="!email.isRead" class="w-2 h-2 bg-blue-600 rounded-full"></span>
-              </div>
-              <div class="mt-1 text-sm text-gray-500">
-                {{ formatDate(email.date) }}
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center space-x-2">
+                  <span class="font-medium text-gray-900 truncate">
+                    {{ email.from[0]?.name || email.from[0]?.address }}
+                  </span>
+                  <span v-if="email.encrypted" class="text-blue-600" title="Encrypted">🔒</span>
+                  <span v-if="email.signed" class="text-green-600" title="Signed">✓</span>
+                </div>
+                <div class="mt-1 flex items-center space-x-2">
+                  <span class="text-sm font-medium text-gray-900 truncate">
+                    {{ email.subject || '(No subject)' }}
+                  </span>
+                  <span v-if="!email.isRead" class="w-2 h-2 bg-blue-600 rounded-full"></span>
+                </div>
+                <div class="mt-1 text-sm text-gray-500">
+                  {{ formatDate(email.date) }}
+                </div>
               </div>
             </div>
             <div class="ml-4 flex-shrink-0">
@@ -89,6 +97,31 @@ const formatDate = (timestamp: number) => {
   } else {
     return date.toLocaleDateString([], { month: 'short', day: 'numeric' })
   }
+}
+
+const getSenderInitials = (email: any) => {
+  const sender = email.from?.[0]
+  const fallback = '?'
+  if (!sender) return fallback
+
+  const raw =
+    (typeof sender.name === 'string' && sender.name.trim()) ||
+    (typeof sender.address === 'string' && sender.address.split('@')[0]) ||
+    ''
+  if (!raw) return fallback
+
+  const cleaned = raw.replace(/[^A-Za-z0-9]+/g, ' ').trim()
+  if (!cleaned) return fallback
+
+  const parts = cleaned.split(/\s+/).filter(Boolean)
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[1][0]).toUpperCase()
+  }
+
+  const word = parts[0]
+  if (!word) return fallback
+
+  return word.slice(0, 2).toUpperCase()
 }
 
 const refreshEmails = () => {

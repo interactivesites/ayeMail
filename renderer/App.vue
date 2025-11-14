@@ -16,32 +16,32 @@
         <button
           @click="syncEmails"
           :disabled="syncing"
-          class="px-3 py-1.5 text-sm bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-1"
+          class="px-3 py-1.5 text-sm bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
         >
-          <span>📥</span>
+          <ArrowPathIcon class="w-5 h-5" />
           <span>{{ syncing ? 'Syncing...' : 'Get Mail' }}</span>
         </button>
         <button
           @click="handleCompose"
-          class="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center space-x-1"
+          class="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center space-x-2"
         >
-          <span>✉️</span>
+          <PencilSquareIcon class="w-5 h-5" />
           <span>Compose</span>
         </button>
         <button
           v-if="selectedEmailId"
           @click="handleReply(selectedEmail)"
-          class="px-3 py-1.5 text-sm bg-gray-200 text-gray-700 rounded hover:bg-gray-300 flex items-center space-x-1"
+          class="px-3 py-1.5 text-sm bg-gray-200 text-gray-700 rounded hover:bg-gray-300 flex items-center space-x-2"
         >
-          <span>↩️</span>
+          <ArrowUturnLeftIcon class="w-5 h-5" />
           <span>Reply</span>
         </button>
         <button
           v-if="selectedEmailId"
           @click="handleForward(selectedEmail)"
-          class="px-3 py-1.5 text-sm bg-gray-200 text-gray-700 rounded hover:bg-gray-300 flex items-center space-x-1"
+          class="px-3 py-1.5 text-sm bg-gray-200 text-gray-700 rounded hover:bg-gray-300 flex items-center space-x-2"
         >
-          <span>↪️</span>
+          <ArrowUpOnSquareIcon class="w-5 h-5" />
           <span>Forward</span>
         </button>
       </nav>
@@ -60,18 +60,22 @@
             <span class="text-xs text-gray-600">
               <span v-if="syncProgress.folder === 'folders'">Syncing folders</span>
               <span v-else-if="syncProgress.folder === 'Complete'">Sync complete</span>
-              <span v-else-if="syncProgress.folder">Downloading {{ syncProgress.folder }}</span>
+              <span v-else-if="syncProgress.folder">
+                <span v-if="syncProgress.total === undefined || syncProgress.total === null">Connecting to {{ syncProgress.folder }}</span>
+                <span v-else-if="syncProgress.total === 0">No emails in {{ syncProgress.folder }}</span>
+                <span v-else>Downloading {{ syncProgress.folder }} ({{ syncProgress.current }}/{{ syncProgress.total }})</span>
+              </span>
               <span v-else>Downloading emails</span>
-            </span>
-            <span class="text-xs font-medium text-gray-700">
-              <span v-if="syncProgress.total > 0">{{ syncProgress.current }}/{{ syncProgress.total }}</span>
-              <span v-else>{{ syncProgress.current }}</span>
             </span>
           </div>
           <div class="w-full bg-gray-200 rounded-full h-1.5">
             <div
               class="bg-blue-600 h-1.5 rounded-full transition-all duration-300"
-              :style="{ width: syncProgress.total > 0 ? `${Math.min(100, (syncProgress.current / syncProgress.total) * 100)}%` : '50%' }"
+              :style="{
+                width: syncProgress.total > 0 ? `${Math.min(100, (syncProgress.current / syncProgress.total) * 100)}%` :
+                       syncProgress.total === 0 ? '100%' :
+                       '25%'
+              }"
             ></div>
           </div>
         </div>
@@ -103,6 +107,7 @@
             @reply="handleReply"
             @forward="handleForward"
             @set-reminder="handleSetReminder"
+            @delete="handleDeleteEmail"
           />
         </div>
       </div>
@@ -131,6 +136,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { ArrowPathIcon, PencilSquareIcon, ArrowUturnLeftIcon, ArrowUpOnSquareIcon } from '@heroicons/vue/24/outline'
 import FolderList from './components/FolderList.vue'
 import EmailList from './components/EmailList.vue'
 import EmailViewer from './components/EmailViewer.vue'
@@ -151,10 +157,19 @@ const reminderEmail = ref<any>(null)
 const syncing = ref(false)
 const syncProgress = ref({ show: false, current: 0, total: 0, folder: '' })
 
-const handleFolderSelect = (folder: any) => {
+const handleFolderSelect = async (folder: any) => {
   selectedFolderId.value = folder.id
   selectedFolderName.value = folder.name
   selectedEmailId.value = ''
+
+  // Sync emails for the selected folder
+  if (selectedAccount.value && folder.id) {
+    try {
+      await syncEmailsForFolder(selectedAccount.value.id, folder.id)
+    } catch (error) {
+      console.error('Error syncing emails for folder:', error)
+    }
+  }
 }
 
 const handleEmailSelect = async (emailId: string) => {
@@ -190,6 +205,24 @@ const handleForward = (email: any) => {
 const handleSetReminder = (email: any) => {
   reminderEmail.value = email
   showReminderModal.value = true
+}
+
+const handleDeleteEmail = async (email: any) => {
+  if (!email) return
+
+  try {
+    await window.electronAPI.emails.delete(email.id)
+    if (selectedEmailId.value === email.id) {
+      selectedEmailId.value = ''
+      selectedEmail.value = null
+    }
+
+    // Refresh the email list
+    window.dispatchEvent(new CustomEvent('refresh-emails'))
+  } catch (error: any) {
+    console.error('Error deleting email:', error)
+    alert(`Failed to delete email: ${error.message || error}`)
+  }
 }
 
 const handleEmailSent = () => {
@@ -268,6 +301,58 @@ const syncEmails = async () => {
   }
 }
 
+const syncEmailsForFolder = async (accountId: string, folderId: string) => {
+  if (syncing.value) return
+
+  syncing.value = true
+  syncProgress.value = { show: true, current: 0, total: 0, folder: '' }
+
+  // Listen for progress updates
+  const removeProgressListener = window.electronAPI.emails.onSyncProgress((data: any) => {
+    console.info('Folder sync progress:', data)
+    syncProgress.value = {
+      show: true,
+      current: data.current,
+      total: data.total || 0,
+      folder: data.folder || ''
+    }
+  })
+
+  try {
+    const result = await window.electronAPI.emails.syncFolder(accountId, folderId)
+
+    if (result.success) {
+      const syncedCount = result.synced || 0
+      syncProgress.value = {
+        show: true,
+        current: syncedCount,
+        total: syncedCount,
+        folder: 'Complete'
+      }
+
+      // Refresh email list for this folder
+      window.dispatchEvent(new CustomEvent('refresh-emails'))
+
+      // Hide progress after showing completion
+      setTimeout(() => {
+        syncProgress.value = { show: false, current: 0, total: 0, folder: '' }
+        removeProgressListener()
+      }, 2000)
+    } else {
+      alert(`Folder sync failed: ${result.message}`)
+      syncProgress.value = { show: false, current: 0, total: 0, folder: '' }
+      removeProgressListener()
+    }
+  } catch (error: any) {
+    console.error('Error syncing folder:', error)
+    alert(`Error syncing folder: ${error.message}`)
+    syncProgress.value = { show: false, current: 0, total: 0, folder: '' }
+    removeProgressListener()
+  } finally {
+    syncing.value = false
+  }
+}
+
 const handleAccountSelect = (account: any) => {
   selectedAccount.value = account
   showSettings.value = false
@@ -284,6 +369,14 @@ const loadFolders = async (accountId: string) => {
     if (inbox) {
       selectedFolderId.value = inbox.id
       selectedFolderName.value = inbox.name
+      selectedEmailId.value = ''
+
+      // Sync emails for the initially selected INBOX
+      try {
+        await syncEmailsForFolder(accountId, inbox.id)
+      } catch (error) {
+        console.error('Error syncing INBOX:', error)
+      }
     }
   } catch (error) {
     console.error('Error loading folders:', error)

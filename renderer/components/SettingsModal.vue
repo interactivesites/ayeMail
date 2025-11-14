@@ -11,80 +11,103 @@
         </button>
       </div>
       <div class="flex-1 overflow-y-auto p-4">
-        <div class="mb-6">
-          <h3 class="text-md font-semibold text-gray-900 mb-2">Accounts</h3>
-          <div v-if="accounts.length === 0" class="text-gray-500 text-sm mb-4">
-            No accounts configured
-          </div>
-          <div v-else class="space-y-2 mb-4">
-            <div
-              v-for="account in accounts"
-              :key="account.id"
-              class="p-3 border border-gray-200 rounded flex items-center justify-between"
-            >
+        <UiTabs v-model="activeTab" :tabs="settingsTabs">
+          <template #default="{ activeTab: currentTab }">
+            <div v-if="currentTab === 'accounts'" class="space-y-6">
               <div>
-                <div class="font-medium text-gray-900">{{ account.name }}</div>
-                <div class="text-sm text-gray-500">{{ account.email }}</div>
+                <h3 class="text-md font-semibold text-gray-900 mb-2">Accounts</h3>
+                <div v-if="accounts.length === 0" class="text-gray-500 text-sm mb-4">
+                  No accounts configured
+                </div>
+                <div v-else class="space-y-2 mb-4">
+                  <div
+                    v-for="account in accounts"
+                    :key="account.id"
+                    class="p-3 border border-gray-200 rounded flex items-center justify-between"
+                  >
+                    <div>
+                      <div class="font-medium text-gray-900">{{ account.name }}</div>
+                      <div class="text-sm text-gray-500">{{ account.email }}</div>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                      <button
+                        @click="selectAccount(account)"
+                        class="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
+                      >
+                        Select
+                      </button>
+                      <button
+                        @click="editAccount(account)"
+                        class="px-3 py-1 bg-gray-600 text-white text-sm rounded hover:bg-gray-700"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        @click="removeAccount(account.id)"
+                        class="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <button
+                  @click="showAddAccount = true"
+                  class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                >
+                  Add Account
+                </button>
               </div>
-              <div class="flex items-center space-x-2">
-                <button
-                  @click="selectAccount(account)"
-                  class="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
-                >
-                  Select
-                </button>
-                <button
-                  @click="editAccount(account)"
-                  class="px-3 py-1 bg-gray-600 text-white text-sm rounded hover:bg-gray-700"
-                >
-                  Edit
-                </button>
-                <button
-                  @click="removeAccount(account.id)"
-                  class="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700"
-                >
-                  Remove
-                </button>
+              <div v-if="selectedAccountId">
+                <SignatureManager :account-id="selectedAccountId" />
               </div>
             </div>
-          </div>
-          <button
-            @click="showAddAccount = true"
-            class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-          >
-            Add Account
-          </button>
-        </div>
-        <div v-if="selectedAccountId" class="mb-6">
-          <SignatureManager :account-id="selectedAccountId" />
-        </div>
-        <div class="mb-6">
-          <GPGKeyManager />
-        </div>
-        <div>
-          <h3 class="text-md font-semibold text-gray-900 mb-2">Security</h3>
-          <div class="space-y-2">
-            <label class="flex items-center">
-              <input
-                v-model="autoLockEnabled"
-                type="checkbox"
-                class="mr-2"
-                @change="updateAutoLock"
-              />
-              <span class="text-sm text-gray-700">Auto-lock after inactivity</span>
-            </label>
-            <div v-if="autoLockEnabled" class="ml-6">
-              <label class="block text-sm text-gray-700 mb-1">Lock after (minutes)</label>
-              <input
-                v-model.number="autoLockMinutes"
-                type="number"
-                min="1"
-                class="w-32 px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                @change="updateAutoLock"
-              />
+            <div v-else class="space-y-6">
+              <div>
+                <h3 class="text-md font-semibold text-gray-900 mb-2">Appearance</h3>
+                <label class="flex items-center justify-between p-3 border border-gray-200 rounded">
+                  <div>
+                    <p class="text-sm font-medium text-gray-900">Show action button labels</p>
+                    <p class="text-xs text-gray-500">Hide labels for an icon-only toolbar</p>
+                  </div>
+                  <input
+                    v-model="showActionLabels"
+                    type="checkbox"
+                    class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                </label>
+              </div>
+              <div>
+                <h3 class="text-md font-semibold text-gray-900 mb-2">GPG Keys</h3>
+                <GPGKeyManager />
+              </div>
+              <div>
+                <h3 class="text-md font-semibold text-gray-900 mb-2">Security</h3>
+                <div class="space-y-2">
+                  <label class="flex items-center">
+                    <input
+                      v-model="autoLockEnabled"
+                      type="checkbox"
+                      class="mr-2"
+                      @change="updateAutoLock"
+                    />
+                    <span class="text-sm text-gray-700">Auto-lock after inactivity</span>
+                  </label>
+                  <div v-if="autoLockEnabled" class="ml-6">
+                    <label class="block text-sm text-gray-700 mb-1">Lock after (minutes)</label>
+                    <input
+                      v-model.number="autoLockMinutes"
+                      type="number"
+                      min="1"
+                      class="w-32 px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      @change="updateAutoLock"
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
+          </template>
+        </UiTabs>
       </div>
       <AddAccountForm
         v-if="showAddAccount"
@@ -102,10 +125,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import AddAccountForm from './AddAccountForm.vue'
 import SignatureManager from './SignatureManager.vue'
 import GPGKeyManager from './GPGKeyManager.vue'
+import UiTabs from './UiTabs.vue'
+import { usePreferencesStore } from '../stores/preferences'
 
 const emit = defineEmits<{
   'close': []
@@ -118,6 +143,16 @@ const editingAccountId = ref<string | null>(null)
 const selectedAccountId = ref<string>('')
 const autoLockEnabled = ref(false)
 const autoLockMinutes = ref(15)
+const settingsTabs = [
+  { id: 'general', label: 'General' },
+  { id: 'accounts', label: 'Accounts' },
+]
+const activeTab = ref('general')
+const preferences = usePreferencesStore()
+const showActionLabels = computed({
+  get: () => preferences.showActionLabels,
+  set: (value: boolean) => preferences.setShowActionLabels(value),
+})
 
 const loadAccounts = async () => {
   try {
@@ -131,14 +166,6 @@ const selectAccount = (account: any) => {
   selectedAccountId.value = account.id
   emit('account-selected', account)
 }
-
-onMounted(() => {
-  loadAccounts()
-  // Set first account as selected for signature management
-  if (accounts.value.length > 0) {
-    selectedAccountId.value = accounts.value[0].id
-  }
-})
 
 const removeAccount = async (id: string) => {
   if (confirm('Are you sure you want to remove this account?')) {

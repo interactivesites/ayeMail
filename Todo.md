@@ -1,4 +1,4 @@
-- Inbox (default) / Folders as tree
-- HTML
+- Instead of selecting account, show all as accordion or like apple mail
+- HTML i reply
 - Attachments
 - CC/BCC

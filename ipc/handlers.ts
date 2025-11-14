@@ -429,6 +429,32 @@ export function registerEmailHandlers() {
     return email
   })
 
+  ipcMain.handle('emails:sync-folder', async (event, accountId: string, folderId: string) => {
+    try {
+      const account = await accountManager.getAccount(accountId)
+      if (!account) {
+        return { success: false, message: 'Account not found' }
+      }
+
+      // Progress callback
+      const progressCallback = (data: { folder?: string; current: number; total?: number; emailUid?: number }) => {
+        console.info(`Sync progress: ${data.folder || 'Unknown'} - ${data.current}/${data.total || 'unknown'} (uid: ${data.emailUid || 'N/A'})`)
+        event.sender.send('emails:sync-progress', data)
+      }
+
+      const result = await emailStorage.syncFolder(accountId, folderId, progressCallback)
+      return {
+        success: true,
+        synced: result.synced,
+        errors: result.errors,
+        message: `Synced ${result.synced} emails${result.errors > 0 ? ` with ${result.errors} errors` : ''}`
+      }
+    } catch (error: any) {
+      console.error('Sync folder error:', error)
+      return { success: false, message: error.message || 'Unknown error during folder sync' }
+    }
+  })
+
   ipcMain.handle('emails:sync', async (event, accountId: string) => {
     try {
       const account = await accountManager.getAccount(accountId)

@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto'
 import { getDatabase, encryption } from '../database'
 import { accountManager, getIMAPClient, getPOP3Client } from './index'
-import type { Email, Attachment } from '../shared/types'
+import type { Email, Attachment, EmailAddress } from '../shared/types'
 
 export class EmailStorage {
   private db = getDatabase()
@@ -12,8 +12,63 @@ export class EmailStorage {
     `).get(email.accountId, email.folderId, email.uid) as any
 
     if (existing) {
-      // Update existing email
-      return this.updateEmail(existing.id, email)
+      // Update existing email including body content
+      const id = existing.id
+      const now = Date.now()
+      
+      // Encrypt body - always update body fields to ensure they're set
+      const bodyEncrypted = encryption.encrypt(email.body || '')
+      const htmlBodyEncrypted = email.htmlBody ? encryption.encrypt(email.htmlBody) : null
+      const textBodyEncrypted = email.textBody ? encryption.encrypt(email.textBody) : null
+      
+      this.db.prepare(`
+        UPDATE emails SET
+          subject = ?,
+          from_addresses = ?,
+          to_addresses = ?,
+          cc_addresses = ?,
+          bcc_addresses = ?,
+          reply_to_addresses = ?,
+          date = ?,
+          body_encrypted = ?,
+          html_body_encrypted = ?,
+          text_body_encrypted = ?,
+          flags = ?,
+          is_read = ?,
+          is_starred = ?,
+          thread_id = ?,
+          in_reply_to = ?,
+          email_references = ?,
+          encrypted = ?,
+          signed = ?,
+          signature_verified = ?,
+          updated_at = ?
+        WHERE id = ?
+      `).run(
+        email.subject,
+        JSON.stringify(email.from),
+        JSON.stringify(email.to),
+        email.cc ? JSON.stringify(email.cc) : null,
+        email.bcc ? JSON.stringify(email.bcc) : null,
+        email.replyTo ? JSON.stringify(email.replyTo) : null,
+        email.date,
+        bodyEncrypted,
+        htmlBodyEncrypted,
+        textBodyEncrypted,
+        JSON.stringify(email.flags),
+        email.isRead ? 1 : 0,
+        email.isStarred ? 1 : 0,
+        email.threadId || null,
+        email.inReplyTo || null,
+        email.references ? JSON.stringify(email.references) : null,
+        email.encrypted ? 1 : 0,
+        email.signed ? 1 : 0,
+        email.signatureVerified !== undefined ? (email.signatureVerified ? 1 : 0) : null,
+        now,
+        id
+      )
+      
+      return id
     }
 
     // Insert new email
@@ -21,7 +76,7 @@ export class EmailStorage {
     const now = Date.now()
 
     // Encrypt body
-    const bodyEncrypted = encryption.encrypt(email.body)
+    const bodyEncrypted = encryption.encrypt(email.body || '')
     const htmlBodyEncrypted = email.htmlBody ? encryption.encrypt(email.htmlBody) : null
     const textBodyEncrypted = email.textBody ? encryption.encrypt(email.textBody) : null
 
@@ -131,7 +186,83 @@ export class EmailStorage {
     const email = this.db.prepare('SELECT * FROM emails WHERE id = ?').get(id) as any
     if (!email) return null
 
-    return this.mapDbEmailToEmail(email)
+    const mappedEmail = this.mapDbEmailToEmail(email)
+    
+    // Check if body is missing or empty
+    const hasBody = mappedEmail.body && mappedEmail.body.trim().length > 0
+    const hasHtmlBody = mappedEmail.htmlBody && mappedEmail.htmlBody.trim().length > 0
+    const hasTextBody = mappedEmail.textBody && mappedEmail.textBody.trim().length > 0
+    
+    if (!hasBody && !hasHtmlBody && !hasTextBody) {
+      // Body is missing, try to fetch from server
+      try {
+        const account = await accountManager.getAccount(email.account_id)
+        if (!account) {
+          console.warn(`Account not found for email ${id}, cannot fetch body from server`)
+          return mappedEmail
+        }
+
+        // Get folder information
+        const folder = this.db.prepare('SELECT * FROM folders WHERE id = ?').get(email.folder_id) as any
+        if (!folder) {
+          console.warn(`Folder not found for email ${id}, cannot fetch body from server`)
+          return mappedEmail
+        }
+
+        // Only fetch from IMAP (POP3 doesn't support fetching by UID)
+        if (account.type === 'imap') {
+          const imapClient = getIMAPClient(account)
+          await imapClient.connect()
+          
+          try {
+            // Use folder name for IMAP operations, ensure INBOX is uppercase
+            const imapFolderName = folder.name.toUpperCase() === 'INBOX' ? 'INBOX' : folder.path
+            
+            const fetchedEmail = await imapClient.fetchEmailByUid(imapFolderName, email.uid)
+            
+            if (fetchedEmail && (fetchedEmail.body || fetchedEmail.htmlBody || fetchedEmail.textBody)) {
+              // Update the email in database with the fetched body
+              const bodyEncrypted = encryption.encrypt(fetchedEmail.body || '')
+              const htmlBodyEncrypted = fetchedEmail.htmlBody ? encryption.encrypt(fetchedEmail.htmlBody) : null
+              const textBodyEncrypted = fetchedEmail.textBody ? encryption.encrypt(fetchedEmail.textBody) : null
+              
+              this.db.prepare(`
+                UPDATE emails SET
+                  body_encrypted = ?,
+                  html_body_encrypted = ?,
+                  text_body_encrypted = ?,
+                  updated_at = ?
+                WHERE id = ?
+              `).run(bodyEncrypted, htmlBodyEncrypted, textBodyEncrypted, Date.now(), id)
+              
+              // Update the mapped email with the fetched body
+              mappedEmail.body = fetchedEmail.body || ''
+              mappedEmail.htmlBody = fetchedEmail.htmlBody
+              mappedEmail.textBody = fetchedEmail.textBody
+              
+              console.log(`Successfully fetched and updated body for email ${id}`)
+            }
+          } catch (fetchError) {
+            console.error(`Error fetching email body from server for ${id}:`, fetchError)
+            // Return the email without body rather than failing completely
+          } finally {
+            await imapClient.disconnect()
+          }
+        }
+      } catch (error) {
+        console.error(`Error attempting to fetch email body from server for ${id}:`, error)
+        // Return the email without body rather than failing completely
+      }
+    }
+
+    if (this.needsAddressRepair(mappedEmail)) {
+      const repaired = await this.repairEmailAddresses(mappedEmail)
+      if (repaired) {
+        return repaired
+      }
+    }
+
+    return mappedEmail
   }
 
   async listEmails(folderId: string, page: number = 0, limit: number = 50): Promise<Email[]> {
@@ -144,6 +275,93 @@ export class EmailStorage {
     `).all(folderId, limit, offset) as any[]
 
     return emails.map(e => this.mapDbEmailToEmail(e))
+  }
+
+  async syncFolderEmails(imapClient: any, accountId: string, folder: any, progressCallback?: (data: { folder?: string; current: number; total?: number; emailUid?: number }) => void): Promise<{ synced: number; errors: number }> {
+    let synced = 0
+    let errors = 0
+
+    try {
+      // Use folder name for IMAP operations, ensure INBOX is uppercase
+      const imapFolderName = folder.name.toUpperCase() === 'INBOX' ? 'INBOX' : folder.path
+      console.log(`Fetching emails for folder: ${folder.name}, path: ${folder.path}, using IMAP name: ${imapFolderName}, id: ${folder.id}`)
+
+      // Fetch recent emails (limit to 100 for performance)
+      const emails = await imapClient.fetchEmails(imapFolderName, 1, 100)
+
+      console.log(`Found ${emails.length} emails in ${folder.name}`)
+      if (emails.length === 0) {
+        console.log(`No emails found. Folder details:`, {
+          name: folder.name,
+          path: folder.path,
+          id: folder.id
+        })
+      }
+
+      progressCallback?.({ folder: folder.name, current: 0, total: emails.length })
+
+      if (emails.length === 0) {
+        progressCallback?.({ folder: folder.name, current: 0, total: 0 })
+        return { synced: 0, errors: 0 }
+      }
+
+      for (let i = 0; i < emails.length; i++) {
+        const email = emails[i]
+        try {
+          email.folderId = folder.id
+          await this.storeEmail(email)
+          synced++
+          progressCallback?.({ folder: folder.name, current: i + 1, total: emails.length, emailUid: email.uid })
+        } catch (err) {
+          console.error(`Error storing email ${email.uid}:`, err)
+          errors++
+          progressCallback?.({ folder: folder.name, current: i + 1, total: emails.length, emailUid: email.uid })
+        }
+      }
+    } catch (err) {
+      console.error(`Error syncing folder ${folder.name}:`, err)
+      errors++
+    }
+
+    return { synced, errors }
+  }
+
+  async syncFolder(accountId: string, folderId: string, progressCallback?: (data: { folder?: string; current: number; total?: number; emailUid?: number }) => void): Promise<{ synced: number; errors: number }> {
+    const account = await accountManager.getAccount(accountId)
+    if (!account) {
+      throw new Error('Account not found')
+    }
+
+    const folder = this.db.prepare('SELECT * FROM folders WHERE id = ? AND account_id = ?').get(folderId, accountId) as any
+    if (!folder) {
+      throw new Error('Folder not found')
+    }
+
+    let synced = 0
+    let errors = 0
+
+    try {
+      if (account.type === 'imap') {
+        const imapClient = getIMAPClient(account)
+        await imapClient.connect()
+
+        // Show connecting status
+        progressCallback?.({ folder: folder.name, current: 0, total: undefined })
+
+        const result = await this.syncFolderEmails(imapClient, accountId, folder, progressCallback)
+        synced += result.synced
+        errors += result.errors
+
+        await imapClient.disconnect()
+      }
+    } catch (error) {
+      console.error('Error syncing folder:', error)
+      errors++
+      // Send error progress update
+      progressCallback?.({ folder: folder.name, current: 0, total: 0 })
+    }
+
+    return { synced, errors }
   }
 
   async syncAccount(accountId: string, progressCallback?: (data: { folder?: string; current: number; total?: number; emailUid?: number }) => void): Promise<{ synced: number; errors: number }> {
@@ -197,8 +415,11 @@ export class EmailStorage {
           try {
             progressCallback?.({ folder: folder.name, current: 0, total: undefined })
 
+            // Use folder name for IMAP operations, ensure INBOX is uppercase
+            const imapFolderName = folder.name.toUpperCase() === 'INBOX' ? 'INBOX' : folder.path
+
             // Fetch recent emails (limit to 100 for performance)
-            const emails = await imapClient.fetchEmails(folder.path, 1, 100)
+            const emails = await imapClient.fetchEmails(imapFolderName, 1, 100)
 
             progressCallback?.({ folder: folder.name, current: 0, total: emails.length })
 
@@ -273,6 +494,10 @@ export class EmailStorage {
   }
 
   private mapDbEmailToEmail(dbEmail: any): Email {
+    const body = encryption.decrypt(dbEmail.body_encrypted)
+    const htmlBody = dbEmail.html_body_encrypted ? encryption.decrypt(dbEmail.html_body_encrypted) : undefined
+    const textBody = dbEmail.text_body_encrypted ? encryption.decrypt(dbEmail.text_body_encrypted) : undefined
+    
     return {
       id: dbEmail.id,
       accountId: dbEmail.account_id,
@@ -286,9 +511,9 @@ export class EmailStorage {
       bcc: dbEmail.bcc_addresses ? JSON.parse(dbEmail.bcc_addresses) : undefined,
       replyTo: dbEmail.reply_to_addresses ? JSON.parse(dbEmail.reply_to_addresses) : undefined,
       date: dbEmail.date,
-      body: encryption.decrypt(dbEmail.body_encrypted),
-      htmlBody: dbEmail.html_body_encrypted ? encryption.decrypt(dbEmail.html_body_encrypted) : undefined,
-      textBody: dbEmail.text_body_encrypted ? encryption.decrypt(dbEmail.text_body_encrypted) : undefined,
+      body: body,
+      htmlBody: htmlBody,
+      textBody: textBody,
       flags: dbEmail.flags ? JSON.parse(dbEmail.flags) : [],
       isRead: dbEmail.is_read === 1,
       isStarred: dbEmail.is_starred === 1,
@@ -301,6 +526,76 @@ export class EmailStorage {
       signatureVerified: dbEmail.signature_verified !== null ? dbEmail.signature_verified === 1 : undefined,
       createdAt: dbEmail.created_at,
       updatedAt: dbEmail.updated_at
+    }
+  }
+
+  private needsAddressRepair(email: Email): boolean {
+    const hasMissingAddress = (list?: EmailAddress[]) =>
+      !list || list.some(addr => !addr || !addr.address)
+
+    return hasMissingAddress(email.from) ||
+      hasMissingAddress(email.to) ||
+      hasMissingAddress(email.cc) ||
+      hasMissingAddress(email.bcc) ||
+      hasMissingAddress(email.replyTo)
+  }
+
+  private async repairEmailAddresses(email: Email): Promise<Email | null> {
+    try {
+      const account = await accountManager.getAccount(email.accountId)
+      if (!account || account.type !== 'imap') {
+        return null
+      }
+
+      const folder = this.db.prepare('SELECT path FROM folders WHERE id = ?').get(email.folderId) as any
+      if (!folder?.path) {
+        return null
+      }
+
+      const imapClient = getIMAPClient(account)
+      await imapClient.connect()
+
+      try {
+        const addresses = await imapClient.fetchEnvelopeAddresses(folder.path, email.uid)
+        if (!addresses) {
+          return null
+        }
+
+        const updatedEmail: Email = {
+          ...email,
+          from: addresses.from.length ? addresses.from : email.from,
+          to: addresses.to && addresses.to.length ? addresses.to : email.to,
+          cc: addresses.cc && addresses.cc.length ? addresses.cc : email.cc,
+          bcc: addresses.bcc && addresses.bcc.length ? addresses.bcc : email.bcc,
+          replyTo: addresses.replyTo && addresses.replyTo.length ? addresses.replyTo : email.replyTo
+        }
+
+        this.db.prepare(`
+          UPDATE emails
+          SET from_addresses = ?,
+              to_addresses = ?,
+              cc_addresses = ?,
+              bcc_addresses = ?,
+              reply_to_addresses = ?,
+              updated_at = ?
+          WHERE id = ?
+        `).run(
+          JSON.stringify(updatedEmail.from || []),
+          JSON.stringify(updatedEmail.to || []),
+          updatedEmail.cc ? JSON.stringify(updatedEmail.cc) : null,
+          updatedEmail.bcc ? JSON.stringify(updatedEmail.bcc) : null,
+          updatedEmail.replyTo ? JSON.stringify(updatedEmail.replyTo) : null,
+          Date.now(),
+          email.id
+        )
+
+        return updatedEmail
+      } finally {
+        await imapClient.disconnect()
+      }
+    } catch (error) {
+      console.error('Failed to repair email addresses', error)
+      return null
     }
   }
 }

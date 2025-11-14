@@ -26,6 +26,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke('emails:list', folderId, page, limit),
     get: (id: string) => ipcRenderer.invoke('emails:get', id),
     sync: (accountId: string) => ipcRenderer.invoke('emails:sync', accountId),
+    syncFolder: (accountId: string, folderId: string) => ipcRenderer.invoke('emails:sync-folder', accountId, folderId),
     send: (email: any) => ipcRenderer.invoke('emails:send', email),
     delete: (id: string) => ipcRenderer.invoke('emails:delete', id),
     onSyncProgress: (callback: (data: any) => void) => {

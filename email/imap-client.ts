@@ -217,78 +217,284 @@ export class IMAPClient {
       this.connection!.openBox(folderName, true, (err, box) => {
         if (err) {
           clearTimeout(timeout)
+          console.error(`Error opening box ${folderName}:`, err)
+          console.error(`Connection state: ${this.connection!.state}`)
           reject(err)
           return
         }
 
+        // All folders use the same code path - no special handling needed
+
         if (!box || box.messages.total === 0) {
           clearTimeout(timeout)
+          console.log(`Box ${folderName} has no messages`)
           resolve([])
           return
         }
 
-        // Use proper IMAP sequence numbers (1-based)
+        // Use UID-based fetching for all folders - more reliable than sequence numbers
         const seqStart = Math.max(1, start)
         const seqEnd = Math.min(box.messages.total, end)
-        
+
         if (seqStart > seqEnd) {
           clearTimeout(timeout)
           resolve([])
           return
         }
 
-        const fetch = this.connection!.fetch(`${seqStart}:${seqEnd}`, {
+        // Fetch UIDs first, then fetch messages by UID
+        this.connection!.search(['ALL'], (err, uids) => {
+          if (err) {
+            clearTimeout(timeout)
+            reject(err)
+            return
+          }
+
+          if (!uids || uids.length === 0) {
+            clearTimeout(timeout)
+            resolve([])
+            return
+          }
+
+          // Get the UIDs we want (most recent first)
+          const sortedUids = uids.sort((a, b) => b - a) // Descending order
+          const uidsToFetch = sortedUids.slice(0, Math.min(end, sortedUids.length))
+
+          const emails: Email[] = []
+          let emailCount = 0
+          const totalToFetch = uidsToFetch.length
+
+          const fetch = this.connection!.fetch(uidsToFetch, {
+            bodies: '',
+            struct: true,
+            envelope: true
+          })
+
+          fetch.on('message', (msg, seqno) => {
+            let uid: number | null = null
+            let flags: string[] = []
+            let envelope: any = null
+            let body = ''
+            let bodyPromise: Promise<void> | null = null
+
+            msg.on('body', (stream, info) => {
+              let buffer = Buffer.alloc(0)
+              bodyPromise = new Promise<void>((resolve) => {
+                stream.on('data', (chunk: Buffer) => {
+                  buffer = Buffer.concat([buffer, chunk])
+                })
+                stream.once('end', () => {
+                  body = buffer.toString('utf8')
+                  resolve()
+                })
+              })
+            })
+
+            msg.on('attributes', (attrs) => {
+              uid = attrs.uid
+              flags = attrs.flags || []
+              envelope = (attrs as any).envelope
+            })
+
+            msg.once('end', async () => {
+              // Wait for body stream to complete if it exists
+              if (bodyPromise) {
+                await bodyPromise
+              }
+
+              try {
+                // Parse the email body
+                let parsed: any = null
+                if (body && body.length > 0) {
+                  parsed = await simpleParser(body)
+                }
+
+                // Create email with parsed content
+                const email: Email = {
+                  id: `${this.account.id}-${folderName}-${uid || seqno}`,
+                  accountId: this.account.id,
+                  folderId: folderName,
+                  uid: uid || seqno,
+                  messageId: parsed?.messageId || envelope?.messageId || `msg-${seqno}`,
+                  subject: parsed?.subject || envelope?.subject || `Message ${seqno}`,
+                  from: parsed?.from ? this.parseAddresses(parsed.from) : (envelope?.from ? this.parseAddresses(envelope.from) : [{ address: 'unknown@example.com' }]),
+                  to: parsed?.to ? this.parseAddresses(parsed.to) : (envelope?.to ? this.parseAddresses(envelope.to) : []),
+                  cc: parsed?.cc ? this.parseAddresses(parsed.cc) : (envelope?.cc ? this.parseAddresses(envelope.cc) : undefined),
+                  bcc: parsed?.bcc ? this.parseAddresses(parsed.bcc) : (envelope?.bcc ? this.parseAddresses(envelope.bcc) : undefined),
+                  replyTo: parsed?.replyTo ? this.parseAddresses(parsed.replyTo) : (envelope?.replyTo ? this.parseAddresses(envelope.replyTo) : undefined),
+                  date: parsed?.date ? parsed.date.getTime() : (envelope?.date ? new Date(envelope.date).getTime() : Date.now()),
+                  body: parsed?.html || parsed?.text || '',
+                  htmlBody: parsed?.html || undefined,
+                  textBody: parsed?.text,
+                  attachments: parsed?.attachments?.map((att: any) => ({
+                    id: `${this.account.id}-${uid || seqno}-${att.filename}`,
+                    emailId: `${this.account.id}-${uid || seqno}`,
+                    filename: att.filename || 'attachment',
+                    contentType: att.contentType || 'application/octet-stream',
+                    size: att.size || 0,
+                    contentId: att.contentId,
+                    data: att.content as Buffer
+                  })) || [],
+                  flags: flags,
+                  isRead: flags.includes('\\Seen'),
+                  isStarred: flags.includes('\\Flagged'),
+                  threadId: parsed?.inReplyTo || envelope?.inReplyTo || undefined,
+                  inReplyTo: parsed?.inReplyTo || envelope?.inReplyTo || undefined,
+                  references: parsed?.references ? (Array.isArray(parsed.references) ? parsed.references : [parsed.references]) : (envelope?.references ? (Array.isArray(envelope.references) ? envelope.references : [envelope.references]) : undefined),
+                  encrypted: false,
+                  signed: false,
+                  signatureVerified: undefined,
+                  createdAt: Date.now(),
+                  updatedAt: Date.now()
+                }
+
+                emails.push(email)
+                emailCount++
+
+                if (emailCount === totalToFetch) {
+                  clearTimeout(timeout)
+                  resolve(emails)
+                }
+              } catch (parseErr) {
+                console.error(`Error parsing message ${seqno}:`, parseErr)
+                // Still create email with envelope data if parsing fails
+                const email: Email = {
+                  id: `${this.account.id}-${folderName}-${uid || seqno}`,
+                  accountId: this.account.id,
+                  folderId: folderName,
+                  uid: uid || seqno,
+                  messageId: envelope?.messageId || `msg-${seqno}`,
+                  subject: envelope?.subject || `Message ${seqno}`,
+                  from: envelope?.from ? this.parseAddresses(envelope.from) : [{ address: 'unknown@example.com' }],
+                  to: envelope?.to ? this.parseAddresses(envelope.to) : [],
+                  cc: envelope?.cc ? this.parseAddresses(envelope.cc) : undefined,
+                  bcc: envelope?.bcc ? this.parseAddresses(envelope.bcc) : undefined,
+                  replyTo: envelope?.replyTo ? this.parseAddresses(envelope.replyTo) : undefined,
+                  date: envelope?.date ? new Date(envelope.date).getTime() : Date.now(),
+                  body: '',
+                  htmlBody: undefined,
+                  textBody: undefined,
+                  attachments: [],
+                  flags: flags,
+                  isRead: flags.includes('\\Seen'),
+                  isStarred: flags.includes('\\Flagged'),
+                  threadId: envelope?.inReplyTo || undefined,
+                  inReplyTo: envelope?.inReplyTo || undefined,
+                  references: envelope?.references ? (Array.isArray(envelope.references) ? envelope.references : [envelope.references]) : undefined,
+                  encrypted: false,
+                  signed: false,
+                  signatureVerified: undefined,
+                  createdAt: Date.now(),
+                  updatedAt: Date.now()
+                }
+                emails.push(email)
+                emailCount++
+                if (emailCount === totalToFetch) {
+                  clearTimeout(timeout)
+                  resolve(emails)
+                }
+              }
+            })
+          })
+
+          fetch.once('error', (err) => {
+            clearTimeout(timeout)
+            console.error('IMAP fetch error:', err)
+            reject(err)
+          })
+
+          fetch.once('end', () => {
+            clearTimeout(timeout)
+            // Resolve with whatever we got, even if it's empty
+            resolve(emails)
+          })
+        })
+      })
+    })
+  }
+
+  async fetchEmailByUid(folderName: string, uid: number): Promise<Email | null> {
+    await this.ensureConnected()
+
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error('IMAP fetch timeout'))
+      }, 30000) // 30 second timeout
+
+      this.connection!.once('error', (err) => {
+        clearTimeout(timeout)
+        reject(err)
+      })
+
+      this.connection!.openBox(folderName, true, (err, box) => {
+        if (err) {
+          clearTimeout(timeout)
+          reject(err)
+          return
+        }
+
+        const fetch = this.connection!.fetch([uid], {
           bodies: '',
-          struct: true
+          struct: true,
+          envelope: true
         })
 
-        const emails: Email[] = []
-        let emailCount = 0
-        const totalToFetch = seqEnd - seqStart + 1
+        let email: Email | null = null
+        let flags: string[] = []
+        let envelope: any = null
+        let body = ''
+        let bodyPromise: Promise<void> | null = null
 
         fetch.on('message', (msg, seqno) => {
-          let uid: number | null = null
-          let flags: string[] = []
-          let body = ''
-          let headers: any = {}
-
           msg.on('body', (stream, info) => {
             let buffer = Buffer.alloc(0)
-            stream.on('data', (chunk: Buffer) => {
-              buffer = Buffer.concat([buffer, chunk])
-            })
-            stream.on('end', () => {
-              // Convert buffer to string, handling encoding properly
-              body = buffer.toString('utf8')
+            bodyPromise = new Promise<void>((resolve) => {
+              stream.on('data', (chunk: Buffer) => {
+                buffer = Buffer.concat([buffer, chunk])
+              })
+              stream.once('end', () => {
+                body = buffer.toString('utf8')
+                resolve()
+              })
             })
           })
 
           msg.on('attributes', (attrs) => {
-            uid = attrs.uid
             flags = attrs.flags || []
+            envelope = (attrs as any).envelope
           })
 
           msg.once('end', async () => {
+            // Wait for body stream to complete if it exists
+            if (bodyPromise) {
+              await bodyPromise
+            }
+
             try {
-              const parsed = await simpleParser(body)
-              
-              const email: Email = {
+              // Parse the email body
+              let parsed: any = null
+              if (body && body.length > 0) {
+                parsed = await simpleParser(body)
+              }
+
+              // Create email with parsed content
+              email = {
                 id: `${this.account.id}-${folderName}-${uid}`,
                 accountId: this.account.id,
-                folderId: folderName, // Will be mapped to folder ID later
-                uid: uid!,
-                messageId: parsed.messageId || '',
-                subject: parsed.subject || '',
-                from: this.parseAddresses(parsed.from),
-                to: this.parseAddresses(parsed.to || []),
-                cc: parsed.cc ? this.parseAddresses(parsed.cc) : undefined,
-                bcc: parsed.bcc ? this.parseAddresses(parsed.bcc) : undefined,
-                replyTo: parsed.replyTo ? this.parseAddresses(parsed.replyTo) : undefined,
-                date: parsed.date ? parsed.date.getTime() : Date.now(),
-                body: parsed.html || parsed.text || '',
-                htmlBody: parsed.html || undefined,
-                textBody: parsed.text,
-                attachments: parsed.attachments?.map(att => ({
+                folderId: folderName,
+                uid: uid,
+                messageId: parsed?.messageId || envelope?.messageId || `msg-${uid}`,
+                subject: parsed?.subject || envelope?.subject || `Message ${uid}`,
+                from: parsed?.from ? this.parseAddresses(parsed.from) : (envelope?.from ? this.parseAddresses(envelope.from) : [{ address: 'unknown@example.com' }]),
+                to: parsed?.to ? this.parseAddresses(parsed.to) : (envelope?.to ? this.parseAddresses(envelope.to) : []),
+                cc: parsed?.cc ? this.parseAddresses(parsed.cc) : (envelope?.cc ? this.parseAddresses(envelope.cc) : undefined),
+                bcc: parsed?.bcc ? this.parseAddresses(parsed.bcc) : (envelope?.bcc ? this.parseAddresses(envelope.bcc) : undefined),
+                replyTo: parsed?.replyTo ? this.parseAddresses(parsed.replyTo) : (envelope?.replyTo ? this.parseAddresses(envelope.replyTo) : undefined),
+                date: parsed?.date ? parsed.date.getTime() : (envelope?.date ? new Date(envelope.date).getTime() : Date.now()),
+                body: parsed?.html || parsed?.text || '',
+                htmlBody: parsed?.html || undefined,
+                textBody: parsed?.text,
+                attachments: parsed?.attachments?.map((att: any) => ({
                   id: `${this.account.id}-${uid}-${att.filename}`,
                   emailId: `${this.account.id}-${uid}`,
                   filename: att.filename || 'attachment',
@@ -300,29 +506,46 @@ export class IMAPClient {
                 flags: flags,
                 isRead: flags.includes('\\Seen'),
                 isStarred: flags.includes('\\Flagged'),
-                threadId: parsed.inReplyTo || undefined,
-                inReplyTo: parsed.inReplyTo || undefined,
-                references: parsed.references ? (Array.isArray(parsed.references) ? parsed.references : [parsed.references]) : undefined,
-                encrypted: false, // Will be determined by GPG parsing
+                threadId: parsed?.inReplyTo || envelope?.inReplyTo || undefined,
+                inReplyTo: parsed?.inReplyTo || envelope?.inReplyTo || undefined,
+                references: parsed?.references ? (Array.isArray(parsed.references) ? parsed.references : [parsed.references]) : (envelope?.references ? (Array.isArray(envelope.references) ? envelope.references : [envelope.references]) : undefined),
+                encrypted: false,
                 signed: false,
                 signatureVerified: undefined,
                 createdAt: Date.now(),
                 updatedAt: Date.now()
               }
-
-              emails.push(email)
-              emailCount++
-
-              if (emailCount === totalToFetch) {
-                clearTimeout(timeout)
-                resolve(emails)
-              }
             } catch (parseErr) {
-              console.error('Error parsing email:', parseErr)
-              emailCount++
-              if (emailCount === totalToFetch) {
-                clearTimeout(timeout)
-                resolve(emails)
+              console.error(`Error parsing message ${uid}:`, parseErr)
+              // Still create email with envelope data if parsing fails
+              email = {
+                id: `${this.account.id}-${folderName}-${uid}`,
+                accountId: this.account.id,
+                folderId: folderName,
+                uid: uid,
+                messageId: envelope?.messageId || `msg-${uid}`,
+                subject: envelope?.subject || `Message ${uid}`,
+                from: envelope?.from ? this.parseAddresses(envelope.from) : [{ address: 'unknown@example.com' }],
+                to: envelope?.to ? this.parseAddresses(envelope.to) : [],
+                cc: envelope?.cc ? this.parseAddresses(envelope.cc) : undefined,
+                bcc: envelope?.bcc ? this.parseAddresses(envelope.bcc) : undefined,
+                replyTo: envelope?.replyTo ? this.parseAddresses(envelope.replyTo) : undefined,
+                date: envelope?.date ? new Date(envelope.date).getTime() : Date.now(),
+                body: '',
+                htmlBody: undefined,
+                textBody: undefined,
+                attachments: [],
+                flags: flags,
+                isRead: flags.includes('\\Seen'),
+                isStarred: flags.includes('\\Flagged'),
+                threadId: envelope?.inReplyTo || undefined,
+                inReplyTo: envelope?.inReplyTo || undefined,
+                references: envelope?.references ? (Array.isArray(envelope.references) ? envelope.references : [envelope.references]) : undefined,
+                encrypted: false,
+                signed: false,
+                signatureVerified: undefined,
+                createdAt: Date.now(),
+                updatedAt: Date.now()
               }
             }
           })
@@ -330,15 +553,63 @@ export class IMAPClient {
 
         fetch.once('error', (err) => {
           clearTimeout(timeout)
+          console.error('IMAP fetch error:', err)
           reject(err)
         })
 
         fetch.once('end', () => {
-          // In case we didn't get all messages, resolve with what we have
-          if (emailCount < totalToFetch && emails.length > 0) {
-            clearTimeout(timeout)
-            resolve(emails)
+          clearTimeout(timeout)
+          resolve(email)
+        })
+      })
+    })
+  }
+
+  async fetchEnvelopeAddresses(folderPath: string, uid: number): Promise<{
+    from: EmailAddress[]
+    to: EmailAddress[]
+    cc: EmailAddress[]
+    bcc: EmailAddress[]
+    replyTo: EmailAddress[]
+  } | null> {
+    await this.ensureConnected()
+
+    return new Promise((resolve, reject) => {
+      this.connection!.openBox(folderPath, true, (err) => {
+        if (err) {
+          reject(err)
+          return
+        }
+
+        let envelope: any = null
+
+        const fetch = this.connection!.fetch(uid, {
+          envelope: true
+        })
+
+        fetch.on('message', (msg) => {
+          msg.on('attributes', (attrs) => {
+            envelope = (attrs as any).envelope
+          })
+        })
+
+        fetch.once('error', (error) => {
+          reject(error)
+        })
+
+        fetch.once('end', () => {
+          if (!envelope) {
+            resolve(null)
+            return
           }
+
+          resolve({
+            from: this.parseAddresses(envelope.from),
+            to: this.parseAddresses(envelope.to),
+            cc: this.parseAddresses(envelope.cc),
+            bcc: this.parseAddresses(envelope.bcc),
+            replyTo: this.parseAddresses(envelope.replyTo)
+          })
         })
       })
     })
@@ -403,16 +674,36 @@ export class IMAPClient {
 
   private parseAddresses(addresses: any): EmailAddress[] {
     if (!addresses) return []
-    if (Array.isArray(addresses)) {
-      return addresses.map(addr => ({
-        name: addr.name,
-        address: addr.address
-      }))
-    }
-    return [{
-      name: addresses.name,
-      address: addresses.address
-    }]
+
+    const list = Array.isArray(addresses)
+      ? addresses
+      : Array.isArray(addresses.value)
+        ? addresses.value
+        : [addresses]
+
+    return list
+      .map((addr) => {
+        const address =
+          addr.address ||
+          addr.email ||
+          (addr.mailbox && addr.host ? `${addr.mailbox}@${addr.host}` : undefined) ||
+          (typeof addr === 'string' ? addr : undefined)
+
+        const rawName =
+          addr.name ||
+          addr.displayName ||
+          (typeof addr === 'object' && addr.text ? addr.text.replace(/<.*?>/g, '').trim() : undefined)
+
+        if (!address) {
+          return undefined
+        }
+
+        return {
+          name: rawName && rawName.length > 0 ? rawName : undefined,
+          address,
+        }
+      })
+      .filter((addr): addr is EmailAddress => !!addr)
   }
 }
 
