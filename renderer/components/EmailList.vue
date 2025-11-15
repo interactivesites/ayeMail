@@ -337,6 +337,7 @@ const props = defineProps<{
   accountId?: string
   unifiedFolderType?: string | null
   unifiedFolderAccountIds?: string[]
+  searchQuery?: string
 }>()
 
 const emit = defineEmits<{
@@ -887,6 +888,19 @@ const handleKeyDown = (event: KeyboardEvent) => {
 }
 
 const loadEmails = async () => {
+  // Handle search query
+  if (props.searchQuery && props.searchQuery.trim().length > 0) {
+    loading.value = true
+    try {
+      emails.value = await window.electronAPI.emails.search(props.searchQuery.trim(), 100)
+    } catch (error) {
+      console.error('Error searching emails:', error)
+    } finally {
+      loading.value = false
+    }
+    return
+  }
+
   if (!props.folderId) return
 
   loading.value = true
@@ -1141,23 +1155,32 @@ onMounted(() => {
   })
 })
 
-watch([() => props.folderId, () => props.unifiedFolderType, () => props.unifiedFolderAccountIds], () => {
+watch([() => props.folderId, () => props.unifiedFolderType, () => props.unifiedFolderAccountIds, () => props.searchQuery], () => {
   loadEmails()
   archiveConfirmId.value = null // Close popover when folder changes
   archivingEmailId.value = null // Clear archiving state when folder changes
   showReminderModal.value = false // Close reminder modal when folder changes
   reminderEmail.value = null
-  // Re-focus container when folder changes
-  nextTick(() => {
-    containerRef.value?.focus()
-  })
+  // Re-focus container when folder changes, but not when search query changes
+  // (to avoid stealing focus from search input)
+  if (!props.searchQuery) {
+    nextTick(() => {
+      containerRef.value?.focus()
+    })
+  }
 }, { deep: true })
 
 // Also watch for when emails are loaded to ensure focus
 watch(() => emails.value.length, () => {
   if (emails.value.length > 0) {
     nextTick(() => {
-      containerRef.value?.focus()
+      // Don't steal focus if user is typing in search input
+      const activeElement = document.activeElement
+      const isSearchInput = activeElement?.tagName === 'INPUT' && (activeElement as HTMLInputElement).placeholder?.includes('Search')
+      
+      if (!isSearchInput) {
+        containerRef.value?.focus()
+      }
       // Auto-select first email if none selected
       if (!props.selectedEmailId) {
         const flatEmails = getAllEmailsFlat()

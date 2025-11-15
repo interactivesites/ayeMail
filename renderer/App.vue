@@ -2,6 +2,7 @@
   <ComposeWindow v-if="isComposeMode" :account-id="composeAccountId" :reply-to="composeReplyTo" />
   <div v-else class="h-screen flex flex-col bg-gray-50">
     <MainNav
+      key="main-nav"
       :syncing="syncing"
       :has-selected-email="Boolean(selectedEmailId)"
       :email-list-width="isGridLayout ? 0 : mailPaneWidth"
@@ -13,6 +14,8 @@
       @forward="handleNavForward"
       @set-reminder="handleNavReminder"
       @delete="handleNavDelete"
+      @search="handleSearch"
+      @clear-search="handleClearSearch"
     />
     <main class="flex-1 flex overflow-hidden">
       <aside class="w-64 border-r border-white/10 bg-slate-900/70 text-slate-100 backdrop-blur-2xl shadow-xl flex flex-col">
@@ -47,14 +50,15 @@
             !isResizingMailPane ? 'transition-all duration-200' : ''
           ]" :style="!isGridLayout ? { width: mailPaneWidth + 'px' } : undefined">
             <component
-              v-if="selectedFolderId"
+              v-if="selectedFolderId || searchQuery"
               :is="isGridLayout ? EmailGrid : EmailList"
-              :folder-id="selectedFolderId"
-              :folder-name="selectedFolderName"
+              :folder-id="searchQuery ? '' : selectedFolderId"
+              :folder-name="searchQuery ? 'Search Results' : selectedFolderName"
               :selected-email-id="selectedEmailId"
               :account-id="selectedAccount?.id"
               :unified-folder-type="unifiedFolderType"
               :unified-folder-account-ids="unifiedFolderAccountIds"
+              :search-query="searchQuery"
               @select-email="handleEmailSelect"
               @drag-start="handleDragStart"
               @drag-end="handleDragEnd"
@@ -162,6 +166,7 @@ const MIN_MAIL_WIDTH = 280
 const MAX_MAIL_WIDTH = 640
 const isDraggingEmail = ref(false)
 const draggedEmail = ref<any>(null)
+const searchQuery = ref<string>('')
 
 const handleMailResizeMouseMove = (event: MouseEvent) => {
   if (!isResizingMailPane.value) return
@@ -595,6 +600,24 @@ const handleDropError = (emailId: string) => {
   window.dispatchEvent(new CustomEvent('restore-email', { detail: { emailId } }))
   // Refresh email list to ensure consistency
   window.dispatchEvent(new CustomEvent('refresh-emails'))
+}
+
+const handleSearch = (query: string) => {
+  searchQuery.value = query
+  // Clear selected email when searching
+  if (query) {
+    selectedEmailId.value = ''
+    selectedEmail.value = null
+  }
+}
+
+const handleClearSearch = () => {
+  searchQuery.value = ''
+  // Restore folder selection if we had one before
+  if (!selectedFolderId.value && selectedAccount.value) {
+    // Try to select the account's inbox
+    // This will be handled by FolderList if needed
+  }
 }
 
 onBeforeUnmount(() => {

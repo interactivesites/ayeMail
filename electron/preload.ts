@@ -26,6 +26,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke('emails:list', folderId, page, limit),
     listUnified: (type: string, accountIds: string[], page: number, limit: number) =>
       ipcRenderer.invoke('emails:listUnified', type, accountIds, page, limit),
+    search: (query: string, limit: number) =>
+      ipcRenderer.invoke('emails:search', query, limit),
     get: (id: string) => ipcRenderer.invoke('emails:get', id),
     sync: (accountId: string) => ipcRenderer.invoke('emails:sync', accountId),
     syncFolder: (accountId: string, folderId: string) => ipcRenderer.invoke('emails:sync-folder', accountId, folderId),

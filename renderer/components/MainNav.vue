@@ -53,6 +53,27 @@
 
       <!-- end -->
       <div class="app-no-drag ml-auto flex items-center space-x-3">
+        <div class="relative">
+          <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <MagnifyingGlassIcon class="h-5 w-5 text-gray-400" />
+          </div>
+          <input
+            ref="searchInputRef"
+            type="text"
+            v-model="localSearchQuery"
+            @keydown.escape="handleClearSearch"
+            placeholder="Search emails..."
+            class="pl-10 pr-4 py-2 w-64 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-transparent"
+          />
+          <button
+            v-if="localSearchQuery"
+            @click="handleClearSearch"
+            class="absolute inset-y-0 right-0 pr-3 flex items-center"
+            title="Clear search"
+          >
+            <XMarkIcon class="h-4 w-4 text-gray-400 hover:text-gray-600" />
+          </button>
+        </div>
         <button type="button" class="p-2 text-gray-600 hover:text-gray-900 rounded-full hover:bg-gray-100 transition-colors" @click="$emit('open-settings')" title="Settings">
           <CogIcon class="w-5 h-5" />
         </button>
@@ -64,7 +85,7 @@
 </template>
 
 <script setup lang="ts">
-import { defineProps, toRefs } from 'vue'
+import { defineProps, toRefs, ref, watch, nextTick } from 'vue'
 import { usePreferencesStore } from '../stores/preferences'
 import {
   ArrowPathIcon,
@@ -74,6 +95,8 @@ import {
   BellAlertIcon,
   TrashIcon,
   EnvelopeIcon,
+  MagnifyingGlassIcon,
+  XMarkIcon,
 } from '@heroicons/vue/24/outline'
 
 const props = defineProps<{
@@ -85,7 +108,25 @@ const props = defineProps<{
 
 const { syncing, hasSelectedEmail } = toRefs(props)
 
-defineEmits<{
+// Local state for input value - completely independent to prevent focus loss
+const localSearchQuery = ref('')
+const searchInputRef = ref<HTMLInputElement | null>(null)
+
+// Debounce search to avoid too many updates
+let searchTimeout: NodeJS.Timeout | null = null
+watch(localSearchQuery, (newValue) => {
+  // Clear existing timeout
+  if (searchTimeout) {
+    clearTimeout(searchTimeout)
+  }
+  
+  // Debounce the search emit
+  searchTimeout = setTimeout(() => {
+    emit('search', newValue)
+  }, 150) // Small delay to prevent excessive updates
+})
+
+const emit = defineEmits<{
   'open-settings': []
   sync: []
   compose: []
@@ -93,7 +134,18 @@ defineEmits<{
   forward: []
   'set-reminder': []
   delete: []
+  'search': [query: string]
+  'clear-search': []
 }>()
+
+const handleClearSearch = () => {
+  localSearchQuery.value = ''
+  emit('clear-search')
+  // Maintain focus after clearing
+  nextTick(() => {
+    searchInputRef.value?.focus()
+  })
+}
 
 const preferences = usePreferencesStore()
 

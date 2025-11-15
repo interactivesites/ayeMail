@@ -519,6 +519,129 @@ export function registerEmailHandlers() {
     return mappedEmails
   })
 
+  ipcMain.handle('emails:search', async (_, query: string, limit: number = 100) => {
+    if (!query || query.trim().length === 0) {
+      return []
+    }
+
+    const db = getDatabase()
+    const searchTerm = `%${query.trim()}%`
+    
+    // Get all emails - we'll filter in memory after decrypting
+    // This is necessary because body content is encrypted
+    const allEmails = db.prepare(`
+      SELECT emails.*,
+        (SELECT COUNT(*) FROM attachments WHERE email_id = emails.id) as attachmentCount
+      FROM emails
+      ORDER BY date DESC
+      LIMIT ?
+    `).all(limit * 3) as any[] // Get more than needed to account for filtering
+    
+    // Filter emails that match the search query
+    const matchingEmails: any[] = []
+    
+    for (const e of allEmails) {
+      if (matchingEmails.length >= limit) break
+      
+      // Search in subject (case-insensitive)
+      const subjectMatch = e.subject && e.subject.toLowerCase().includes(query.toLowerCase())
+      
+      // Search in from addresses (case-insensitive)
+      let fromMatch = false
+      try {
+        const fromAddresses = JSON.parse(e.from_addresses || '[]') as any[]
+        fromMatch = fromAddresses.some((addr: any) => {
+          const name = (addr?.name || '').toLowerCase()
+          const address = (addr?.address || '').toLowerCase()
+          return name.includes(query.toLowerCase()) || address.includes(query.toLowerCase())
+        })
+      } catch (err) {
+        // Ignore parse errors
+      }
+      
+      // Search in body content (decrypt and search)
+      let bodyMatch = false
+      try {
+        const body = encryption.decrypt(e.body_encrypted)
+        const textBody = e.text_body_encrypted ? encryption.decrypt(e.text_body_encrypted) : undefined
+        const htmlBody = e.html_body_encrypted ? encryption.decrypt(e.html_body_encrypted) : undefined
+        
+        const bodyText = typeof body === 'string' ? body : String(body || '')
+        const textBodyText = typeof textBody === 'string' ? textBody : String(textBody || '')
+        const htmlBodyText = typeof htmlBody === 'string' ? htmlBody : String(htmlBody || '')
+        
+        // Remove HTML tags for searching (simple regex approach)
+        const stripHtml = (html: string) => {
+          return html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
+        }
+        
+        const searchableText = (bodyText + ' ' + textBodyText + ' ' + stripHtml(htmlBodyText)).toLowerCase()
+        bodyMatch = searchableText.includes(query.toLowerCase())
+      } catch (err) {
+        // Ignore decryption errors
+      }
+      
+      if (subjectMatch || fromMatch || bodyMatch) {
+        matchingEmails.push(e)
+      }
+    }
+    
+    // Map to return format with decrypted body content
+    const mappedEmails = matchingEmails.map(e => {
+      let body: string | undefined
+      let htmlBody: string | undefined
+      let textBody: string | undefined
+      
+      try {
+        body = encryption.decrypt(e.body_encrypted)
+        htmlBody = e.html_body_encrypted ? encryption.decrypt(e.html_body_encrypted) : undefined
+        textBody = e.text_body_encrypted ? encryption.decrypt(e.text_body_encrypted) : undefined
+      } catch (err) {
+        console.error('Error decrypting email for search:', err)
+      }
+      
+      // Parse addresses
+      let from: any[] = []
+      let to: any[] = []
+      try {
+        from = JSON.parse(e.from_addresses || '[]')
+        to = JSON.parse(e.to_addresses || '[]')
+      } catch (err) {
+        // Ignore parse errors
+      }
+      
+      // Limit body content size for list view
+      const MAX_BODY_LENGTH = 50000
+      const truncateIfNeeded = (str: string | undefined): string | undefined => {
+        if (!str) return undefined
+        return str.length > MAX_BODY_LENGTH ? str.substring(0, MAX_BODY_LENGTH) + '...' : str
+      }
+      
+      return {
+        id: e.id,
+        accountId: e.account_id,
+        folderId: e.folder_id,
+        uid: e.uid,
+        messageId: e.message_id,
+        subject: e.subject,
+        from: from,
+        to: to,
+        date: e.date,
+        body: truncateIfNeeded(typeof body === 'string' ? body : String(body || '')),
+        textBody: truncateIfNeeded(typeof textBody === 'string' ? textBody : String(textBody || '')),
+        htmlBody: truncateIfNeeded(typeof htmlBody === 'string' ? htmlBody : String(htmlBody || '')),
+        isRead: e.is_read === 1,
+        isStarred: e.is_starred === 1,
+        encrypted: e.encrypted === 1,
+        signed: e.signed === 1,
+        signatureVerified: e.signature_verified !== null ? e.signature_verified === 1 : undefined,
+        attachmentCount: e.attachmentCount || 0
+      }
+    })
+    
+    return mappedEmails
+  })
+
   // Unified folder email handlers
   ipcMain.handle('emails:listUnified', async (_, type: string, accountIds: string[], page: number = 0, limit: number = 50) => {
     const db = getDatabase()
