@@ -100,7 +100,7 @@
                   <input
                     v-model="showActionLabels"
                     type="checkbox"
-                    class="w-4 h-4 text-primary-600 border-gray-300 dark:border-gray-600 rounded focus:ring-primary-600 dark:bg-gray-700"
+                    class="toggle"
                   />
                 </label>
                 <label class="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-700 rounded mt-2 dark:bg-gray-800">
@@ -111,7 +111,7 @@
                   <input
                     v-model="darkMode"
                     type="checkbox"
-                    class="w-4 h-4 text-primary-600 border-gray-300 dark:border-gray-600 rounded focus:ring-primary-600 dark:bg-gray-700"
+                    class="toggle"
                   />
                 </label>
               </div>
@@ -126,7 +126,7 @@
                     <input
                       v-model="autoLockEnabled"
                       type="checkbox"
-                      class="mr-2 w-4 h-4 text-primary-600 border-gray-300 dark:border-gray-600 rounded focus:ring-primary-600 dark:bg-gray-700"
+                      class="toggle mr-2"
                       @change="updateAutoLock"
                     />
                     <span class="text-sm text-gray-700 dark:text-gray-300">Auto-lock after inactivity</span>

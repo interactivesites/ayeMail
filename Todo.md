@@ -1,6 +1,6 @@
 
 ## Functionality
-- Aside folder: shows reminder emails grouped by reminder date (reminders and aside are now unified) 
+
 
 #### MAIL
 
@@ -9,7 +9,7 @@
 
 
 ## UI
-- dark mode
+
 - add loading anims for load / send / refresh
 - all checkboxes to toggles
 

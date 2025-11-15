@@ -32,7 +32,7 @@
           <input
             v-model="form.encrypt"
             type="checkbox"
-            class="w-3.5 h-3.5 rounded border-gray-300 dark:border-gray-600 text-primary-600 dark:bg-gray-700 focus:ring-primary-600"
+            class="toggle-sm"
           />
           <span class="text-xs text-gray-700 dark:text-gray-300">Encrypt</span>
         </label>
@@ -40,7 +40,7 @@
           <input
             v-model="form.sign"
             type="checkbox"
-            class="w-3.5 h-3.5 rounded border-gray-300 dark:border-gray-600 text-primary-600 dark:bg-gray-700 focus:ring-primary-600"
+            class="toggle-sm"
           />
           <span class="text-xs text-gray-700 dark:text-gray-300">Sign</span>
         </label>
