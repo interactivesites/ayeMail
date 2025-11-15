@@ -4,6 +4,7 @@ declare global {
     electronAPI: {
       accounts: {
         list: () => Promise<any[]>
+        get: (id: string) => Promise<any>
         add: (account: any) => Promise<any>
         update: (id: string, account: any) => Promise<any>
         remove: (id: string) => Promise<any>
@@ -18,6 +19,7 @@ declare global {
         delete: (id: string) => Promise<any>
         archive: (id: string) => Promise<{ success: boolean; message?: string }>
         spam: (id: string) => Promise<{ success: boolean; message?: string }>
+        moveToFolder: (emailId: string, folderId: string) => Promise<{ success: boolean; message?: string }>
         downloadAttachment: (attachmentId: string) => Promise<any>
         onSyncProgress: (callback: (data: any) => void) => () => void
       }
@@ -28,6 +30,7 @@ declare global {
         delete: (accountId: string, name: string) => Promise<any>
         rename: (accountId: string, oldName: string, newName: string) => Promise<any>
         subscribe: (accountId: string, name: string, subscribed: boolean) => Promise<any>
+        getLearned: (accountId: string, senderEmail: string) => Promise<Array<{ folderId: string; folderName: string; folderPath: string; moveCount: number; lastMovedAt: number }>>
       }
       reminders: {
         list: () => Promise<any[]>

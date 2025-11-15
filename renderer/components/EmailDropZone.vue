@@ -198,8 +198,50 @@
         <p class="text-xs text-gray-500 mt-1">{{ getWeekDate() }}</p>
       </div>
 
-      <!-- Recently Used Folders (Placeholder) -->
+      <!-- Learned Folders -->
+      <template v-for="(learnedFolder, index) in learnedFolders" :key="learnedFolder.folderId">
+        <div
+          :ref="(el) => { if (el) learnedFolderRefs[index] = el as HTMLElement }"
+          @dragover.prevent="handleDragOver($event, `learned-${learnedFolder.folderId}`)"
+          @dragleave="handleDragLeave($event, `learned-${learnedFolder.folderId}`)"
+          @drop.prevent="handleDrop(`learned-${learnedFolder.folderId}`, learnedFolder.folderId)"
+          class="drop-zone-circle flex flex-col items-center justify-center cursor-pointer transition-all relative"
+          :class="{
+            'hover:scale-105': activeZone !== `learned-${learnedFolder.folderId}`
+          }"
+        >
+          <div class="w-24 h-24 rounded-full bg-green-100 flex items-center justify-center mb-3 transition-all relative overflow-visible"
+            :class="{ 'bg-green-200': activeZone === `learned-${learnedFolder.folderId}` }">
+            <svg
+              v-if="activeZone === `learned-${learnedFolder.folderId}`"
+              :ref="(el) => { if (el) learnedFolderBorderRefs[index] = el as SVGElement }"
+              class="absolute inset-0 w-24 h-24 rounded-full"
+              viewBox="0 0 100 100"
+              style="transform-origin: center;"
+            >
+              <circle
+                cx="50"
+                cy="50"
+                r="48"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-dasharray="8 4"
+                class="text-green-400"
+              />
+            </svg>
+            <svg class="w-12 h-12 text-green-600 relative z-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+            </svg>
+          </div>
+          <h3 class="font-medium text-gray-900 text-sm truncate max-w-[100px]">{{ learnedFolder.folderName }}</h3>
+          <p class="text-xs text-gray-500 mt-1">{{ learnedFolder.moveCount }}x</p>
+        </div>
+      </template>
+      
+      <!-- No Learned Folders Message -->
       <div
+        v-if="learnedFolders.length === 0"
         ref="foldersRef"
         class="drop-zone-circle flex flex-col items-center justify-center opacity-50"
       >
@@ -209,7 +251,7 @@
           </svg>
         </div>
         <h3 class="font-medium text-gray-500 text-sm">Folders</h3>
-        <p class="text-xs text-gray-400 mt-1">Coming soon</p>
+        <p class="text-xs text-gray-400 mt-1">No learned folders yet</p>
       </div>
     </div>
 
@@ -227,7 +269,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { gsap } from 'gsap'
 
 const props = defineProps<{
@@ -255,14 +297,17 @@ const archiveBorderRef = ref<SVGElement | null>(null)
 const setAsideTomorrowBorderRef = ref<SVGElement | null>(null)
 const setAside3DaysBorderRef = ref<SVGElement | null>(null)
 const setAsideWeekBorderRef = ref<SVGElement | null>(null)
+const learnedFolderRefs = ref<HTMLElement[]>([])
+const learnedFolderBorderRefs = ref<SVGElement[]>([])
 
 const activeZone = ref<string | null>(null)
 const isProcessing = ref(false)
 const processingMessage = ref('')
+const learnedFolders = ref<Array<{ folderId: string; folderName: string; moveCount: number }>>([])
 
 let borderAnimations = new Map<string, gsap.core.Tween>()
 
-onMounted(() => {
+onMounted(async () => {
   // Animate container fade in
   if (containerRef.value) {
     gsap.from(containerRef.value, {
@@ -271,7 +316,33 @@ onMounted(() => {
       ease: 'power2.out'
     })
   }
+  
+  // Load learned folders for this sender
+  await loadLearnedFolders()
 })
+
+const loadLearnedFolders = async () => {
+  if (!props.draggedEmail || !props.accountId) return
+  
+  try {
+    // Extract sender email
+    const fromAddresses = props.draggedEmail.from || []
+    if (fromAddresses.length === 0) return
+    
+    const senderEmail = fromAddresses[0].address
+    if (!senderEmail) return
+    
+    // Get learned folders
+    const learned = await window.electronAPI.folders.getLearned(props.accountId, senderEmail)
+    learnedFolders.value = learned
+  } catch (error) {
+    console.error('Error loading learned folders:', error)
+  }
+}
+
+watch(() => props.draggedEmail, () => {
+  loadLearnedFolders()
+}, { immediate: false })
 
 const handleDragOver = (event: DragEvent, zone: string) => {
   event.preventDefault()
@@ -351,6 +422,15 @@ const stopBorderAnimation = (zone: string) => {
 }
 
 const getBorderRef = (zone: string): { value: SVGElement | null } => {
+  if (zone.startsWith('learned-')) {
+    const folderId = zone.replace('learned-', '')
+    const index = learnedFolders.value.findIndex(f => f.folderId === folderId)
+    if (index >= 0 && learnedFolderBorderRefs.value[index]) {
+      return { value: learnedFolderBorderRefs.value[index] }
+    }
+    return { value: null }
+  }
+  
   switch (zone) {
     case 'bin':
       return binBorderRef
@@ -368,6 +448,12 @@ const getBorderRef = (zone: string): { value: SVGElement | null } => {
 }
 
 const getZoneElement = (zone: string): HTMLElement | null => {
+  if (zone.startsWith('learned-')) {
+    const folderId = zone.replace('learned-', '')
+    const index = learnedFolders.value.findIndex(f => f.folderId === folderId)
+    return index >= 0 ? learnedFolderRefs.value[index] : null
+  }
+  
   switch (zone) {
     case 'bin':
       return binZoneRef.value
@@ -384,7 +470,7 @@ const getZoneElement = (zone: string): HTMLElement | null => {
   }
 }
 
-const handleDrop = async (action: string) => {
+const handleDrop = async (action: string, folderId?: string) => {
   if (!props.draggedEmail) return
   
   const emailId = props.draggedEmail.id
@@ -425,6 +511,15 @@ const handleDrop = async (action: string) => {
       case 'setAsideWeek':
         processingMessage.value = 'Setting reminder for a week...'
         await createReminder(7)
+        break
+        
+      default:
+        if (action.startsWith('learned-') && folderId) {
+          processingMessage.value = 'Moving email...'
+          await window.electronAPI.emails.moveToFolder(props.draggedEmail.id, folderId)
+          // Reload learned folders after move
+          await loadLearnedFolders()
+        }
         break
     }
     

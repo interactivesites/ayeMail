@@ -607,6 +607,123 @@ export function registerEmailHandlers() {
     return { success: true }
   })
 
+  ipcMain.handle('emails:move-to-folder', async (_, emailId: string, folderId: string) => {
+    const db = getDatabase()
+    
+    // Get email details
+    const email = db.prepare('SELECT * FROM emails WHERE id = ?').get(emailId) as any
+    if (!email) {
+      return { success: false, message: 'Email not found' }
+    }
+
+    // Get folder details
+    const folder = db.prepare('SELECT * FROM folders WHERE id = ?').get(folderId) as any
+    if (!folder) {
+      return { success: false, message: 'Folder not found' }
+    }
+
+    // Check if email already exists in destination folder with same account_id and uid
+    const existingEmail = db.prepare(`
+      SELECT id FROM emails 
+      WHERE account_id = ? AND folder_id = ? AND uid = ? AND id != ?
+    `).get(email.account_id, folderId, email.uid, emailId) as any
+
+    const now = Date.now()
+    
+    if (existingEmail) {
+      // Email already exists in destination folder, just delete the current one
+      db.prepare('DELETE FROM emails WHERE id = ?').run(emailId)
+    } else {
+      // Move email to destination folder
+      try {
+        db.prepare(`
+          UPDATE emails 
+          SET folder_id = ?, updated_at = ?
+          WHERE id = ?
+        `).run(folderId, now, emailId)
+      } catch (updateError: any) {
+        // Handle UNIQUE constraint violation
+        if (updateError?.code === 'SQLITE_CONSTRAINT' || updateError?.message?.includes('UNIQUE constraint')) {
+          const destEmail = db.prepare(`
+            SELECT id FROM emails 
+            WHERE account_id = ? AND folder_id = ? AND uid = ?
+          `).get(email.account_id, folderId, email.uid) as any
+          
+          if (destEmail) {
+            db.prepare('DELETE FROM emails WHERE id = ?').run(emailId)
+          } else {
+            throw updateError
+          }
+        } else {
+          throw updateError
+        }
+      }
+    }
+
+    // Try to move on IMAP server if account is IMAP
+    const account = await accountManager.getAccount(email.account_id)
+    if (account && account.type === 'imap') {
+      try {
+        const imapClient = getIMAPClient(account)
+        await imapClient.connect()
+        
+        // Get current folder path
+        const currentFolder = db.prepare('SELECT path FROM folders WHERE id = ?').get(email.folder_id) as any
+        const destFolderPath = folder.path === 'INBOX' ? 'INBOX' : folder.path
+        
+        if (currentFolder && destFolderPath) {
+          const currentPath = currentFolder.path === 'INBOX' ? 'INBOX' : currentFolder.path
+          await imapClient.moveEmail(email.uid, currentPath, destFolderPath)
+          
+          // Update folder_id after successful move (in case it changed)
+          db.prepare('UPDATE emails SET folder_id = ? WHERE id = ?').run(folderId, emailId)
+        }
+        
+        await imapClient.disconnect()
+      } catch (error) {
+        console.error('Error moving email on IMAP server:', error)
+        // Continue anyway - email is already moved in database
+      }
+    }
+
+    // Record sender-to-folder mapping for learning
+    try {
+      const fromAddresses = JSON.parse(email.from_addresses || '[]') as any[]
+      if (fromAddresses && fromAddresses.length > 0) {
+        const senderEmail = (fromAddresses[0].address || '').toLowerCase().trim()
+        if (senderEmail) {
+          // Check if mapping exists
+          const existingMapping = db.prepare(`
+            SELECT id, move_count FROM sender_folder_mappings 
+            WHERE account_id = ? AND sender_email = ? AND folder_id = ?
+          `).get(email.account_id, senderEmail, folderId) as any
+
+          if (existingMapping) {
+            // Increment move count
+            db.prepare(`
+              UPDATE sender_folder_mappings 
+              SET move_count = move_count + 1, last_moved_at = ?
+              WHERE id = ?
+            `).run(now, existingMapping.id)
+          } else {
+            // Create new mapping
+            const mappingId = randomUUID()
+            db.prepare(`
+              INSERT INTO sender_folder_mappings 
+              (id, account_id, sender_email, folder_id, move_count, last_moved_at, created_at)
+              VALUES (?, ?, ?, ?, 1, ?, ?)
+            `).run(mappingId, email.account_id, senderEmail, folderId, now, now)
+          }
+        }
+      }
+    } catch (learningError) {
+      console.error('Error recording sender-folder mapping:', learningError)
+      // Don't fail the move operation if learning fails
+    }
+
+    return { success: true }
+  })
+
   ipcMain.handle('emails:download-attachment', async (_, attachmentId: string) => {
     try {
       const db = getDatabase()
@@ -620,8 +737,8 @@ export function registerEmailHandlers() {
       const decryptedData = encryption.decryptBuffer(attachment.data_encrypted)
 
       // Show save dialog
-      const window = BrowserWindow.getFocusedWindow()
-      const result = await dialog.showSaveDialog(window || undefined, {
+      const focusedWindow = BrowserWindow.getFocusedWindow()
+      const result = await dialog.showSaveDialog(focusedWindow || undefined, {
         defaultPath: attachment.filename,
         title: 'Save Attachment'
       })

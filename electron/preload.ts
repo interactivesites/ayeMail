@@ -31,6 +31,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     delete: (id: string) => ipcRenderer.invoke('emails:delete', id),
     archive: (id: string) => ipcRenderer.invoke('emails:archive', id),
     spam: (id: string) => ipcRenderer.invoke('emails:spam', id),
+    moveToFolder: (emailId: string, folderId: string) => ipcRenderer.invoke('emails:move-to-folder', emailId, folderId),
     downloadAttachment: (attachmentId: string) => ipcRenderer.invoke('emails:download-attachment', attachmentId),
     onSyncProgress: (callback: (data: any) => void) => {
       ipcRenderer.on('emails:sync-progress', (_, data) => callback(data))
@@ -49,7 +50,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     rename: (accountId: string, oldName: string, newName: string) => 
       ipcRenderer.invoke('folders:rename', accountId, oldName, newName),
     subscribe: (accountId: string, name: string, subscribed: boolean) => 
-      ipcRenderer.invoke('folders:subscribe', accountId, name, subscribed)
+      ipcRenderer.invoke('folders:subscribe', accountId, name, subscribed),
+    getLearned: (accountId: string, senderEmail: string) => 
+      ipcRenderer.invoke('folders:get-learned', accountId, senderEmail)
   },
   
   // Reminders

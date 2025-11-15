@@ -51,6 +51,7 @@
               :folder-id="selectedFolderId"
               :folder-name="selectedFolderName"
               :selected-email-id="selectedEmailId"
+              :account-id="selectedAccount?.id"
               @select-email="handleEmailSelect"
               @drag-start="handleDragStart"
               @drag-end="handleDragEnd"

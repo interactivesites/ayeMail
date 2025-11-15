@@ -169,6 +169,24 @@ export function createDatabase(): Database.Database {
     CREATE INDEX IF NOT EXISTS idx_recipients_email ON recipients(email);
     CREATE INDEX IF NOT EXISTS idx_recipients_name ON recipients(name);
     CREATE INDEX IF NOT EXISTS idx_recipients_last_used ON recipients(last_used DESC);
+
+    CREATE TABLE IF NOT EXISTS sender_folder_mappings (
+      id TEXT PRIMARY KEY,
+      account_id TEXT NOT NULL,
+      sender_email TEXT NOT NULL,
+      folder_id TEXT NOT NULL,
+      move_count INTEGER DEFAULT 1,
+      last_moved_at INTEGER NOT NULL,
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE,
+      FOREIGN KEY (folder_id) REFERENCES folders(id) ON DELETE CASCADE,
+      UNIQUE(account_id, sender_email, folder_id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_sender_folder_account ON sender_folder_mappings(account_id);
+    CREATE INDEX IF NOT EXISTS idx_sender_folder_sender ON sender_folder_mappings(sender_email);
+    CREATE INDEX IF NOT EXISTS idx_sender_folder_folder ON sender_folder_mappings(folder_id);
+    CREATE INDEX IF NOT EXISTS idx_sender_folder_account_sender ON sender_folder_mappings(account_id, sender_email);
   `)
   
   return db

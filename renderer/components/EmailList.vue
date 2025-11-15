@@ -60,7 +60,7 @@
               @click="$emit('select-email', email.id)"
               @dragstart="handleDragStart($event, email)"
               @dragend="handleDragEnd"
-              class="w-full text-left px-4 py-3 my-2 transition-colors rounded-lg relative cursor-grab active:cursor-grabbing"
+              class="w-full text-left px-4 py-3 pb-10 my-2 transition-colors rounded-lg relative cursor-grab active:cursor-grabbing group"
               :class="{
                 'bg-primary-900 text-white': selectedEmailId === email.id,
                 'hover:bg-primary-800/20': selectedEmailId !== email.id,
@@ -213,6 +213,63 @@
                     </div>
                   </div>
                 </div>
+                
+                <!-- Hover Action Icons -->
+                <div 
+                  class="absolute bottom-2 left-4 right-4 flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                  @click.stop
+                >
+                  <button
+                    @click.stop="showArchiveConfirm(email.id)"
+                    class="p-1.5 rounded-full transition-colors"
+                    :class="selectedEmailId === email.id 
+                      ? 'bg-white/20 text-white hover:bg-white/30' 
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
+                    title="Archive"
+                  >
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                    </svg>
+                  </button>
+                  <button
+                    @click.stop="handleDeleteEmail(email.id)"
+                    class="p-1.5 rounded-full transition-colors"
+                    :class="selectedEmailId === email.id 
+                      ? 'bg-white/20 text-white hover:bg-white/30' 
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
+                    title="Delete"
+                  >
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
+                  <button
+                    v-if="props.accountId"
+                    @click.stop="showReminderForEmail(email.id)"
+                    class="p-1.5 rounded-full transition-colors"
+                    :class="selectedEmailId === email.id 
+                      ? 'bg-white/20 text-white hover:bg-white/30' 
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
+                    title="Set Reminder"
+                  >
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </button>
+                  <button
+                    v-if="props.accountId"
+                    @click.stop="showFolderPickerForEmail(email.id)"
+                    class="p-1.5 rounded-full transition-colors"
+                    :class="selectedEmailId === email.id 
+                      ? 'bg-white/20 text-white hover:bg-white/30' 
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
+                    title="Move to Folder (M)"
+                  >
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                    </svg>
+                  </button>
+                </div>
               </div>
             </button>
           </div>
@@ -237,6 +294,25 @@
         />
       </div>
     </Teleport>
+    
+    <!-- Folder Picker Modal as Popover -->
+    <Teleport to="body">
+      <div
+        v-if="showFolderPicker && folderPickerEmail"
+        ref="folderPickerRef"
+        class="fixed z-[9999]"
+        :style="folderPickerStyle"
+        style="pointer-events: auto;"
+      >
+        <FolderPickerModal
+          :account-id="folderPickerEmail.accountId"
+          :current-folder-id="folderId"
+          :is-popover="true"
+          @folder-selected="handleFolderSelected"
+          @close="showFolderPicker = false; folderPickerEmail = null"
+        />
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -246,12 +322,14 @@ import { storeToRefs } from 'pinia'
 import { usePreferencesStore } from '../stores/preferences'
 import { formatTime } from '../utils/formatters'
 import ReminderModal from './ReminderModal.vue'
+import FolderPickerModal from './FolderPickerModal.vue'
 import { computePosition, offset, flip, shift } from '@floating-ui/dom'
 
 const props = defineProps<{
   folderId: string
   folderName: string
   selectedEmailId?: string
+  accountId?: string
 }>()
 
 const emit = defineEmits<{
@@ -280,6 +358,12 @@ const showReminderModal = ref(false)
 const reminderEmail = ref<{ id: string; accountId: string } | null>(null)
 const reminderModalStyle = ref<{ top?: string; left?: string; right?: string; transform?: string }>({})
 const reminderModalRef = ref<HTMLElement | null>(null)
+
+// Folder picker modal state
+const showFolderPicker = ref(false)
+const folderPickerEmail = ref<{ id: string; accountId: string } | null>(null)
+const folderPickerStyle = ref<{ top?: string; left?: string; right?: string; transform?: string }>({})
+const folderPickerRef = ref<HTMLElement | null>(null)
 
 // Container ref for focus management
 const containerRef = ref<HTMLElement | null>(null)
@@ -540,6 +624,109 @@ const showReminderForEmail = async (emailId: string) => {
   })
 }
 
+const showFolderPickerForEmail = async (emailId: string) => {
+  const email = getAllEmailsFlat().find(e => e.id === emailId)
+  if (!email || !email.accountId || !props.accountId) {
+    console.error('Email not found or missing accountId', { emailId, email })
+    return
+  }
+  
+  // Check if account is IMAP (only IMAP supports folders)
+  try {
+    const account = await window.electronAPI.accounts.get(props.accountId)
+    if (!account || account.type !== 'imap') {
+      return // Don't show folder picker for non-IMAP accounts
+    }
+  } catch (error) {
+    console.error('Error checking account type:', error)
+    return
+  }
+  
+  folderPickerEmail.value = { id: emailId, accountId: props.accountId }
+  
+  // Set initial position (centered)
+  folderPickerStyle.value = {
+    top: '50%',
+    left: '50%',
+    transform: 'translate(-50%, -50%)'
+  }
+  
+  showFolderPicker.value = true
+  
+  // Wait for modal to render
+  await nextTick()
+  await nextTick()
+  await nextTick()
+  
+  await new Promise(resolve => setTimeout(resolve, 50))
+  
+  const emailElement = document.querySelector(`[data-email-id="${emailId}"]`) as HTMLElement
+  const modalElement = folderPickerRef.value
+  
+  if (emailElement && modalElement) {
+    try {
+      const { x, y } = await computePosition(emailElement, modalElement, {
+        placement: 'bottom-start',
+        middleware: [
+          offset(10),
+          flip(),
+          shift({ padding: 10 })
+        ]
+      })
+      
+      folderPickerStyle.value = {
+        top: `${y}px`,
+        left: `${x}px`,
+        transform: 'none'
+      }
+    } catch (error) {
+      console.error('Error positioning folder picker:', error)
+      const rect = emailElement.getBoundingClientRect()
+      folderPickerStyle.value = {
+        top: `${rect.bottom + 10}px`,
+        left: `${rect.left}px`,
+        transform: 'none'
+      }
+    }
+  }
+}
+
+const handleFolderSelected = async (folderId: string) => {
+  if (!folderPickerEmail.value) return
+  
+  const emailId = folderPickerEmail.value.id
+  
+  // Optimistically remove email
+  const emailToRemove = emails.value.find(e => e.id === emailId)
+  if (emailToRemove) {
+    removedEmails.value.set(emailId, emailToRemove)
+    emails.value = emails.value.filter(e => e.id !== emailId)
+    
+    if (props.selectedEmailId === emailId) {
+      emit('select-email', '')
+    }
+  }
+  
+  try {
+    await window.electronAPI.emails.moveToFolder(emailId, folderId)
+    // Refresh email list
+    window.dispatchEvent(new CustomEvent('refresh-emails'))
+  } catch (error: any) {
+    console.error('Error moving email to folder:', error)
+    // Restore email on error
+    const emailToRestore = removedEmails.value.get(emailId)
+    if (emailToRestore) {
+      emails.value.push(emailToRestore)
+      emails.value.sort((a, b) => b.date - a.date)
+      removedEmails.value.delete(emailId)
+    }
+    alert(`Failed to move email: ${error.message || 'Unknown error'}`)
+  }
+  
+  showFolderPicker.value = false
+  folderPickerEmail.value = null
+}
+
 // Get all emails as a flat array (for navigation)
 const getAllEmailsFlat = (): any[] => {
   return groupedEmails.value.flatMap(group => group.emails)
@@ -592,24 +779,34 @@ const handleKeyDown = (event: KeyboardEvent) => {
   const target = event.target as HTMLElement
   if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return
   
-  // Handle Escape to close reminder modal
-  if (event.key === 'Escape' && showReminderModal.value) {
-    event.preventDefault()
-    event.stopPropagation()
-    showReminderModal.value = false
-    reminderEmail.value = null
-    return
+  // Handle Escape to close modals
+  if (event.key === 'Escape') {
+    if (showReminderModal.value) {
+      event.preventDefault()
+      event.stopPropagation()
+      showReminderModal.value = false
+      reminderEmail.value = null
+      return
+    }
+    if (showFolderPicker.value) {
+      event.preventDefault()
+      event.stopPropagation()
+      showFolderPicker.value = false
+      folderPickerEmail.value = null
+      return
+    }
   }
   
-  // Check if user is actively interacting with calendar (clicking on it)
+  // Check if user is actively interacting with calendar or folder picker
   const isInCalendar = target.closest('.reminder-calendar-popover') || 
                        target.closest('.dp__calendar') ||
                        target.closest('.dp__calendar_wrap') ||
                        target.closest('.dp__inner_nav') ||
                        target.closest('.dp__cell_inner')
+  const isInFolderPicker = target.closest('.folder-picker-popover')
   
-  // Don't handle shortcuts if actively clicking/interacting with calendar (but allow Escape)
-  if (isInCalendar && event.key !== 'Escape') {
+  // Don't handle shortcuts if actively clicking/interacting with calendar or folder picker (but allow Escape)
+  if ((isInCalendar || isInFolderPicker) && event.key !== 'Escape') {
     return
   }
   
@@ -619,6 +816,12 @@ const handleKeyDown = (event: KeyboardEvent) => {
     // Close modal first, then continue to handle the key
     showReminderModal.value = false
     reminderEmail.value = null
+  }
+  
+  // If folder picker is open but user is NOT interacting with it, allow shortcuts
+  if (showFolderPicker.value && event.key !== 'Escape' && !isInFolderPicker) {
+    showFolderPicker.value = false
+    folderPickerEmail.value = null
   }
   
   switch (event.key) {
@@ -660,6 +863,14 @@ const handleKeyDown = (event: KeyboardEvent) => {
         event.preventDefault()
         event.stopPropagation()
         handleSpamEmail(props.selectedEmailId)
+      }
+      break
+    case 'm':
+    case 'M':
+      if (props.selectedEmailId && props.accountId) {
+        event.preventDefault()
+        event.stopPropagation()
+        showFolderPickerForEmail(props.selectedEmailId)
       }
       break
   }
@@ -861,6 +1072,15 @@ const handleClickOutside = (event: MouseEvent) => {
     if (!reminderModalElement) {
       showReminderModal.value = false
       reminderEmail.value = null
+    }
+  }
+  
+  if (showFolderPicker.value) {
+    // Close folder picker if clicking outside
+    const folderPickerElement = target.closest('.folder-picker-popover')
+    if (!folderPickerElement) {
+      showFolderPicker.value = false
+      folderPickerEmail.value = null
     }
   }
 }
