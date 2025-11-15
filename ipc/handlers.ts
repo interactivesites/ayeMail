@@ -419,6 +419,47 @@ export function registerFolderHandlers() {
       .run(subscribed ? 1 : 0, Date.now(), accountId, name)
     return { success: true }
   })
+
+  ipcMain.handle('folders:get-learned', async (_, accountId: string, senderEmail: string) => {
+    const db = getDatabase()
+    
+    // Normalize sender email (lowercase, trim)
+    const normalizedSenderEmail = senderEmail.toLowerCase().trim()
+    
+    if (!normalizedSenderEmail) {
+      return []
+    }
+    
+    // Query sender_folder_mappings joined with folders to get folder details
+    const mappings = db.prepare(`
+      SELECT 
+        sfm.folder_id,
+        f.name as folder_name,
+        f.path as folder_path,
+        sfm.move_count,
+        sfm.last_moved_at
+      FROM sender_folder_mappings sfm
+      JOIN folders f ON sfm.folder_id = f.id
+      WHERE sfm.account_id = ? AND sfm.sender_email = ?
+      ORDER BY sfm.move_count DESC, sfm.last_moved_at DESC
+      LIMIT 10
+    `).all(accountId, normalizedSenderEmail) as Array<{
+      folder_id: string
+      folder_name: string
+      folder_path: string
+      move_count: number
+      last_moved_at: number
+    }>
+    
+    // Transform to match expected format
+    return mappings.map(m => ({
+      folderId: m.folder_id,
+      folderName: m.folder_name,
+      folderPath: m.folder_path,
+      moveCount: m.move_count,
+      lastMovedAt: m.last_moved_at
+    }))
+  })
 }
 
 // Email handlers
