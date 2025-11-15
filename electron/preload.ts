@@ -33,6 +33,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     delete: (id: string) => ipcRenderer.invoke('emails:delete', id),
     archive: (id: string) => ipcRenderer.invoke('emails:archive', id),
     spam: (id: string) => ipcRenderer.invoke('emails:spam', id),
+    markRead: (id: string, read?: boolean) => ipcRenderer.invoke('emails:mark-read', id, read),
     moveToFolder: (emailId: string, folderId: string) => ipcRenderer.invoke('emails:move-to-folder', emailId, folderId),
     downloadAttachment: (attachmentId: string) => ipcRenderer.invoke('emails:download-attachment', attachmentId),
     onSyncProgress: (callback: (data: any) => void) => {

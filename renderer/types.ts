@@ -20,6 +20,7 @@ declare global {
         delete: (id: string) => Promise<any>
         archive: (id: string) => Promise<{ success: boolean; message?: string }>
         spam: (id: string) => Promise<{ success: boolean; message?: string }>
+        markRead: (id: string, read?: boolean) => Promise<{ success: boolean; message?: string }>
         moveToFolder: (emailId: string, folderId: string) => Promise<{ success: boolean; message?: string }>
         downloadAttachment: (attachmentId: string) => Promise<any>
         onSyncProgress: (callback: (data: any) => void) => () => void

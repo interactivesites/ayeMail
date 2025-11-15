@@ -254,7 +254,7 @@ export function registerFolderHandlers() {
             }
           }
         }
-
+        
         // Third pass: remove folders from database that no longer exist on server
         const serverPaths = new Set(allPaths)
         const dbFolders = db.prepare('SELECT id, path FROM folders WHERE account_id = ?').all(accountId) as any[]
@@ -426,6 +426,15 @@ export function registerEmailHandlers() {
   ipcMain.handle('emails:list', async (_, folderId: string, page: number = 0, limit: number = 50) => {
     const db = getDatabase()
     const offset = page * limit
+    
+    // Debug: Check folder exists and get account info
+    const folder = db.prepare('SELECT * FROM folders WHERE id = ?').get(folderId) as any
+    if (!folder) {
+      console.warn(`Folder not found: ${folderId}`)
+      return []
+    }
+    console.log(`Listing emails for folder: ${folder.name} (id: ${folderId}, account: ${folder.account_id})`)
+    
     // Get emails with attachment count
     const emails = db.prepare(`
       SELECT emails.*,
@@ -435,6 +444,8 @@ export function registerEmailHandlers() {
       ORDER BY date DESC
       LIMIT ? OFFSET ?
     `).all(folderId, limit, offset) as any[]
+    
+    console.log(`Found ${emails.length} emails in folder ${folder.name} (id: ${folderId})`)
     
     // Map to return format with decrypted body content
     const mappedEmails = emails.map(e => {
@@ -1120,6 +1131,41 @@ export function registerEmailHandlers() {
       } catch (error) {
         console.error('Error moving email on IMAP server:', error)
         // Continue anyway - email is already moved in database
+      }
+    }
+
+    return { success: true }
+  })
+
+  ipcMain.handle('emails:mark-read', async (_, id: string, read: boolean = true) => {
+    const db = getDatabase()
+    const email = db.prepare('SELECT * FROM emails WHERE id = ?').get(id) as any
+    if (!email) {
+      return { success: false, message: 'Email not found' }
+    }
+
+    // Update in database
+    db.prepare('UPDATE emails SET is_read = ?, updated_at = ? WHERE id = ?')
+      .run(read ? 1 : 0, Date.now(), id)
+
+    // Sync to IMAP server if account is IMAP
+    const account = await accountManager.getAccount(email.account_id)
+    if (account && account.type === 'imap') {
+      try {
+        const imapClient = getIMAPClient(account)
+        await imapClient.connect()
+        
+        // Get folder path
+        const folder = db.prepare('SELECT path FROM folders WHERE id = ?').get(email.folder_id) as any
+        if (folder) {
+          const folderPath = folder.path === 'INBOX' ? 'INBOX' : folder.path
+          await imapClient.markAsRead(email.uid, folderPath, read)
+        }
+        
+        await imapClient.disconnect()
+      } catch (error) {
+        console.error('Error marking email as read on IMAP server:', error)
+        // Continue anyway - email is already marked as read in database
       }
     }
 

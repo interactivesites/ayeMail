@@ -403,9 +403,10 @@ export class EmailStorage {
       const imapFolderName = folder.name.toUpperCase() === 'INBOX' ? 'INBOX' : folder.path
       console.log(`Fetching emails for folder: ${folder.name}, path: ${folder.path}, using IMAP name: ${imapFolderName}, id: ${folder.id}`)
 
-      // Fetch all emails (use a large number to get all emails)
+      // Fetch all emails (use a very large number to get all emails)
       // For INBOX, we want to sync all emails, not just recent ones
-      const emails = await imapClient.fetchEmails(imapFolderName, 1, 10000)
+      // Using 999999 to ensure we fetch all emails (fetchEmails treats >= 10000 as "fetch all")
+      const emails = await imapClient.fetchEmails(imapFolderName, 1, 999999)
 
       console.log(`Found ${emails.length} emails in ${folder.name}`)
       if (emails.length === 0) {
@@ -426,12 +427,16 @@ export class EmailStorage {
       for (let i = 0; i < emails.length; i++) {
         const email = emails[i]
         try {
+          // Ensure accountId matches the account being synced (in case IMAP client set wrong one)
+          email.accountId = accountId
           email.folderId = folder.id
-          await this.storeEmail(email)
+          console.log(`Storing email: accountId=${email.accountId}, folderId=${folder.id} (${folder.name}), uid=${email.uid}, subject=${email.subject?.substring(0, 50)}`)
+          const storedId = await this.storeEmail(email)
+          console.log(`Successfully stored email with id: ${storedId}`)
           synced++
           progressCallback?.({ folder: folder.name, current: i + 1, total: emails.length, emailUid: email.uid })
         } catch (err) {
-          console.error(`Error storing email ${email.uid}:`, err)
+          console.error(`Error storing email ${email.uid} for account ${email.accountId} in folder ${folder.id} (${folder.name}):`, err)
           errors++
           progressCallback?.({ folder: folder.name, current: i + 1, total: emails.length, emailUid: email.uid })
         }
@@ -554,9 +559,10 @@ export class EmailStorage {
             // Use folder name for IMAP operations, ensure INBOX is uppercase
             const imapFolderName = folder.name.toUpperCase() === 'INBOX' ? 'INBOX' : folder.path
 
-            // Fetch all emails (use a large number to get all emails)
+            // Fetch all emails (use a very large number to get all emails)
             // For INBOX, we want to sync all emails, not just recent ones
-            const emails = await imapClient.fetchEmails(imapFolderName, 1, 10000)
+            // Using 999999 to ensure we fetch all emails (fetchEmails treats >= 10000 as "fetch all")
+            const emails = await imapClient.fetchEmails(imapFolderName, 1, 999999)
 
             progressCallback?.({ folder: folder.name, current: 0, total: emails.length })
 
@@ -568,12 +574,16 @@ export class EmailStorage {
             for (let i = 0; i < emails.length; i++) {
               const email = emails[i]
               try {
+                // Ensure accountId matches the account being synced (in case IMAP client set wrong one)
+                email.accountId = accountId
                 email.folderId = folder.id
-                await this.storeEmail(email)
+                console.log(`Storing email: accountId=${email.accountId}, folderId=${folder.id} (${folder.name}), uid=${email.uid}, subject=${email.subject?.substring(0, 50)}`)
+                const storedId = await this.storeEmail(email)
+                console.log(`Successfully stored email with id: ${storedId}`)
                 synced++
                 progressCallback?.({ folder: folder.name, current: i + 1, total: emails.length, emailUid: email.uid })
               } catch (err) {
-                console.error(`Error storing email ${email.uid}:`, err)
+                console.error(`Error storing email ${email.uid} for account ${email.accountId} in folder ${folder.id} (${folder.name}):`, err)
                 errors++
                 progressCallback?.({ folder: folder.name, current: i + 1, total: emails.length, emailUid: email.uid })
               }

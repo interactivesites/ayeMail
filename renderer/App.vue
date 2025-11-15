@@ -260,12 +260,38 @@ const handleFolderSelect = async (folder: any) => {
   }
 }
 
+let markAsReadTimeout: NodeJS.Timeout | null = null
+
 const handleEmailSelect = async (emailId: string) => {
   selectedEmailId.value = emailId
+  
+  // Clear any existing timeout
+  if (markAsReadTimeout) {
+    clearTimeout(markAsReadTimeout)
+    markAsReadTimeout = null
+  }
+  
   // Load full email details
   if (emailId) {
     try {
       selectedEmail.value = await window.electronAPI.emails.get(emailId)
+      
+      // Mark as read after 3 seconds if email is unread
+      if (selectedEmail.value && !selectedEmail.value.isRead) {
+        markAsReadTimeout = setTimeout(async () => {
+          try {
+            await window.electronAPI.emails.markRead(emailId, true)
+            // Update local state
+            if (selectedEmail.value) {
+              selectedEmail.value.isRead = true
+            }
+            // Refresh email list to update read status
+            window.dispatchEvent(new CustomEvent('refresh-emails'))
+          } catch (error) {
+            console.error('Error marking email as read:', error)
+          }
+        }, 3000) // 3 seconds delay
+      }
     } catch (error) {
       console.error('Error loading email:', error)
     }

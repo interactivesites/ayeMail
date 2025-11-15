@@ -13,9 +13,41 @@ const connectionPool: ConnectionPool = {}
 export class IMAPClient {
   private account: Account
   private connection: Imap | null = null
+  private inboxPath: string | null = null // Cache for discovered inbox path
 
   constructor(account: Account) {
     this.account = account
+  }
+
+  private async getInboxPath(): Promise<string> {
+    if (this.inboxPath) return this.inboxPath
+
+    const folders = await this.listFolders()
+
+    // 1) Try special-use flag \Inbox
+    const inboxByAttr = folders.find(f =>
+      f.attributes?.some(a => a.toUpperCase() === '\\INBOX' || a.toUpperCase() === 'INBOX')
+    )
+    if (inboxByAttr) {
+      this.inboxPath = inboxByAttr.path
+      console.log(`Discovered inbox by \\Inbox attribute:`, this.inboxPath)
+      return this.inboxPath
+    }
+
+    // 2) Fallback: name/path "INBOX" (case insensitive)
+    const inboxByName =
+      folders.find(f => f.path.toUpperCase() === 'INBOX') ||
+      folders.find(f => f.name.toUpperCase() === 'INBOX')
+    if (inboxByName) {
+      this.inboxPath = inboxByName.path
+      console.log(`Discovered inbox by name:`, this.inboxPath)
+      return this.inboxPath
+    }
+
+    // 3) Ultimate fallback: plain "INBOX"
+    this.inboxPath = 'INBOX'
+    console.warn(`Could not detect inbox from LIST, falling back to "${this.inboxPath}"`)
+    return this.inboxPath
   }
 
   async connect(): Promise<void> {
@@ -204,72 +236,126 @@ export class IMAPClient {
   ): Promise<Email[]> {
     await this.ensureConnected()
 
-    return new Promise((resolve, reject) => {
+    return new Promise(async (resolve, reject) => {
       const timeout = setTimeout(() => {
         reject(new Error('IMAP fetch timeout'))
-      }, 60000) // 60 second timeout
+      }, 120000) // 120 second timeout for large folders
 
-      this.connection!.once('error', (err) => {
-        clearTimeout(timeout)
-        reject(err)
-      })
-
-      this.connection!.openBox(folderName, true, (err, box) => {
-        if (err) {
+      try {
+        // Use a local error handler that won't interfere with other operations
+        const errorHandler = (err: Error) => {
           clearTimeout(timeout)
-          console.error(`Error opening box ${folderName}:`, err)
-          console.error(`Connection state: ${this.connection!.state}`)
+          this.connection!.removeListener('error', errorHandler)
           reject(err)
-          return
+        }
+        this.connection!.once('error', errorHandler)
+
+        // Decide which folder path to use
+        let targetFolder = folderName
+        // Treat "Inbox" / "Posteingang" / whatever your UI uses as "Inbox" specially
+        if (folderName.toUpperCase() === 'INBOX') {
+          targetFolder = await this.getInboxPath()
         }
 
-        // All folders use the same code path - no special handling needed
+        console.log(`Opening box: logical="${folderName}", actual path="${targetFolder}"`)
 
-        if (!box || box.messages.total === 0) {
-          clearTimeout(timeout)
-          console.log(`Box ${folderName} has no messages`)
-          resolve([])
-          return
-        }
-
-        // Use UID-based fetching for all folders - more reliable than sequence numbers
-        const seqStart = Math.max(1, start)
-        const seqEnd = Math.min(box.messages.total, end)
-
-        if (seqStart > seqEnd) {
-          clearTimeout(timeout)
-          resolve([])
-          return
-        }
-
-        // Fetch UIDs first, then fetch messages by UID
-        this.connection!.search(['ALL'], (err, uids) => {
+        this.connection!.openBox(targetFolder, true, (err, box) => {
           if (err) {
             clearTimeout(timeout)
+            this.connection!.removeListener('error', errorHandler)
+            console.error(`Error opening box ${targetFolder} (from ${folderName}):`, err)
+            console.error(`Connection state: ${this.connection!.state}`)
             reject(err)
             return
           }
 
-          if (!uids || uids.length === 0) {
+          console.log(`Opened box ${box.name} (path=${targetFolder}): total=${box.messages.total}, unseen=${box.messages.unseen}`)
+
+          if (!box || box.messages.total === 0) {
             clearTimeout(timeout)
+            this.connection!.removeListener('error', errorHandler)
             resolve([])
             return
           }
 
-          // Get the UIDs we want (most recent first)
-          const sortedUids = uids.sort((a, b) => b - a) // Descending order
-          // If end is very large (>= 10000), fetch all emails, otherwise limit to end
-          const uidsToFetch = end >= 10000 ? sortedUids : sortedUids.slice(0, Math.min(end, sortedUids.length))
+          // Fetch all messages by sequence number to get all UIDs
+          // This is more reliable than search which may have limitations
+          // Use sequence range 1:* to get all messages
+          const seqRange = '1:*'
+          console.log(`Fetching UIDs for all ${box.messages.total} messages using sequence range ${seqRange}`)
+
+          const allUids: number[] = []
+
+          // First, fetch UIDs by fetching sequence numbers and extracting UIDs
+          const uidFetch = this.connection!.fetch(seqRange, {
+            bodies: '',
+            struct: false
+          })
+
+          uidFetch.on('message', (msg) => {
+            msg.on('attributes', (attrs) => {
+              if (attrs.uid) {
+                allUids.push(attrs.uid)
+              }
+            })
+          })
+
+          uidFetch.once('error', (fetchErr) => {
+            clearTimeout(timeout)
+            this.connection!.removeListener('error', errorHandler)
+            console.error(`Error fetching UIDs:`, fetchErr)
+            reject(fetchErr)
+          })
+
+          uidFetch.once('end', () => {
+            console.log(`Collected ${allUids.length} UIDs from ${box.messages.total} messages`)
+
+            if (allUids.length === 0) {
+              clearTimeout(timeout)
+              this.connection!.removeListener('error', errorHandler)
+              console.warn(`No UIDs found in ${targetFolder} despite ${box.messages.total} messages`)
+              resolve([])
+              return
+            }
+
+            // Sort UIDs descending (most recent first)
+            const sortedUids = allUids.sort((a, b) => b - a)
+            
+            // Apply pagination: start and end parameters
+            // If end >= 10000, fetch all emails, otherwise apply pagination
+            let uidsToFetch: number[]
+            if (end >= 10000) {
+              // Fetch all emails
+              uidsToFetch = sortedUids
+            } else {
+              // Apply pagination: slice from (start-1) to end (0-indexed)
+              const startIdx = Math.max(0, start - 1)
+              const endIdx = Math.min(sortedUids.length, end)
+              uidsToFetch = sortedUids.slice(startIdx, endIdx)
+            }
+            
+            console.log(`Fetching ${uidsToFetch.length} emails (range ${start}-${end}) from ${sortedUids.length} total UIDs in ${targetFolder}`)
 
           const emails: Email[] = []
           let emailCount = 0
           const totalToFetch = uidsToFetch.length
+          const messagePromises: Promise<void>[] = []
+          let fetchEnded = false
 
           const fetch = this.connection!.fetch(uidsToFetch, {
             bodies: '',
             struct: true,
             envelope: true
           })
+
+            const checkComplete = () => {
+              if (emailCount === totalToFetch && fetchEnded) {
+                clearTimeout(timeout)
+                this.connection!.removeListener('error', errorHandler)
+                console.log(`Finished fetching emails from ${targetFolder}: got ${emails.length} emails out of ${totalToFetch} requested`)
+                resolve(emails)
+              }
+            }
 
           fetch.on('message', (msg, seqno) => {
             let uid: number | null = null
@@ -297,6 +383,204 @@ export class IMAPClient {
               envelope = (attrs as any).envelope
             })
 
+            const messagePromise = new Promise<void>(async (resolveMsg) => {
+              msg.once('end', async () => {
+                try {
+                  // Wait for body stream to complete if it exists
+                  if (bodyPromise) {
+                    await bodyPromise
+                  }
+
+                  try {
+                    // Parse the email body
+                    let parsed: any = null
+                    if (body && body.length > 0) {
+                      parsed = await simpleParser(body)
+                    }
+
+                    // Create email with parsed content
+                    // Use original folderName (not normalized) for folderId since that's what the database expects
+                    const email: Email = {
+                      id: `${this.account.id}-${folderName}-${uid || seqno}`,
+                      accountId: this.account.id,
+                      folderId: folderName, // Keep original folderName for database storage
+                      uid: uid || seqno,
+                      messageId: parsed?.messageId || envelope?.messageId || `msg-${seqno}`,
+                      subject: parsed?.subject || envelope?.subject || `Message ${seqno}`,
+                      from: parsed?.from ? this.parseAddresses(parsed.from) : (envelope?.from ? this.parseAddresses(envelope.from) : [{ address: 'unknown@example.com' }]),
+                      to: parsed?.to ? this.parseAddresses(parsed.to) : (envelope?.to ? this.parseAddresses(envelope.to) : []),
+                      cc: parsed?.cc ? this.parseAddresses(parsed.cc) : (envelope?.cc ? this.parseAddresses(envelope.cc) : undefined),
+                      bcc: parsed?.bcc ? this.parseAddresses(parsed.bcc) : (envelope?.bcc ? this.parseAddresses(envelope.bcc) : undefined),
+                      replyTo: parsed?.replyTo ? this.parseAddresses(parsed.replyTo) : (envelope?.replyTo ? this.parseAddresses(envelope.replyTo) : undefined),
+                      date: parsed?.date ? parsed.date.getTime() : (envelope?.date ? new Date(envelope.date).getTime() : Date.now()),
+                      body: parsed?.html || parsed?.text || '',
+                      htmlBody: parsed?.html || undefined,
+                      textBody: parsed?.text,
+                      attachments: parsed?.attachments?.map((att: any) => ({
+                        id: `${this.account.id}-${uid || seqno}-${att.filename}`,
+                        emailId: `${this.account.id}-${uid || seqno}`,
+                        filename: att.filename || 'attachment',
+                        contentType: att.contentType || 'application/octet-stream',
+                        size: att.size || 0,
+                        contentId: att.contentId,
+                        data: att.content as Buffer
+                      })) || [],
+                      flags: flags,
+                      isRead: flags.includes('\\Seen'),
+                      isStarred: flags.includes('\\Flagged'),
+                      threadId: parsed?.inReplyTo || envelope?.inReplyTo || undefined,
+                      inReplyTo: parsed?.inReplyTo || envelope?.inReplyTo || undefined,
+                      references: parsed?.references ? (Array.isArray(parsed.references) ? parsed.references : [parsed.references]) : (envelope?.references ? (Array.isArray(envelope.references) ? envelope.references : [envelope.references]) : undefined),
+                      encrypted: false,
+                      signed: false,
+                      signatureVerified: undefined,
+                      createdAt: Date.now(),
+                      updatedAt: Date.now()
+                    }
+
+                    emails.push(email)
+                    emailCount++
+                    console.log(`Processed email ${emailCount}/${totalToFetch} (UID: ${uid || seqno}) in ${folderName}`)
+                    checkComplete()
+                  } catch (parseErr) {
+                    console.error(`Error parsing message ${seqno} (UID: ${uid || seqno}):`, parseErr)
+                    // Still create email with envelope data if parsing fails
+                    // Use original folderName (not normalized) for folderId since that's what the database expects
+                    const email: Email = {
+                      id: `${this.account.id}-${folderName}-${uid || seqno}`,
+                      accountId: this.account.id,
+                      folderId: folderName, // Keep original folderName for database storage
+                      uid: uid || seqno,
+                      messageId: envelope?.messageId || `msg-${seqno}`,
+                      subject: envelope?.subject || `Message ${seqno}`,
+                      from: envelope?.from ? this.parseAddresses(envelope.from) : [{ address: 'unknown@example.com' }],
+                      to: envelope?.to ? this.parseAddresses(envelope.to) : [],
+                      cc: envelope?.cc ? this.parseAddresses(envelope.cc) : undefined,
+                      bcc: envelope?.bcc ? this.parseAddresses(envelope.bcc) : undefined,
+                      replyTo: envelope?.replyTo ? this.parseAddresses(envelope.replyTo) : undefined,
+                      date: envelope?.date ? new Date(envelope.date).getTime() : Date.now(),
+                      body: '',
+                      htmlBody: undefined,
+                      textBody: undefined,
+                      attachments: [],
+                      flags: flags,
+                      isRead: flags.includes('\\Seen'),
+                      isStarred: flags.includes('\\Flagged'),
+                      threadId: envelope?.inReplyTo || undefined,
+                      inReplyTo: envelope?.inReplyTo || undefined,
+                      references: envelope?.references ? (Array.isArray(envelope.references) ? envelope.references : [envelope.references]) : undefined,
+                      encrypted: false,
+                      signed: false,
+                      signatureVerified: undefined,
+                      createdAt: Date.now(),
+                      updatedAt: Date.now()
+                    }
+                    emails.push(email)
+                    emailCount++
+                    console.log(`Processed email ${emailCount}/${totalToFetch} (UID: ${uid || seqno}, envelope only) in ${folderName}`)
+                    checkComplete()
+                  }
+                } catch (err) {
+                  console.error(`Error processing message ${seqno} (UID: ${uid || seqno}):`, err)
+                  emailCount++
+                  checkComplete()
+                } finally {
+                  resolveMsg()
+                }
+              })
+            })
+
+            messagePromises.push(messagePromise)
+          })
+
+          fetch.once('error', (err) => {
+            clearTimeout(timeout)
+            this.connection!.removeListener('error', errorHandler)
+            console.error('IMAP fetch error:', err)
+            reject(err)
+          })
+
+            fetch.once('end', async () => {
+              fetchEnded = true
+              console.log(`Fetch stream ended for ${targetFolder}, waiting for ${messagePromises.length} messages to process...`)
+              // Wait for all message handlers to complete
+              await Promise.all(messagePromises)
+              console.log(`All messages processed for ${targetFolder}: got ${emails.length} emails out of ${totalToFetch} requested`)
+              clearTimeout(timeout)
+              this.connection!.removeListener('error', errorHandler)
+              // Resolve with whatever we got
+              resolve(emails)
+            })
+          })
+        })
+      } catch (e) {
+        clearTimeout(timeout)
+        reject(e)
+      }
+    })
+  }
+
+  async fetchEmailByUid(folderName: string, uid: number): Promise<Email | null> {
+    await this.ensureConnected()
+
+    return new Promise(async (resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error('IMAP fetch timeout'))
+      }, 30000) // 30 second timeout
+
+      try {
+        const errorHandler = (err: Error) => {
+          clearTimeout(timeout)
+          this.connection!.removeListener('error', errorHandler)
+          reject(err)
+        }
+        this.connection!.once('error', errorHandler)
+
+        // Decide which folder path to use
+        let targetFolder = folderName
+        if (folderName.toUpperCase() === 'INBOX') {
+          targetFolder = await this.getInboxPath()
+        }
+
+        this.connection!.openBox(targetFolder, true, (err, box) => {
+          if (err) {
+            clearTimeout(timeout)
+            this.connection!.removeListener('error', errorHandler)
+            reject(err)
+            return
+          }
+
+          const fetch = this.connection!.fetch([uid], {
+            bodies: '',
+            struct: true,
+            envelope: true
+          })
+
+          let email: Email | null = null
+          let flags: string[] = []
+          let envelope: any = null
+          let body = ''
+          let bodyPromise: Promise<void> | null = null
+
+          fetch.on('message', (msg, seqno) => {
+            msg.on('body', (stream, info) => {
+              let buffer = Buffer.alloc(0)
+              bodyPromise = new Promise<void>((resolve) => {
+                stream.on('data', (chunk: Buffer) => {
+                  buffer = Buffer.concat([buffer, chunk])
+                })
+                stream.once('end', () => {
+                  body = buffer.toString('utf8')
+                  resolve()
+                })
+              })
+            })
+
+            msg.on('attributes', (attrs) => {
+              flags = attrs.flags || []
+              envelope = (attrs as any).envelope
+            })
+
             msg.once('end', async () => {
               // Wait for body stream to complete if it exists
               if (bodyPromise) {
@@ -311,13 +595,13 @@ export class IMAPClient {
                 }
 
                 // Create email with parsed content
-                const email: Email = {
-                  id: `${this.account.id}-${folderName}-${uid || seqno}`,
+                email = {
+                  id: `${this.account.id}-${folderName}-${uid}`,
                   accountId: this.account.id,
                   folderId: folderName,
-                  uid: uid || seqno,
-                  messageId: parsed?.messageId || envelope?.messageId || `msg-${seqno}`,
-                  subject: parsed?.subject || envelope?.subject || `Message ${seqno}`,
+                  uid: uid,
+                  messageId: parsed?.messageId || envelope?.messageId || `msg-${uid}`,
+                  subject: parsed?.subject || envelope?.subject || `Message ${uid}`,
                   from: parsed?.from ? this.parseAddresses(parsed.from) : (envelope?.from ? this.parseAddresses(envelope.from) : [{ address: 'unknown@example.com' }]),
                   to: parsed?.to ? this.parseAddresses(parsed.to) : (envelope?.to ? this.parseAddresses(envelope.to) : []),
                   cc: parsed?.cc ? this.parseAddresses(parsed.cc) : (envelope?.cc ? this.parseAddresses(envelope.cc) : undefined),
@@ -328,8 +612,8 @@ export class IMAPClient {
                   htmlBody: parsed?.html || undefined,
                   textBody: parsed?.text,
                   attachments: parsed?.attachments?.map((att: any) => ({
-                    id: `${this.account.id}-${uid || seqno}-${att.filename}`,
-                    emailId: `${this.account.id}-${uid || seqno}`,
+                    id: `${this.account.id}-${uid}-${att.filename}`,
+                    emailId: `${this.account.id}-${uid}`,
                     filename: att.filename || 'attachment',
                     contentType: att.contentType || 'application/octet-stream',
                     size: att.size || 0,
@@ -348,24 +632,16 @@ export class IMAPClient {
                   createdAt: Date.now(),
                   updatedAt: Date.now()
                 }
-
-                emails.push(email)
-                emailCount++
-
-                if (emailCount === totalToFetch) {
-                  clearTimeout(timeout)
-                  resolve(emails)
-                }
               } catch (parseErr) {
-                console.error(`Error parsing message ${seqno}:`, parseErr)
+                console.error(`Error parsing message ${uid}:`, parseErr)
                 // Still create email with envelope data if parsing fails
-                const email: Email = {
-                  id: `${this.account.id}-${folderName}-${uid || seqno}`,
+                email = {
+                  id: `${this.account.id}-${folderName}-${uid}`,
                   accountId: this.account.id,
                   folderId: folderName,
-                  uid: uid || seqno,
-                  messageId: envelope?.messageId || `msg-${seqno}`,
-                  subject: envelope?.subject || `Message ${seqno}`,
+                  uid: uid,
+                  messageId: envelope?.messageId || `msg-${uid}`,
+                  subject: envelope?.subject || `Message ${uid}`,
                   from: envelope?.from ? this.parseAddresses(envelope.from) : [{ address: 'unknown@example.com' }],
                   to: envelope?.to ? this.parseAddresses(envelope.to) : [],
                   cc: envelope?.cc ? this.parseAddresses(envelope.cc) : undefined,
@@ -388,12 +664,6 @@ export class IMAPClient {
                   createdAt: Date.now(),
                   updatedAt: Date.now()
                 }
-                emails.push(email)
-                emailCount++
-                if (emailCount === totalToFetch) {
-                  clearTimeout(timeout)
-                  resolve(emails)
-                }
               }
             })
           })
@@ -406,163 +676,14 @@ export class IMAPClient {
 
           fetch.once('end', () => {
             clearTimeout(timeout)
-            // Resolve with whatever we got, even if it's empty
-            resolve(emails)
+            this.connection!.removeListener('error', errorHandler)
+            resolve(email)
           })
         })
-      })
-    })
-  }
-
-  async fetchEmailByUid(folderName: string, uid: number): Promise<Email | null> {
-    await this.ensureConnected()
-
-    return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        reject(new Error('IMAP fetch timeout'))
-      }, 30000) // 30 second timeout
-
-      this.connection!.once('error', (err) => {
+      } catch (e) {
         clearTimeout(timeout)
-        reject(err)
-      })
-
-      this.connection!.openBox(folderName, true, (err, box) => {
-        if (err) {
-          clearTimeout(timeout)
-          reject(err)
-          return
-        }
-
-        const fetch = this.connection!.fetch([uid], {
-          bodies: '',
-          struct: true,
-          envelope: true
-        })
-
-        let email: Email | null = null
-        let flags: string[] = []
-        let envelope: any = null
-        let body = ''
-        let bodyPromise: Promise<void> | null = null
-
-        fetch.on('message', (msg, seqno) => {
-          msg.on('body', (stream, info) => {
-            let buffer = Buffer.alloc(0)
-            bodyPromise = new Promise<void>((resolve) => {
-              stream.on('data', (chunk: Buffer) => {
-                buffer = Buffer.concat([buffer, chunk])
-              })
-              stream.once('end', () => {
-                body = buffer.toString('utf8')
-                resolve()
-              })
-            })
-          })
-
-          msg.on('attributes', (attrs) => {
-            flags = attrs.flags || []
-            envelope = (attrs as any).envelope
-          })
-
-          msg.once('end', async () => {
-            // Wait for body stream to complete if it exists
-            if (bodyPromise) {
-              await bodyPromise
-            }
-
-            try {
-              // Parse the email body
-              let parsed: any = null
-              if (body && body.length > 0) {
-                parsed = await simpleParser(body)
-              }
-
-              // Create email with parsed content
-              email = {
-                id: `${this.account.id}-${folderName}-${uid}`,
-                accountId: this.account.id,
-                folderId: folderName,
-                uid: uid,
-                messageId: parsed?.messageId || envelope?.messageId || `msg-${uid}`,
-                subject: parsed?.subject || envelope?.subject || `Message ${uid}`,
-                from: parsed?.from ? this.parseAddresses(parsed.from) : (envelope?.from ? this.parseAddresses(envelope.from) : [{ address: 'unknown@example.com' }]),
-                to: parsed?.to ? this.parseAddresses(parsed.to) : (envelope?.to ? this.parseAddresses(envelope.to) : []),
-                cc: parsed?.cc ? this.parseAddresses(parsed.cc) : (envelope?.cc ? this.parseAddresses(envelope.cc) : undefined),
-                bcc: parsed?.bcc ? this.parseAddresses(parsed.bcc) : (envelope?.bcc ? this.parseAddresses(envelope.bcc) : undefined),
-                replyTo: parsed?.replyTo ? this.parseAddresses(parsed.replyTo) : (envelope?.replyTo ? this.parseAddresses(envelope.replyTo) : undefined),
-                date: parsed?.date ? parsed.date.getTime() : (envelope?.date ? new Date(envelope.date).getTime() : Date.now()),
-                body: parsed?.html || parsed?.text || '',
-                htmlBody: parsed?.html || undefined,
-                textBody: parsed?.text,
-                attachments: parsed?.attachments?.map((att: any) => ({
-                  id: `${this.account.id}-${uid}-${att.filename}`,
-                  emailId: `${this.account.id}-${uid}`,
-                  filename: att.filename || 'attachment',
-                  contentType: att.contentType || 'application/octet-stream',
-                  size: att.size || 0,
-                  contentId: att.contentId,
-                  data: att.content as Buffer
-                })) || [],
-                flags: flags,
-                isRead: flags.includes('\\Seen'),
-                isStarred: flags.includes('\\Flagged'),
-                threadId: parsed?.inReplyTo || envelope?.inReplyTo || undefined,
-                inReplyTo: parsed?.inReplyTo || envelope?.inReplyTo || undefined,
-                references: parsed?.references ? (Array.isArray(parsed.references) ? parsed.references : [parsed.references]) : (envelope?.references ? (Array.isArray(envelope.references) ? envelope.references : [envelope.references]) : undefined),
-                encrypted: false,
-                signed: false,
-                signatureVerified: undefined,
-                createdAt: Date.now(),
-                updatedAt: Date.now()
-              }
-            } catch (parseErr) {
-              console.error(`Error parsing message ${uid}:`, parseErr)
-              // Still create email with envelope data if parsing fails
-              email = {
-                id: `${this.account.id}-${folderName}-${uid}`,
-                accountId: this.account.id,
-                folderId: folderName,
-                uid: uid,
-                messageId: envelope?.messageId || `msg-${uid}`,
-                subject: envelope?.subject || `Message ${uid}`,
-                from: envelope?.from ? this.parseAddresses(envelope.from) : [{ address: 'unknown@example.com' }],
-                to: envelope?.to ? this.parseAddresses(envelope.to) : [],
-                cc: envelope?.cc ? this.parseAddresses(envelope.cc) : undefined,
-                bcc: envelope?.bcc ? this.parseAddresses(envelope.bcc) : undefined,
-                replyTo: envelope?.replyTo ? this.parseAddresses(envelope.replyTo) : undefined,
-                date: envelope?.date ? new Date(envelope.date).getTime() : Date.now(),
-                body: '',
-                htmlBody: undefined,
-                textBody: undefined,
-                attachments: [],
-                flags: flags,
-                isRead: flags.includes('\\Seen'),
-                isStarred: flags.includes('\\Flagged'),
-                threadId: envelope?.inReplyTo || undefined,
-                inReplyTo: envelope?.inReplyTo || undefined,
-                references: envelope?.references ? (Array.isArray(envelope.references) ? envelope.references : [envelope.references]) : undefined,
-                encrypted: false,
-                signed: false,
-                signatureVerified: undefined,
-                createdAt: Date.now(),
-                updatedAt: Date.now()
-              }
-            }
-          })
-        })
-
-        fetch.once('error', (err) => {
-          clearTimeout(timeout)
-          console.error('IMAP fetch error:', err)
-          reject(err)
-        })
-
-        fetch.once('end', () => {
-          clearTimeout(timeout)
-          resolve(email)
-        })
-      })
+        reject(e)
+      }
     })
   }
 
@@ -575,44 +696,54 @@ export class IMAPClient {
   } | null> {
     await this.ensureConnected()
 
-    return new Promise((resolve, reject) => {
-      this.connection!.openBox(folderPath, true, (err) => {
-        if (err) {
-          reject(err)
-          return
+    return new Promise(async (resolve, reject) => {
+      try {
+        // Decide which folder path to use
+        let targetFolder = folderPath
+        if (folderPath.toUpperCase() === 'INBOX') {
+          targetFolder = await this.getInboxPath()
         }
-
-        let envelope: any = null
-
-        const fetch = this.connection!.fetch(uid, {
-          envelope: true
-        })
-
-        fetch.on('message', (msg) => {
-          msg.on('attributes', (attrs) => {
-            envelope = (attrs as any).envelope
-          })
-        })
-
-        fetch.once('error', (error) => {
-          reject(error)
-        })
-
-        fetch.once('end', () => {
-          if (!envelope) {
-            resolve(null)
+        
+        this.connection!.openBox(targetFolder, true, (err) => {
+          if (err) {
+            reject(err)
             return
           }
 
-          resolve({
-            from: this.parseAddresses(envelope.from),
-            to: this.parseAddresses(envelope.to),
-            cc: this.parseAddresses(envelope.cc),
-            bcc: this.parseAddresses(envelope.bcc),
-            replyTo: this.parseAddresses(envelope.replyTo)
+          let envelope: any = null
+
+          const fetch = this.connection!.fetch(uid, {
+            envelope: true
+          })
+
+          fetch.on('message', (msg) => {
+            msg.on('attributes', (attrs) => {
+              envelope = (attrs as any).envelope
+            })
+          })
+
+          fetch.once('error', (error) => {
+            reject(error)
+          })
+
+          fetch.once('end', () => {
+            if (!envelope) {
+              resolve(null)
+              return
+            }
+
+            resolve({
+              from: this.parseAddresses(envelope.from),
+              to: this.parseAddresses(envelope.to),
+              cc: this.parseAddresses(envelope.cc),
+              bcc: this.parseAddresses(envelope.bcc),
+              replyTo: this.parseAddresses(envelope.replyTo)
+            })
           })
         })
-      })
+      } catch (e) {
+        reject(e)
+      }
     })
   }
 
@@ -670,40 +801,95 @@ export class IMAPClient {
   async moveEmail(uid: number, sourceFolder: string, destinationFolder: string): Promise<void> {
     await this.ensureConnected()
 
-    return new Promise((resolve, reject) => {
-      // Open source folder
-      this.connection!.openBox(sourceFolder, false, (err, box) => {
-        if (err) {
-          reject(err)
-          return
+    return new Promise(async (resolve, reject) => {
+      try {
+        // Decide which folder paths to use
+        let targetSource = sourceFolder
+        let targetDest = destinationFolder
+        
+        if (sourceFolder.toUpperCase() === 'INBOX') {
+          targetSource = await this.getInboxPath()
         }
-
-        // Use COPY + DELETE + EXPUNGE
-        this.connection!.copy(uid, destinationFolder, (copyErr) => {
-          if (copyErr) {
-            reject(copyErr)
+        if (destinationFolder.toUpperCase() === 'INBOX') {
+          targetDest = await this.getInboxPath()
+        }
+        
+        // Open source folder
+        this.connection!.openBox(targetSource, false, (err, box) => {
+          if (err) {
+            reject(err)
             return
           }
 
-          // Mark as deleted in source folder
-          this.connection!.addFlags(uid, '\\Deleted', (deleteErr) => {
-            if (deleteErr) {
-              reject(deleteErr)
+          // Use COPY + DELETE + EXPUNGE
+          this.connection!.copy(uid, targetDest, (copyErr) => {
+            if (copyErr) {
+              reject(copyErr)
               return
             }
 
-            // Expunge to actually delete (expunge doesn't take uid parameter)
-            this.connection!.expunge((expungeErr) => {
-              if (expungeErr) {
-                reject(expungeErr)
+            // Mark as deleted in source folder
+            this.connection!.addFlags(uid, '\\Deleted', (deleteErr) => {
+              if (deleteErr) {
+                reject(deleteErr)
                 return
               }
 
-              resolve()
+              // Expunge to actually delete (expunge doesn't take uid parameter)
+              this.connection!.expunge((expungeErr) => {
+                if (expungeErr) {
+                  reject(expungeErr)
+                  return
+                }
+
+                resolve()
+              })
             })
           })
         })
-      })
+      } catch (e) {
+        reject(e)
+      }
+    })
+  }
+
+  async markAsRead(uid: number, folderName: string, read: boolean = true): Promise<void> {
+    await this.ensureConnected()
+
+    return new Promise(async (resolve, reject) => {
+      try {
+        // Decide which folder path to use
+        let targetFolder = folderName
+        if (folderName.toUpperCase() === 'INBOX') {
+          targetFolder = await this.getInboxPath()
+        }
+        
+        this.connection!.openBox(targetFolder, false, (err) => {
+          if (err) {
+            reject(err)
+            return
+          }
+
+          if (read) {
+            // Add \Seen flag
+            this.connection!.addFlags(uid, '\\Seen', (flagErr) => {
+              if (flagErr) {
+                reject(flagErr)
+                return
+              }
+              resolve()
+            })
+          } else {
+            // Remove \Seen flag
+            this.connection!.delFlags(uid, '\\Seen', (flagErr) => {
+              if (flagErr) {
+                reject(flagErr)
+                return
+              }
+              resolve()
+            })
+          }
+        })
     })
   }
 
