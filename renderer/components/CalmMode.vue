@@ -1,10 +1,10 @@
 <template>
-  <div ref="containerRef" tabindex="0" class="flex flex-col h-full bg-gray-50 calm-mode" @keydown="handleKeyDown" @focus="handleFocus">
+  <div ref="containerRef" tabindex="0" class="flex flex-col h-full bg-gray-50 dark:bg-gray-900 calm-mode" @keydown="handleKeyDown" @focus="handleFocus">
     <!-- Header -->
-    <div class="p-4 border-b border-gray-200 bg-white">
-      <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
+    <div class="p-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+      <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
         <span>Marco Mail</span>
-        <span class="text-sm font-normal text-gray-500">🧠 Calm Mode</span>
+        <span class="text-sm font-normal text-gray-500 dark:text-gray-400">🧠 Calm Mode</span>
       </h2>
     </div>
 
@@ -13,20 +13,20 @@
       <!-- NOW Column -->
       <div
         ref="nowColumnRef"
-        class="flex-1 flex flex-col border-r border-gray-200 bg-white overflow-hidden"
+        class="flex-1 flex flex-col border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 overflow-hidden"
         @drop="handleDrop($event, 'now')"
         @dragover.prevent
         @dragenter.prevent="handleDragEnter('now')"
         @dragleave="handleDragLeave('now')"
-        :class="{ 'bg-blue-50': dragOverZone === 'now' }"
+        :class="{ 'bg-blue-50 dark:bg-blue-900/20': dragOverZone === 'now' }"
       >
-        <div class="p-3 border-b border-gray-200 bg-gray-50">
-          <h3 class="text-sm font-semibold text-gray-900">NOW</h3>
-          <p class="text-xs text-gray-500">Needs action</p>
+        <div class="p-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+          <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">NOW</h3>
+          <p class="text-xs text-gray-500 dark:text-gray-400">Needs action</p>
         </div>
         <div class="flex-1 overflow-y-auto p-3 space-y-3">
-          <div v-if="loadingNow" class="text-center text-gray-500 py-8">Loading...</div>
-          <div v-else-if="nowEmails.length === 0" class="text-center text-gray-400 py-8 text-sm">
+          <div v-if="loadingNow" class="text-center text-gray-500 dark:text-gray-400 py-8">Loading...</div>
+          <div v-else-if="nowEmails.length === 0" class="text-center text-gray-400 dark:text-gray-500 py-8 text-sm">
             No emails needing action
           </div>
           <EmailCard
@@ -46,14 +46,14 @@
       </div>
 
       <!-- Current Thread Column -->
-      <div class="flex-1 flex flex-col border-r border-gray-200 bg-white overflow-hidden">
-        <div class="p-3 border-b border-gray-200 bg-gray-50">
-          <h3 class="text-sm font-semibold text-gray-900">CURRENT THREAD</h3>
-          <p class="text-xs text-gray-500">Email opened</p>
+      <div class="flex-1 flex flex-col border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 overflow-hidden">
+        <div class="p-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+          <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">CURRENT THREAD</h3>
+          <p class="text-xs text-gray-500 dark:text-gray-400">Email opened</p>
         </div>
         <div class="flex-1 overflow-y-auto">
           <EmailViewer v-if="selectedEmailId" :email-id="selectedEmailId" @reply="handleReply" @forward="handleForward" @set-reminder="handleSetReminder" @delete="handleDeleteEmail" />
-          <div v-else class="flex items-center justify-center h-full text-gray-400 text-sm">
+          <div v-else class="flex items-center justify-center h-full text-gray-400 dark:text-gray-500 text-sm">
             Select an email to view
           </div>
         </div>
@@ -62,20 +62,20 @@
       <!-- LATER Column -->
       <div
         ref="laterColumnRef"
-        class="flex-1 flex flex-col bg-white overflow-hidden"
+        class="flex-1 flex flex-col bg-white dark:bg-gray-800 overflow-hidden"
         @drop="handleDrop($event, 'later')"
         @dragover.prevent
         @dragenter.prevent="handleDragEnter('later')"
         @dragleave="handleDragLeave('later')"
-        :class="{ 'bg-blue-50': dragOverZone === 'later' }"
+        :class="{ 'bg-blue-50 dark:bg-blue-900/20': dragOverZone === 'later' }"
       >
-        <div class="p-3 border-b border-gray-200 bg-gray-50">
-          <h3 class="text-sm font-semibold text-gray-900">LATER</h3>
-          <p class="text-xs text-gray-500">Snoozed</p>
+        <div class="p-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+          <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">LATER</h3>
+          <p class="text-xs text-gray-500 dark:text-gray-400">Snoozed</p>
         </div>
         <div class="flex-1 overflow-y-auto p-3 space-y-3">
-          <div v-if="loadingLater" class="text-center text-gray-500 py-8">Loading...</div>
-          <div v-else-if="laterEmails.length === 0" class="text-center text-gray-400 py-8 text-sm">
+          <div v-if="loadingLater" class="text-center text-gray-500 dark:text-gray-400 py-8">Loading...</div>
+          <div v-else-if="laterEmails.length === 0" class="text-center text-gray-400 dark:text-gray-500 py-8 text-sm">
             No snoozed emails
           </div>
           <EmailCard
@@ -96,19 +96,19 @@
     </div>
 
     <!-- Reference and Noise sections (collapsed by default) -->
-    <div class="border-t border-gray-200 bg-white">
+    <div class="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
       <!-- Reference Section -->
-      <div class="border-b border-gray-100">
+      <div class="border-b border-gray-100 dark:border-gray-700">
         <button
           @click="referenceExpanded = !referenceExpanded"
-          class="w-full p-3 flex items-center justify-between hover:bg-gray-50 transition-colors"
+          class="w-full p-3 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
         >
           <div class="text-left">
-            <h3 class="text-sm font-semibold text-gray-900">REFERENCE</h3>
-            <p class="text-xs text-gray-500">Read, receipts, FYI, newsletters</p>
+            <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">REFERENCE</h3>
+            <p class="text-xs text-gray-500 dark:text-gray-400">Read, receipts, FYI, newsletters</p>
           </div>
           <svg
-            class="w-5 h-5 text-gray-400 transition-transform"
+            class="w-5 h-5 text-gray-400 dark:text-gray-500 transition-transform"
             :class="{ 'rotate-180': referenceExpanded }"
             fill="none"
             stroke="currentColor"
@@ -124,15 +124,15 @@
         >
           <div
             ref="referenceColumnRef"
-            class="p-3 border-t border-gray-100"
+            class="p-3 border-t border-gray-100 dark:border-gray-700"
             @drop="handleDrop($event, 'reference')"
             @dragover.prevent
             @dragenter.prevent="handleDragEnter('reference')"
             @dragleave="handleDragLeave('reference')"
-            :class="{ 'bg-blue-50': dragOverZone === 'reference' }"
+            :class="{ 'bg-blue-50 dark:bg-blue-900/20': dragOverZone === 'reference' }"
           >
-            <div v-if="loadingReference" class="text-center text-gray-500 py-4">Loading...</div>
-            <div v-else-if="referenceEmails.length === 0" class="text-center text-gray-400 py-4 text-sm">
+            <div v-if="loadingReference" class="text-center text-gray-500 dark:text-gray-400 py-4">Loading...</div>
+            <div v-else-if="referenceEmails.length === 0" class="text-center text-gray-400 dark:text-gray-500 py-4 text-sm">
               No reference emails
             </div>
             <div v-else class="grid grid-cols-2 gap-2">
@@ -158,14 +158,14 @@
       <div>
         <button
           @click="noiseExpanded = !noiseExpanded"
-          class="w-full p-3 flex items-center justify-between hover:bg-gray-50 transition-colors"
+          class="w-full p-3 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
         >
           <div class="text-left">
-            <h3 class="text-sm font-semibold text-gray-500">NOISE</h3>
-            <p class="text-xs text-gray-400">Spam, auto-filtered newsletters</p>
+            <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400">NOISE</h3>
+            <p class="text-xs text-gray-400 dark:text-gray-500">Spam, auto-filtered newsletters</p>
           </div>
           <svg
-            class="w-5 h-5 text-gray-400 transition-transform"
+            class="w-5 h-5 text-gray-400 dark:text-gray-500 transition-transform"
             :class="{ 'rotate-180': noiseExpanded }"
             fill="none"
             stroke="currentColor"
@@ -181,15 +181,15 @@
         >
           <div
             ref="noiseColumnRef"
-            class="p-3 border-t border-gray-100"
+            class="p-3 border-t border-gray-100 dark:border-gray-700"
             @drop="handleDrop($event, 'noise')"
             @dragover.prevent
             @dragenter.prevent="handleDragEnter('noise')"
             @dragleave="handleDragLeave('noise')"
-            :class="{ 'bg-blue-50': dragOverZone === 'noise' }"
+            :class="{ 'bg-blue-50 dark:bg-blue-900/20': dragOverZone === 'noise' }"
           >
-            <div v-if="loadingNoise" class="text-center text-gray-500 py-4">Loading...</div>
-            <div v-else-if="noiseEmails.length === 0" class="text-center text-gray-400 py-4 text-sm">
+            <div v-if="loadingNoise" class="text-center text-gray-500 dark:text-gray-400 py-4">Loading...</div>
+            <div v-else-if="noiseEmails.length === 0" class="text-center text-gray-400 dark:text-gray-500 py-4 text-sm">
               No noise emails
             </div>
             <div v-else class="grid grid-cols-2 gap-2 opacity-60">

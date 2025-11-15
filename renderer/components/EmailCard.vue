@@ -6,15 +6,15 @@
     @dragstart="handleDragStart"
     @dragend="handleDragEnd"
     @click="handleClick"
-    class="group relative bg-white rounded-lg border border-gray-200 p-4 cursor-pointer transition-all duration-200 hover:shadow-md hover:border-gray-300 calm-card email-card"
+    class="group relative bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 cursor-pointer transition-all duration-200 hover:shadow-md hover:border-gray-300 dark:hover:border-gray-600 calm-card email-card"
     :class="{
-      'ring-2 ring-primary-500 border-primary-500': isSelected,
+      'ring-2 ring-primary-500 dark:ring-primary-400 border-primary-500 dark:border-primary-400': isSelected,
       'opacity-60': isDragging
     }"
   >
     <!-- Drag handle (visible on hover) -->
     <div class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-      <div class="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-gray-600 cursor-grab active:cursor-grabbing">
+      <div class="w-6 h-6 flex items-center justify-center text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 cursor-grab active:cursor-grabbing">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16" />
         </svg>
@@ -30,43 +30,43 @@
     <div class="pr-8">
       <!-- Sender -->
       <div class="flex items-center gap-2 mb-1">
-        <span class="text-sm font-semibold text-gray-900 truncate">
+        <span class="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">
           {{ senderName }}
         </span>
-        <span v-if="email.encrypted" class="text-xs text-primary-600" title="Encrypted">🔒</span>
-        <span v-if="email.signed" class="text-xs text-green-600" title="Signed">✓</span>
-        <span v-if="email.isStarred" class="text-xs text-yellow-500">★</span>
+        <span v-if="email.encrypted" class="text-xs text-primary-600 dark:text-primary-400" title="Encrypted">🔒</span>
+        <span v-if="email.signed" class="text-xs text-green-600 dark:text-green-400" title="Signed">✓</span>
+        <span v-if="email.isStarred" class="text-xs text-yellow-500 dark:text-yellow-400">★</span>
       </div>
 
       <!-- Subject -->
       <div class="mb-2">
-        <span class="text-sm text-gray-900 font-medium line-clamp-1">
+        <span class="text-sm text-gray-900 dark:text-gray-100 font-medium line-clamp-1">
           {{ email.subject || '(No subject)' }}
         </span>
       </div>
 
       <!-- Preview text -->
       <div v-if="previewText" class="mb-2">
-        <p class="text-xs text-gray-600 line-clamp-2">
+        <p class="text-xs text-gray-600 dark:text-gray-400 line-clamp-2">
           {{ previewText }}
         </p>
       </div>
 
       <!-- Metadata row -->
-      <div class="flex items-center justify-between mt-3 pt-2 border-t border-gray-100">
+      <div class="flex items-center justify-between mt-3 pt-2 border-t border-gray-100 dark:border-gray-700">
         <!-- Thread count badge -->
-        <div v-if="threadCount > 1" class="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded">
+        <div v-if="threadCount > 1" class="text-xs px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded">
           {{ threadCount }}
         </div>
         <div v-else></div>
 
         <!-- Timestamp (hidden by default, shown on hover) -->
-        <span class="text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity">
+        <span class="text-xs text-gray-400 dark:text-gray-500 opacity-0 group-hover:opacity-100 transition-opacity">
           {{ formatTime(email.date) }}
         </span>
 
         <!-- Attachment indicator -->
-        <span v-if="email.attachmentCount > 0" class="text-xs text-gray-500">📎</span>
+        <span v-if="email.attachmentCount > 0" class="text-xs text-gray-500 dark:text-gray-400">📎</span>
       </div>
     </div>
 
@@ -74,7 +74,7 @@
     <div class="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
       <button
         @click.stop="handleReply"
-        class="p-1.5 rounded hover:bg-gray-100 text-gray-600 hover:text-gray-900"
+        class="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
         title="Reply"
       >
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -83,7 +83,7 @@
       </button>
       <button
         @click.stop="handleArchive"
-        class="p-1.5 rounded hover:bg-gray-100 text-gray-600 hover:text-gray-900"
+        class="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
         title="Archive"
       >
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -92,7 +92,7 @@
       </button>
       <button
         @click.stop="handleSnooze"
-        class="p-1.5 rounded hover:bg-gray-100 text-gray-600 hover:text-gray-900"
+        class="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
         title="Snooze"
       >
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
