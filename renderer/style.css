@@ -90,6 +90,7 @@ button:disabled, a:disabled, label:disabled {
 
 .dark .toggle:checked {
   background-color: #c2410c;
+  background-image: none;
 }
 
 .dark .toggle::before {
@@ -112,6 +113,7 @@ button:disabled, a:disabled, label:disabled {
 
 .toggle-sm:checked {
   background-color: #c2410c;
+  background-image: none;
 }
 
 .toggle-sm::before {
@@ -143,6 +145,7 @@ button:disabled, a:disabled, label:disabled {
 
 .dark .toggle-sm:checked {
   background-color: #c2410c;
+  background-image: none;
 }
 
 .dark .toggle-sm::before {
