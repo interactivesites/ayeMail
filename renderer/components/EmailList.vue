@@ -786,9 +786,20 @@ const handleKeyDown = (event: KeyboardEvent) => {
   // Only handle if EmailList is mounted and has emails
   if (!containerRef.value || emails.value.length === 0) return
   
-  // Don't handle shortcuts when typing in inputs/textareas
+  // Don't handle shortcuts when typing in inputs/textareas/contenteditable
   const target = event.target as HTMLElement
-  if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return
+  if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return
+  
+  // Don't handle shortcuts if settings modal is open
+  // Check if target is within the settings modal overlay (z-50) or if settings modal exists in DOM
+  const modalOverlay = target.closest('.fixed.inset-0')
+  const isInSettingsModal = (modalOverlay !== null && modalOverlay.classList.contains('z-50')) ||
+                            document.querySelector('.fixed.inset-0.z-50') !== null
+  
+  // Block M/T/Space keys when settings modal is open (but allow Escape to close modals)
+  if (isInSettingsModal && (event.key === 'm' || event.key === 'M' || event.key === 't' || event.key === 'T' || event.key === ' ')) {
+    return
+  }
   
   // Handle Escape to close modals
   if (event.key === 'Escape') {

@@ -3,8 +3,30 @@
     <!-- Custom Title Bar -->
     <div class="app-drag-region bg-white/70 backdrop-blur-xl border-b border-white/60 shadow-sm flex items-center justify-between px-4 py-2 h-12">
       <div class="app-no-drag flex items-center space-x-3 flex-1 min-w-0">
-        <img src="../../assets/ilogo.png" alt="iMail" class="w-6 h-6 rounded-lg flex-shrink-0" />
+       
+        <button
+          @click="sendEmail"
+          :disabled="sending || !form.to?.trim()"
+          class="p-2 rounded-md hover:text-primary-700 hover:-rotate-90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors transition-transform"
+          :title="sending ? 'Sending...' : (!form.to?.trim() ? 'Please enter a recipient' : 'Send')"
+        >
+          <PaperAirplaneIcon class="w-5 h-5 text-primary-600" />
+        </button>
+        <!-- <img src="../../assets/ilogo.png" alt="iMail" class="w-6 h-6 rounded-lg flex-shrink-0" /> -->
         <h2 class="text-sm font-medium text-gray-900 truncate min-w-0 flex-1" :title="displayTitle">{{ displayTitle }}</h2>
+        <div class="border-l border-gray-300 h-4 mx-4 flex-shrink-0"></div>
+        <div class="flex items-center space-x-2">
+          <label class="text-xs text-gray-600">From:</label>
+          <select
+            v-model="selectedAccountId"
+            @change="handleAccountChange"
+            class="text-xs px-2 py-1 border border-gray-300 rounded bg-white focus:outline-none focus:ring-1 focus:ring-primary-600 focus:border-primary-600"
+          >
+            <option v-for="account in accounts" :key="account.id" :value="account.id">
+              {{ account.name || account.email }}
+            </option>
+          </select>
+        </div>
         <div class="border-l border-gray-300 h-4 mx-4 flex-shrink-0"></div>
         <label class="flex items-center space-x-1.5 cursor-pointer">
           <input
@@ -22,15 +44,6 @@
           />
           <span class="text-xs text-gray-700">Sign</span>
         </label>
-        <div class="border-l border-gray-300 h-4 mx-4"></div>
-        <button
-          @click="sendEmail"
-          :disabled="sending || !form.to?.trim()"
-          class="p-2 rounded-md hover:text-primary-700 hover:-rotate-90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors transition-transform"
-          :title="sending ? 'Sending...' : (!form.to?.trim() ? 'Please enter a recipient' : 'Send')"
-        >
-          <PaperAirplaneIcon class="w-5 h-5" />
-        </button>
       </div>
       <div class="app-no-drag flex items-center space-x-1">
         <button
@@ -390,6 +403,8 @@ const attachments = ref<Array<{ name: string; size: number; file: File }>>([])
 const isDragging = ref(false)
 const windowId = ref<number | null>(null)
 
+const accounts = ref<any[]>([])
+const selectedAccountId = ref<string>(props.accountId)
 const signatures = ref<any[]>([])
 const defaultSignature = ref<any>(null)
 
@@ -466,6 +481,45 @@ const preventDocumentDrop = (e: DragEvent) => {
   }
 }
 
+// Load accounts and signatures for an account
+const loadAccountSignatures = async (accountId: string) => {
+  if (!accountId) return
+  try {
+    signatures.value = await window.electronAPI.signatures.list(accountId)
+    defaultSignature.value = signatures.value.find(s => s.is_default)
+  } catch (error) {
+    console.error('Error loading signatures:', error)
+    signatures.value = []
+    defaultSignature.value = null
+  }
+}
+
+// Append signature to editor
+const appendSignature = () => {
+  if (!defaultSignature.value || !editor.value || props.replyTo) return
+  
+  const signatureHtml = defaultSignature.value.html || `<p>${defaultSignature.value.text}</p>`
+  const currentContent = editor.value.getHTML()
+  
+  // Check if signature is already in the content (simple check)
+  if (currentContent.includes(signatureHtml)) return
+  
+  // Append signature at the end using TipTap's insertContent
+  if (currentContent.trim()) {
+    // Move cursor to end and insert signature
+    editor.value.chain().focus().setTextSelection(editor.value.state.doc.content.size).insertContent(signatureHtml).run()
+  } else {
+    // If editor is empty, just set the signature
+    editor.value.chain().focus().setContent(signatureHtml, false).run()
+  }
+}
+
+// Handle account change
+const handleAccountChange = async () => {
+  await loadAccountSignatures(selectedAccountId.value)
+  appendSignature()
+}
+
 onMounted(async () => {
   // Add document-level handlers to prevent browser/Electron from opening files
   document.addEventListener('dragover', preventDocumentDragOver, true)
@@ -478,23 +532,30 @@ onMounted(async () => {
     console.error('Error getting window ID:', error)
   }
   
+  // Load all accounts
+  try {
+    accounts.value = await window.electronAPI.accounts.list()
+    if (!selectedAccountId.value && accounts.value.length > 0) {
+      selectedAccountId.value = accounts.value[0].id
+    }
+  } catch (error) {
+    console.error('Error loading accounts:', error)
+  }
+  
   // Initialize editor content if replyTo is already available
   if (props.replyTo && editor.value) {
     updateEditorContent(props.replyTo)
   }
   
-  if (props.accountId) {
-    try {
-      signatures.value = await window.electronAPI.signatures.list(props.accountId)
-      defaultSignature.value = signatures.value.find(s => s.is_default)
-      if (defaultSignature.value && !props.replyTo && editor.value) {
-        const signatureHtml = defaultSignature.value.html || `<p>${defaultSignature.value.text}</p>`
-        const currentContent = editor.value.getHTML()
-        editor.value.commands.setContent(currentContent + signatureHtml)
-      }
-    } catch (error) {
-      console.error('Error loading signatures:', error)
-    }
+  // Load signatures for initial account
+  await loadAccountSignatures(selectedAccountId.value)
+  
+  // Append signature if not replying
+  if (!props.replyTo) {
+    // Wait a bit for editor to be fully initialized
+    setTimeout(() => {
+      appendSignature()
+    }, 100)
   }
   
   // Initial title update
@@ -760,7 +821,7 @@ const sendEmail = async () => {
     const attachmentBuffers = [...imageAttachments, ...fileAttachments]
 
     const result = await window.electronAPI.emails.send({
-      accountId: props.accountId,
+      accountId: selectedAccountId.value,
       to: parseAddresses(form.value.to),
       cc: form.value.cc ? parseAddresses(form.value.cc) : undefined,
       subject: form.value.subject,

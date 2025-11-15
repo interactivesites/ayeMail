@@ -58,6 +58,33 @@
                   Add Account
                 </button>
               </div>
+            </div>
+            <div v-else-if="currentTab === 'signatures'" class="space-y-6">
+              <div>
+                <h3 class="text-md font-semibold text-gray-900 mb-2">Select Account</h3>
+                <div v-if="accounts.length === 0" class="text-gray-500 text-sm mb-4">
+                  No accounts configured. Please add an account first.
+                </div>
+                <div v-else class="space-y-2 mb-4">
+                  <div
+                    v-for="account in accounts"
+                    :key="account.id"
+                    class="p-3 border border-gray-200 rounded flex items-center justify-between"
+                    :class="{ 'border-primary-600 bg-primary-50': selectedAccountId === account.id }"
+                  >
+                    <div>
+                      <div class="font-medium text-gray-900">{{ account.name }}</div>
+                      <div class="text-sm text-gray-500">{{ account.email }}</div>
+                    </div>
+                    <button
+                      @click="selectAccountForSignatures(account)"
+                      class="px-3 py-1 bg-primary-600 text-white text-sm rounded hover:bg-primary-700"
+                    >
+                      Select
+                    </button>
+                  </div>
+                </div>
+              </div>
               <div v-if="selectedAccountId">
                 <SignatureManager :account-id="selectedAccountId" />
               </div>
@@ -78,7 +105,7 @@
                 </label>
               </div>
               <div>
-                <h3 class="text-md font-semibold text-gray-900 mb-2">GPG Keys</h3>
+                
                 <GPGKeyManager />
               </div>
               <div>
@@ -146,6 +173,7 @@ const autoLockMinutes = ref(15)
 const settingsTabs = [
   { id: 'general', label: 'General' },
   { id: 'accounts', label: 'Accounts' },
+  { id: 'signatures', label: 'Signatures' },
 ]
 const activeTab = ref('general')
 const preferences = usePreferencesStore()
@@ -165,6 +193,10 @@ const loadAccounts = async () => {
 const selectAccount = (account: any) => {
   selectedAccountId.value = account.id
   emit('account-selected', account)
+}
+
+const selectAccountForSignatures = (account: any) => {
+  selectedAccountId.value = account.id
 }
 
 const removeAccount = async (id: string) => {
@@ -205,10 +237,6 @@ const updateAutoLock = () => {
 
 onMounted(() => {
   loadAccounts()
-  // Set first account as selected for signature management
-  if (accounts.value.length > 0) {
-    selectedAccountId.value = accounts.value[0].id
-  }
   // Load auto-lock settings
   autoLockEnabled.value = localStorage.getItem('autoLockEnabled') === 'true'
   const savedMinutes = localStorage.getItem('autoLockMinutes')
