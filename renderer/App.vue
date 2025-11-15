@@ -13,10 +13,9 @@
       @delete="handleNavDelete"
     />
     <main class="flex-1 flex overflow-hidden">
-      <template v-if="selectedAccount">
-        <aside class="w-64 border-r border-white/10 bg-slate-900/70 text-slate-100 backdrop-blur-2xl shadow-xl flex flex-col">
+      <aside class="w-64 border-r border-white/10 bg-slate-900/70 text-slate-100 backdrop-blur-2xl shadow-xl flex flex-col">
         <div class="flex-1 overflow-hidden">
-          <FolderList :account-id="selectedAccount.id" :selected-folder-id="selectedFolderId" @select-folder="handleFolderSelect" />
+          <FolderList :selected-folder-id="selectedFolderId" @select-folder="handleFolderSelect" />
         </div>
           <div v-if="syncProgress.show" class="p-3 border-t border-white/10 bg-white/5">
           <div class="flex items-center justify-between mb-1">
@@ -52,6 +51,8 @@
               :folder-name="selectedFolderName"
               :selected-email-id="selectedEmailId"
               :account-id="selectedAccount?.id"
+              :unified-folder-type="unifiedFolderType"
+              :unified-folder-account-ids="unifiedFolderAccountIds"
               @select-email="handleEmailSelect"
               @drag-start="handleDragStart"
               @drag-end="handleDragEnd"
@@ -87,17 +88,6 @@
             />
           </div>
         </div>
-      </template>
-      <template v-else>
-        <div class="flex-1 flex items-center justify-center">
-        <div class="text-center">
-          <p class="text-gray-500 mb-4">No account selected</p>
-          <button @click="showSettings = true" class="px-4 py-2 bg-primary-600 text-white rounded hover:bg-primary-700">
-            Add Account
-          </button>
-        </div>
-      </div>
-      </template>
     </main>
     <SettingsModal v-if="showSettings" @close="showSettings = false" @account-selected="handleAccountSelect" />
     <ReminderModal v-if="showReminderModal && reminderEmail" :email-id="reminderEmail.id" :account-id="reminderEmail.accountId" @close="showReminderModal = false; reminderEmail = null" @saved="handleReminderSaved" />
@@ -152,6 +142,8 @@ const selectedFolderId = ref<string>('')
 const selectedFolderName = ref<string>('')
 const selectedEmailId = ref<string>('')
 const selectedEmail = ref<any>(null)
+const unifiedFolderType = ref<string | null>(null) // 'all-inboxes', 'reminders', 'aside'
+const unifiedFolderAccountIds = ref<string[]>([]) // For unified folders that need account context
 const showSettings = ref(false)
 const showReminderModal = ref(false)
 const reminderEmail = ref<any>(null)
@@ -223,13 +215,41 @@ const handleFolderSelect = async (folder: any) => {
   selectedFolderId.value = folder.id
   selectedFolderName.value = folder.name
   selectedEmailId.value = ''
+  unifiedFolderType.value = null
+  unifiedFolderAccountIds.value = []
 
-  // Sync emails for the selected folder
-  if (selectedAccount.value && folder.id) {
-    try {
-      await syncEmailsForFolder(selectedAccount.value.id, folder.id)
-    } catch (error) {
-      console.error('Error syncing emails for folder:', error)
+  // Handle unified folders
+  if (folder.isUnified) {
+    if (folder.id === 'unified-all-inboxes') {
+      unifiedFolderType.value = 'all-inboxes'
+      // Get all account IDs that have inboxes
+      const accounts = await window.electronAPI.accounts.list()
+      unifiedFolderAccountIds.value = accounts.map((a: any) => a.id)
+      // For unified all inboxes, we'll load emails from all inboxes
+      // The EmailList component will handle this
+    } else if (folder.id === 'unified-reminders') {
+      unifiedFolderType.value = 'reminders'
+      // Reminders are already unified, no account IDs needed
+    } else if (folder.id === 'unified-aside') {
+      unifiedFolderType.value = 'aside'
+      // Aside shows starred emails from all accounts
+      const accounts = await window.electronAPI.accounts.list()
+      unifiedFolderAccountIds.value = accounts.map((a: any) => a.id)
+    }
+    return // Unified folders don't need syncing
+  }
+
+  // Handle regular folders - set account and sync
+  if (folder.accountId) {
+    const accounts = await window.electronAPI.accounts.list()
+    selectedAccount.value = accounts.find((a: any) => a.id === folder.accountId)
+    
+    if (selectedAccount.value && folder.id) {
+      try {
+        await syncEmailsForFolder(selectedAccount.value.id, folder.id)
+      } catch (error) {
+        console.error('Error syncing emails for folder:', error)
+      }
     }
   }
 }
@@ -417,61 +437,16 @@ const syncEmailsForFolder = async (accountId: string, folderId: string) => {
 const handleAccountSelect = (account: any) => {
   selectedAccount.value = account
   showSettings.value = false
-  // Load folders for the account
+  // Note: FolderList now loads all accounts, so we don't need to load folders here
+  // But we can still select the account's inbox if needed
   if (account) {
-    loadFolders(account.id)
+    // Optionally select the account's inbox
+    // This will be handled by FolderList automatically
   }
 }
 
-const loadFolders = async (accountId: string) => {
-  try {
-    // Get account to check type (should be in selectedAccount, but fallback to list if needed)
-    let account = selectedAccount.value
-    if (!account || account.id !== accountId) {
-      const accounts = await window.electronAPI.accounts.list()
-      account = accounts.find((a: any) => a.id === accountId)
-    }
-    
-    // Load folders first
-    let folders = await window.electronAPI.folders.list(accountId)
-    
-    // Check if folders exist and account is IMAP
-    if (folders.length === 0 && account && account.type === 'imap') {
-      // No folders exist, sync them first
-      try {
-        const result = await window.electronAPI.folders.syncOnly(accountId)
-        if (result.success) {
-          // Reload folders after sync
-          folders = await window.electronAPI.folders.list(accountId)
-        }
-      } catch (error) {
-        console.error('Error syncing folders:', error)
-      }
-    }
-    
-    // Find INBOX folder (should always exist for both IMAP and POP3)
-    const inbox = folders.find((f: any) => f.name.toLowerCase() === 'inbox')
-    if (inbox) {
-      selectedFolderId.value = inbox.id
-      selectedFolderName.value = inbox.name
-      selectedEmailId.value = ''
-
-      // Sync emails for the initially selected INBOX
-      try {
-        await syncEmailsForFolder(accountId, inbox.id)
-        
-        // After INBOX sync completes, trigger background sync of other folders (IMAP only)
-        if (account && account.type === 'imap') {
-          syncOtherFoldersInBackground(accountId, folders)
-        }
-      } catch (error) {
-        console.error('Error syncing INBOX:', error)
-      }
-    }
-  } catch (error) {
-    console.error('Error loading folders:', error)
-  }
-}
+// Note: loadFolders is no longer needed as FolderList handles loading all accounts
+// Keeping for backward compatibility if needed, but it's not called anymore
 
 const syncOtherFoldersInBackground = async (accountId: string, folders: any[]) => {
   // Skip if already syncing in background
@@ -522,12 +497,13 @@ const syncOtherFoldersInBackground = async (accountId: string, folders: any[]) =
 }
 
 onMounted(async () => {
-  // Load accounts and select first one
+  // Note: FolderList now handles loading all accounts and folders
+  // We can optionally select the first account's inbox here if needed
   try {
     const accounts = await window.electronAPI.accounts.list()
     if (accounts.length > 0) {
       selectedAccount.value = accounts[0]
-      await loadFolders(accounts[0].id)
+      // FolderList will handle loading folders and selecting inbox
     }
   } catch (error) {
     console.error('Error loading accounts:', error)

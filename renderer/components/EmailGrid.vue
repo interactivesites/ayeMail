@@ -83,6 +83,8 @@ const props = defineProps<{
   folderId: string
   folderName: string
   selectedEmailId?: string
+  unifiedFolderType?: string | null
+  unifiedFolderAccountIds?: string[]
 }>()
 
 const emit = defineEmits<{
@@ -97,7 +99,22 @@ const loadEmails = async () => {
 
   loading.value = true
   try {
-    emails.value = await window.electronAPI.emails.list(props.folderId, 0, 50)
+    // Handle unified folders
+    if (props.unifiedFolderType && props.unifiedFolderAccountIds) {
+      // Ensure we pass a plain array, not a Vue ref
+      const accountIds = Array.isArray(props.unifiedFolderAccountIds) 
+        ? [...props.unifiedFolderAccountIds] 
+        : []
+      emails.value = await window.electronAPI.emails.listUnified(
+        String(props.unifiedFolderType),
+        accountIds,
+        0,
+        50
+      )
+    } else {
+      // Regular folder
+      emails.value = await window.electronAPI.emails.list(props.folderId, 0, 50)
+    }
   } catch (error) {
     console.error('Error loading emails:', error)
   } finally {
@@ -128,12 +145,9 @@ onMounted(() => {
   window.addEventListener('refresh-emails', refreshEmails)
 })
 
-watch(
-  () => props.folderId,
-  () => {
-    loadEmails()
-  }
-)
+watch([() => props.folderId, () => props.unifiedFolderType, () => props.unifiedFolderAccountIds], () => {
+  loadEmails()
+}, { deep: true })
 
 onUnmounted(() => {
   window.removeEventListener('refresh-emails', refreshEmails)

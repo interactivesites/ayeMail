@@ -330,6 +330,8 @@ const props = defineProps<{
   folderName: string
   selectedEmailId?: string
   accountId?: string
+  unifiedFolderType?: string | null
+  unifiedFolderAccountIds?: string[]
 }>()
 
 const emit = defineEmits<{
@@ -881,7 +883,22 @@ const loadEmails = async () => {
 
   loading.value = true
   try {
-    emails.value = await window.electronAPI.emails.list(props.folderId, 0, 50)
+    // Handle unified folders
+    if (props.unifiedFolderType && props.unifiedFolderAccountIds) {
+      // Ensure we pass a plain array, not a Vue ref
+      const accountIds = Array.isArray(props.unifiedFolderAccountIds) 
+        ? [...props.unifiedFolderAccountIds] 
+        : []
+      emails.value = await window.electronAPI.emails.listUnified(
+        String(props.unifiedFolderType),
+        accountIds,
+        0,
+        50
+      )
+    } else {
+      // Regular folder
+      emails.value = await window.electronAPI.emails.list(props.folderId, 0, 50)
+    }
   } catch (error) {
     console.error('Error loading emails:', error)
   } finally {
@@ -1116,7 +1133,7 @@ onMounted(() => {
   })
 })
 
-watch(() => props.folderId, () => {
+watch([() => props.folderId, () => props.unifiedFolderType, () => props.unifiedFolderAccountIds], () => {
   loadEmails()
   archiveConfirmId.value = null // Close popover when folder changes
   archivingEmailId.value = null // Clear archiving state when folder changes
@@ -1126,7 +1143,7 @@ watch(() => props.folderId, () => {
   nextTick(() => {
     containerRef.value?.focus()
   })
-})
+}, { deep: true })
 
 // Also watch for when emails are loaded to ensure focus
 watch(() => emails.value.length, () => {

@@ -4,12 +4,7 @@
 
 - Search (nav)
 
-- Instead of selecting account, show all as accordion or like apple mail
-
-- Folders aside:
-    - accordion: default folders & Aside / Reminders (unified for accounts) | Account folders | IMAP Folders per account when selected
-- Starr folders (Aside): 1) default ones and 2) user-starred / collapse imap folders
-
+- Notifications
 
 
 #### MAIL

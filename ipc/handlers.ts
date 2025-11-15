@@ -467,6 +467,194 @@ export function registerEmailHandlers() {
     return mappedEmails
   })
 
+  // Unified folder email handlers
+  ipcMain.handle('emails:listUnified', async (_, type: string, accountIds: string[], page: number = 0, limit: number = 50) => {
+    const db = getDatabase()
+    const offset = page * limit
+    let query = ''
+    let params: any[] = []
+
+    if (type === 'all-inboxes') {
+      // Get all inbox folders for the specified accounts
+      const inboxFolders = db.prepare(`
+        SELECT id FROM folders 
+        WHERE account_id IN (${accountIds.map(() => '?').join(',')}) 
+        AND LOWER(name) = 'inbox'
+      `).all(...accountIds) as any[]
+      
+      const folderIds = inboxFolders.map(f => f.id)
+      if (folderIds.length === 0) {
+        return []
+      }
+
+      query = `
+        SELECT emails.*,
+          (SELECT COUNT(*) FROM attachments WHERE email_id = emails.id) as attachmentCount
+        FROM emails
+        WHERE folder_id IN (${folderIds.map(() => '?').join(',')})
+        ORDER BY date DESC
+        LIMIT ? OFFSET ?
+      `
+      params = [...folderIds, limit, offset]
+    } else if (type === 'reminders') {
+      // Get emails that have reminders
+      query = `
+        SELECT emails.*,
+          (SELECT COUNT(*) FROM attachments WHERE email_id = emails.id) as attachmentCount
+        FROM emails
+        INNER JOIN reminders ON emails.id = reminders.email_id
+        WHERE reminders.completed = 0
+        ORDER BY reminders.due_date ASC, emails.date DESC
+        LIMIT ? OFFSET ?
+      `
+      params = [limit, offset]
+    } else if (type === 'aside') {
+      // Get starred emails from specified accounts
+      query = `
+        SELECT emails.*,
+          (SELECT COUNT(*) FROM attachments WHERE email_id = emails.id) as attachmentCount
+        FROM emails
+        WHERE account_id IN (${accountIds.map(() => '?').join(',')})
+        AND is_starred = 1
+        ORDER BY date DESC
+        LIMIT ? OFFSET ?
+      `
+      params = [...accountIds, limit, offset]
+    } else {
+      return []
+    }
+
+    const emails = db.prepare(query).all(...params) as any[]
+    
+    // Map to return format with decrypted body content
+    // Ensure all values are serializable for IPC
+    const mappedEmails = emails.map(e => {
+      let body: string | undefined
+      let htmlBody: string | undefined
+      let textBody: string | undefined
+      
+      // Decrypt body content with error handling
+      if (e.body_encrypted) {
+        try {
+          const decrypted = encryption.decrypt(e.body_encrypted)
+          body = typeof decrypted === 'string' ? decrypted : String(decrypted)
+        } catch (err) {
+          console.error('Error decrypting body:', err)
+          body = undefined
+        }
+      }
+      
+      if (e.html_body_encrypted) {
+        try {
+          const decrypted = encryption.decrypt(e.html_body_encrypted)
+          htmlBody = typeof decrypted === 'string' ? decrypted : String(decrypted)
+        } catch (err) {
+          console.error('Error decrypting htmlBody:', err)
+          htmlBody = undefined
+        }
+      }
+      
+      if (e.text_body_encrypted) {
+        try {
+          const decrypted = encryption.decrypt(e.text_body_encrypted)
+          textBody = typeof decrypted === 'string' ? decrypted : String(decrypted)
+        } catch (err) {
+          console.error('Error decrypting textBody:', err)
+          textBody = undefined
+        }
+      }
+      
+      // Parse addresses with error handling and ensure they're plain objects
+      let from: any[] = []
+      let to: any[] = []
+      try {
+        const parsedFrom = JSON.parse(e.from_addresses || '[]')
+        // Ensure each item is a plain object
+        from = Array.isArray(parsedFrom) ? parsedFrom.map((item: any) => ({
+          name: item?.name ? String(item.name) : undefined,
+          address: item?.address ? String(item.address) : String(item || '')
+        })) : []
+      } catch (err) {
+        console.error('Error parsing from_addresses:', err)
+        from = []
+      }
+      
+      try {
+        const parsedTo = JSON.parse(e.to_addresses || '[]')
+        // Ensure each item is a plain object
+        to = Array.isArray(parsedTo) ? parsedTo.map((item: any) => ({
+          name: item?.name ? String(item.name) : undefined,
+          address: item?.address ? String(item.address) : String(item || '')
+        })) : []
+      } catch (err) {
+        console.error('Error parsing to_addresses:', err)
+        to = []
+      }
+      
+      // Create a completely plain object with only serializable values
+      // Limit body content size to prevent IPC issues (list view doesn't need full body)
+      const MAX_BODY_LENGTH = 50000 // 50KB limit for list view
+      const truncateIfNeeded = (str: string | undefined): string | undefined => {
+        if (!str) return undefined
+        return str.length > MAX_BODY_LENGTH ? str.substring(0, MAX_BODY_LENGTH) + '...' : str
+      }
+      
+      const emailObj = {
+        id: String(e.id || ''),
+        accountId: String(e.account_id || ''),
+        folderId: String(e.folder_id || ''),
+        uid: Number(e.uid || 0),
+        messageId: String(e.message_id || ''),
+        subject: String(e.subject || ''),
+        from: from,
+        to: to,
+        date: Number(e.date || 0),
+        body: truncateIfNeeded(body),
+        textBody: truncateIfNeeded(textBody),
+        htmlBody: truncateIfNeeded(htmlBody),
+        isRead: Boolean(e.is_read === 1),
+        isStarred: Boolean(e.is_starred === 1),
+        encrypted: Boolean(e.encrypted === 1),
+        signed: Boolean(e.signed === 1),
+        signatureVerified: e.signature_verified !== null && e.signature_verified !== undefined 
+          ? Boolean(e.signature_verified === 1) 
+          : undefined,
+        attachmentCount: Number(e.attachmentCount || 0)
+      }
+      
+      // Force serialization to ensure everything is cloneable
+      // If serialization fails, return a minimal version
+      try {
+        return JSON.parse(JSON.stringify(emailObj))
+      } catch (serializationError) {
+        console.error('Serialization error, returning minimal email object:', serializationError)
+        // Return minimal version without body content if serialization fails
+        return {
+          id: emailObj.id,
+          accountId: emailObj.accountId,
+          folderId: emailObj.folderId,
+          uid: emailObj.uid,
+          messageId: emailObj.messageId,
+          subject: emailObj.subject,
+          from: emailObj.from,
+          to: emailObj.to,
+          date: emailObj.date,
+          body: undefined,
+          textBody: undefined,
+          htmlBody: undefined,
+          isRead: emailObj.isRead,
+          isStarred: emailObj.isStarred,
+          encrypted: emailObj.encrypted,
+          signed: emailObj.signed,
+          signatureVerified: emailObj.signatureVerified,
+          attachmentCount: emailObj.attachmentCount
+        }
+      }
+    })
+    
+    return mappedEmails
+  })
+
   ipcMain.handle('emails:get', async (_, id: string) => {
     const email = await emailStorage.getEmail(id)
     if (!email) {

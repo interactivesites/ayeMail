@@ -12,6 +12,7 @@ declare global {
       }
       emails: {
         list: (folderId: string, page: number, limit: number) => Promise<any[]>
+        listUnified: (type: string, accountIds: string[], page: number, limit: number) => Promise<any[]>
         get: (id: string) => Promise<any>
         sync: (accountId: string) => Promise<any>
         syncFolder: (accountId: string, folderId: string) => Promise<any>
