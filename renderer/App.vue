@@ -102,25 +102,33 @@ import { usePreferencesStore } from './stores/preferences'
 const urlParams = new URLSearchParams(window.location.search)
 const isComposeMode = ref(urlParams.get('compose') === 'true')
 const composeAccountId = ref(urlParams.get('accountId') || '')
-const composeEmailId = ref(urlParams.get('emailId') || '')
-const composeForward = ref(urlParams.get('forward') === 'true')
 const composeReplyTo = ref<any>(null)
 const composeLoading = ref(false)
 
-// Fetch email if emailId is provided
-if (composeEmailId.value) {
-  composeLoading.value = true
-  window.electronAPI.emails.get(composeEmailId.value)
-    .then((email: any) => {
-      composeReplyTo.value = { ...email, forward: composeForward.value }
-    })
-    .catch((error: any) => {
-      console.error('Error loading email for reply:', error)
-    })
-    .finally(() => {
+// Listen for reply data from main process via IPC
+onMounted(() => {
+  if (isComposeMode.value) {
+    composeLoading.value = true
+    const removeListener = (window.electronAPI as any).window?.onComposeReplyData?.((data: any) => {
+      composeReplyTo.value = data
       composeLoading.value = false
     })
-}
+    
+    // Cleanup listener on unmount
+    if (removeListener) {
+      onBeforeUnmount(() => {
+        removeListener()
+      })
+    }
+    
+    // Set a timeout to hide loading if no data arrives (fallback)
+    setTimeout(() => {
+      if (composeLoading.value) {
+        composeLoading.value = false
+      }
+    }, 5000)
+  }
+})
 
 const selectedAccount = ref<any>(null)
 const selectedFolderId = ref<string>('')

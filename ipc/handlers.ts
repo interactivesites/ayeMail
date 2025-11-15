@@ -939,7 +939,35 @@ export function registerGPGHandlers() {
 export function registerWindowHandlers() {
   ipcMain.handle('window:compose:create', async (_, accountId: string, replyTo?: any) => {
     const { createComposeWindow } = await import('../electron/main')
-    createComposeWindow(accountId, replyTo)
+    
+    // If replyTo has emailId, fetch the email in main process
+    let emailData = replyTo
+    if (replyTo?.emailId) {
+      try {
+        const email = await emailStorage.getEmail(replyTo.emailId)
+        if (email) {
+          // Only pass essential fields (exclude attachments to avoid cloning issues)
+          emailData = {
+            id: email.id,
+            from: email.from,
+            to: email.to,
+            cc: email.cc,
+            subject: email.subject,
+            date: email.date,
+            htmlBody: email.htmlBody,
+            textBody: email.textBody,
+            body: email.body,
+            forward: replyTo.forward || false
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching email for compose:', error)
+        // Fall back to just emailId if fetch fails
+        emailData = replyTo
+      }
+    }
+    
+    createComposeWindow(accountId, emailData)
     return { success: true }
   })
 

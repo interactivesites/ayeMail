@@ -122,25 +122,18 @@ function createComposeWindow(accountId: string, replyTo?: any) {
   const isDev = !app.isPackaged || process.env.NODE_ENV === 'development'
   
   if (isDev) {
-    const params = new URLSearchParams({ compose: 'true', accountId })
-    if (replyTo?.emailId) {
-      params.set('emailId', replyTo.emailId)
-      if (replyTo.forward) {
-        params.set('forward', 'true')
-      }
-    }
-    composeWindow.loadURL(`http://localhost:5173?${params.toString()}`)
+    composeWindow.loadURL(`http://localhost:5173?compose=true&accountId=${accountId}`)
   } else {
     const indexPath = join(__dirname, '../dist/index.html')
-    const query: any = { compose: 'true', accountId }
-    if (replyTo?.emailId) {
-      query.emailId = replyTo.emailId
-      if (replyTo.forward) {
-        query.forward = 'true'
-      }
-    }
-    composeWindow.loadFile(indexPath, { query })
+    composeWindow.loadFile(indexPath, { query: { compose: 'true', accountId } })
   }
+  
+  // Send replyTo data via IPC after window loads
+  composeWindow.webContents.once('did-finish-load', () => {
+    if (replyTo) {
+      composeWindow?.webContents.send('compose:reply-data', replyTo)
+    }
+  })
 
   composeWindow.on('closed', () => {
     composeWindow = null

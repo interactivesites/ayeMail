@@ -93,7 +93,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     },
     minimize: (windowId?: string) => ipcRenderer.invoke('window:minimize', windowId),
     maximize: (windowId?: string) => ipcRenderer.invoke('window:maximize', windowId),
-    close: (windowId?: string) => ipcRenderer.invoke('window:close', windowId)
+    close: (windowId?: string) => ipcRenderer.invoke('window:close', windowId),
+    onComposeReplyData: (callback: (data: any) => void) => {
+      ipcRenderer.on('compose:reply-data', (_, data) => callback(data))
+      return () => ipcRenderer.removeAllListeners('compose:reply-data')
+    }
   }
 })
 
