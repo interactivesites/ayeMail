@@ -724,13 +724,46 @@ export function registerEmailHandlers() {
       }
     }
 
-    // Move email to Archive folder
+    // Check if email already exists in archive folder with same account_id and uid
+    const existingArchivedEmail = db.prepare(`
+      SELECT id FROM emails 
+      WHERE account_id = ? AND folder_id = ? AND uid = ? AND id != ?
+    `).get(email.account_id, archiveFolder.id, email.uid, id) as any
+
     const now = Date.now()
+    
+    if (existingArchivedEmail) {
+      // Email already exists in archive folder, just delete the current one
+      db.prepare('DELETE FROM emails WHERE id = ?').run(id)
+    } else {
+      // Move email to Archive folder
+      try {
     db.prepare(`
       UPDATE emails 
       SET folder_id = ?, updated_at = ?
       WHERE id = ?
     `).run(archiveFolder.id, now, id)
+      } catch (updateError: any) {
+        // Handle UNIQUE constraint violation - email might have been synced to archive
+        if (updateError?.code === 'SQLITE_CONSTRAINT' || updateError?.message?.includes('UNIQUE constraint')) {
+          // Check if email exists in archive folder now
+          const archivedEmail = db.prepare(`
+            SELECT id FROM emails 
+            WHERE account_id = ? AND folder_id = ? AND uid = ?
+          `).get(email.account_id, archiveFolder.id, email.uid) as any
+          
+          if (archivedEmail) {
+            // Email already in archive, delete the duplicate
+            db.prepare('DELETE FROM emails WHERE id = ?').run(id)
+          } else {
+            // Re-throw if it's a different constraint error
+            throw updateError
+          }
+        } else {
+          throw updateError
+        }
+      }
+    }
 
     // Try to move on IMAP server if account is IMAP
     const account = await accountManager.getAccount(email.account_id)
@@ -771,6 +804,187 @@ export function registerEmailHandlers() {
 
     return { success: true }
   })
+
+  ipcMain.handle('emails:spam', async (_, id: string) => {
+    const db = getDatabase()
+    
+    // Get email details
+    const email = db.prepare('SELECT * FROM emails WHERE id = ?').get(id) as any
+    if (!email) {
+      return { success: false, message: 'Email not found' }
+    }
+
+    // Find or create Spam/Junk folder
+    let spamFolder = db.prepare(`
+      SELECT * FROM folders 
+      WHERE account_id = ? AND (LOWER(name) = 'spam' OR LOWER(name) = 'junk' OR LOWER(path) LIKE '%spam%' OR LOWER(path) LIKE '%junk%')
+      LIMIT 1
+    `).get(email.account_id) as any
+
+    if (!spamFolder) {
+      // Try to find or create Spam/Junk folder on IMAP server
+      const account = await accountManager.getAccount(email.account_id)
+      if (account && account.type === 'imap') {
+        try {
+          const imapClient = getIMAPClient(account)
+          await imapClient.connect()
+          const folders = await imapClient.listFolders()
+          let spamFolderOnServer = folders.find(
+            f => f.name.toLowerCase() === 'spam' || 
+                 f.name.toLowerCase() === 'junk' || 
+                 f.path.toLowerCase().includes('spam') ||
+                 f.path.toLowerCase().includes('junk')
+          )
+
+          // If Spam folder doesn't exist on server, create it
+          if (!spamFolderOnServer) {
+            try {
+              await imapClient.createFolder('Spam')
+              // Re-list folders to get the newly created folder
+              const updatedFolders = await imapClient.listFolders()
+              spamFolderOnServer = updatedFolders.find(
+                f => f.name.toLowerCase() === 'spam' || 
+                     f.name.toLowerCase() === 'junk' || 
+                     f.path.toLowerCase().includes('spam') ||
+                     f.path.toLowerCase().includes('junk')
+              )
+            } catch (createError) {
+              console.error('Error creating Spam folder on IMAP server:', createError)
+              // Continue to create local folder
+            }
+          }
+
+          if (spamFolderOnServer) {
+            // Check if folder exists in DB
+            spamFolder = db.prepare('SELECT * FROM folders WHERE account_id = ? AND path = ?')
+              .get(email.account_id, spamFolderOnServer.path) as any
+            
+            if (!spamFolder) {
+              // Create folder in DB
+              const folderId = randomUUID()
+              const now = Date.now()
+              db.prepare(`
+                INSERT INTO folders (id, account_id, name, path, subscribed, attributes, created_at, updated_at)
+                VALUES (?, ?, ?, ?, 1, ?, ?, ?)
+              `).run(
+                folderId,
+                email.account_id,
+                spamFolderOnServer.name,
+                spamFolderOnServer.path,
+                JSON.stringify(spamFolderOnServer.attributes),
+                now,
+                now
+              )
+              spamFolder = { id: folderId, path: spamFolderOnServer.path }
+            }
+          }
+
+          await imapClient.disconnect()
+        } catch (error) {
+          console.error('Error finding/creating Spam folder:', error)
+        }
+      }
+
+      // If still no spam folder, create a local one (for non-IMAP accounts or as fallback)
+      if (!spamFolder) {
+        const folderId = randomUUID()
+        const now = Date.now()
+        db.prepare(`
+          INSERT INTO folders (id, account_id, name, path, subscribed, attributes, created_at, updated_at)
+          VALUES (?, ?, ?, ?, 1, ?, ?, ?)
+        `).run(
+          folderId,
+          email.account_id,
+          'Spam',
+          'Spam',
+          JSON.stringify([]),
+          now,
+          now
+        )
+        spamFolder = { id: folderId, path: 'Spam' }
+      }
+    }
+
+    // Check if email already exists in spam folder with same account_id and uid
+    const existingSpamEmail = db.prepare(`
+      SELECT id FROM emails 
+      WHERE account_id = ? AND folder_id = ? AND uid = ? AND id != ?
+    `).get(email.account_id, spamFolder.id, email.uid, id) as any
+
+    const now = Date.now()
+    
+    if (existingSpamEmail) {
+      // Email already exists in spam folder, just delete the current one
+      db.prepare('DELETE FROM emails WHERE id = ?').run(id)
+    } else {
+      // Move email to Spam folder
+      try {
+        db.prepare(`
+          UPDATE emails 
+          SET folder_id = ?, updated_at = ?
+          WHERE id = ?
+        `).run(spamFolder.id, now, id)
+      } catch (updateError: any) {
+        // Handle UNIQUE constraint violation - email might have been synced to spam
+        if (updateError?.code === 'SQLITE_CONSTRAINT' || updateError?.message?.includes('UNIQUE constraint')) {
+          // Check if email exists in spam folder now
+          const spamEmail = db.prepare(`
+            SELECT id FROM emails 
+            WHERE account_id = ? AND folder_id = ? AND uid = ?
+          `).get(email.account_id, spamFolder.id, email.uid) as any
+          
+          if (spamEmail) {
+            // Email already in spam, delete the duplicate
+            db.prepare('DELETE FROM emails WHERE id = ?').run(id)
+          } else {
+            // Re-throw if it's a different constraint error
+            throw updateError
+          }
+        } else {
+          throw updateError
+        }
+      }
+    }
+
+    // Try to move on IMAP server if account is IMAP
+    const account = await accountManager.getAccount(email.account_id)
+    if (account && account.type === 'imap') {
+      try {
+        const imapClient = getIMAPClient(account)
+        await imapClient.connect()
+        
+        // Get current folder path
+        const currentFolder = db.prepare('SELECT path FROM folders WHERE id = ?').get(email.folder_id) as any
+        // Get spam folder path from database (should have the correct server path)
+        const spamFolderFromDb = db.prepare('SELECT path FROM folders WHERE id = ?').get(spamFolder.id) as any
+        const spamPath = spamFolderFromDb?.path || spamFolder.path || 'Spam'
+        
+        if (currentFolder && spamPath) {
+          // Ensure Spam folder exists on server before moving
+          // Try to create it if it doesn't exist (idempotent - won't error if it exists)
+          try {
+            await imapClient.createFolder(spamPath)
+          } catch (createError: any) {
+            // If folder already exists, that's fine - continue
+            if (createError && !createError.message?.includes('already exists') && !createError.message?.includes('EXISTS')) {
+              console.warn('Spam folder may already exist or creation failed:', createError.message)
+            }
+          }
+
+          // Use IMAP MOVE command if available, otherwise COPY + DELETE
+          const currentPath = currentFolder.path === 'INBOX' ? 'INBOX' : currentFolder.path
+          await imapClient.moveEmail(email.uid, currentPath, spamPath)
+        }
+        
+        await imapClient.disconnect()
+      } catch (error) {
+        console.error('Error moving email on IMAP server:', error)
+        // Continue anyway - email is already moved in database
+      }
+    }
+
+    return { success: true }
+  })
 }
 
 // Reminder handlers
@@ -791,6 +1005,175 @@ export function registerReminderHandlers() {
     const id = randomUUID()
     const now = Date.now()
     
+    // Get email details
+    const email = db.prepare('SELECT * FROM emails WHERE id = ?').get(reminder.emailId) as any
+    if (!email) {
+      throw new Error('Email not found')
+    }
+
+    // Find or create Aside folder
+    let asideFolder = db.prepare(`
+      SELECT * FROM folders 
+      WHERE account_id = ? AND (LOWER(name) = 'aside' OR LOWER(path) LIKE '%aside%')
+      LIMIT 1
+    `).get(reminder.accountId) as any
+
+    if (!asideFolder) {
+      // Try to find or create Aside folder on IMAP server
+      const account = await accountManager.getAccount(reminder.accountId)
+      if (account && account.type === 'imap') {
+        try {
+          const imapClient = getIMAPClient(account)
+          await imapClient.connect()
+          const folders = await imapClient.listFolders()
+          let asideFolderOnServer = folders.find(
+            f => f.name.toLowerCase() === 'aside' || f.path.toLowerCase().includes('aside')
+          )
+
+          // If Aside folder doesn't exist on server, create it
+          if (!asideFolderOnServer) {
+            try {
+              await imapClient.createFolder('Aside')
+              // Re-list folders to get the newly created folder
+              const updatedFolders = await imapClient.listFolders()
+              asideFolderOnServer = updatedFolders.find(
+                f => f.name.toLowerCase() === 'aside' || f.path.toLowerCase().includes('aside')
+              )
+            } catch (createError) {
+              console.error('Error creating Aside folder on IMAP server:', createError)
+              // Continue to create local folder
+            }
+          }
+
+          if (asideFolderOnServer) {
+            // Check if folder exists in DB
+            asideFolder = db.prepare('SELECT * FROM folders WHERE account_id = ? AND path = ?')
+              .get(reminder.accountId, asideFolderOnServer.path) as any
+            
+            if (!asideFolder) {
+              // Create folder in DB
+              const folderId = randomUUID()
+              const now = Date.now()
+              db.prepare(`
+                INSERT INTO folders (id, account_id, name, path, subscribed, attributes, created_at, updated_at)
+                VALUES (?, ?, ?, ?, 1, ?, ?, ?)
+              `).run(
+                folderId,
+                reminder.accountId,
+                asideFolderOnServer.name,
+                asideFolderOnServer.path,
+                JSON.stringify(asideFolderOnServer.attributes),
+                now,
+                now
+              )
+              asideFolder = { id: folderId, path: asideFolderOnServer.path }
+            }
+          }
+
+          await imapClient.disconnect()
+        } catch (error) {
+          console.error('Error finding/creating Aside folder:', error)
+        }
+      }
+
+      // If still no aside folder, create a local one (for non-IMAP accounts or as fallback)
+      if (!asideFolder) {
+        const folderId = randomUUID()
+        const now = Date.now()
+        db.prepare(`
+          INSERT INTO folders (id, account_id, name, path, subscribed, attributes, created_at, updated_at)
+          VALUES (?, ?, ?, ?, 1, ?, ?, ?)
+        `).run(
+          folderId,
+          reminder.accountId,
+          'Aside',
+          'Aside',
+          JSON.stringify([]),
+          now,
+          now
+        )
+        asideFolder = { id: folderId, path: 'Aside' }
+      }
+    }
+
+    // Move email to Aside folder
+    // Check if email already exists in aside folder with same account_id and uid
+    const existingAsideEmail = db.prepare(`
+      SELECT id FROM emails 
+      WHERE account_id = ? AND folder_id = ? AND uid = ? AND id != ?
+    `).get(reminder.accountId, asideFolder.id, email.uid, reminder.emailId) as any
+
+    if (existingAsideEmail) {
+      // Email already exists in aside folder, just delete the current one
+      db.prepare('DELETE FROM emails WHERE id = ?').run(reminder.emailId)
+    } else {
+      // Move email to Aside folder
+      try {
+        db.prepare(`
+          UPDATE emails 
+          SET folder_id = ?, updated_at = ?
+          WHERE id = ?
+        `).run(asideFolder.id, now, reminder.emailId)
+      } catch (updateError: any) {
+        // Handle UNIQUE constraint violation - email might have been synced to aside
+        if (updateError?.code === 'SQLITE_CONSTRAINT' || updateError?.message?.includes('UNIQUE constraint')) {
+          // Check if email exists in aside folder now
+          const asideEmail = db.prepare(`
+            SELECT id FROM emails 
+            WHERE account_id = ? AND folder_id = ? AND uid = ?
+          `).get(reminder.accountId, asideFolder.id, email.uid) as any
+          
+          if (asideEmail) {
+            // Email already in aside, delete the duplicate
+            db.prepare('DELETE FROM emails WHERE id = ?').run(reminder.emailId)
+          } else {
+            // Re-throw if it's a different constraint error
+            throw updateError
+          }
+        } else {
+          throw updateError
+        }
+      }
+    }
+
+    // Try to move on IMAP server if account is IMAP
+    const account = await accountManager.getAccount(reminder.accountId)
+    if (account && account.type === 'imap') {
+      try {
+        const imapClient = getIMAPClient(account)
+        await imapClient.connect()
+        
+        // Get current folder path
+        const currentFolder = db.prepare('SELECT path FROM folders WHERE id = ?').get(email.folder_id) as any
+        // Get aside folder path from database (should have the correct server path)
+        const asideFolderFromDb = db.prepare('SELECT path FROM folders WHERE id = ?').get(asideFolder.id) as any
+        const asidePath = asideFolderFromDb?.path || asideFolder.path || 'Aside'
+        
+        if (currentFolder && asidePath) {
+          // Ensure Aside folder exists on server before moving
+          // Try to create it if it doesn't exist (idempotent - won't error if it exists)
+          try {
+            await imapClient.createFolder(asidePath)
+          } catch (createError: any) {
+            // If folder already exists, that's fine - continue
+            if (createError && !createError.message?.includes('already exists') && !createError.message?.includes('EXISTS')) {
+              console.warn('Aside folder may already exist or creation failed:', createError.message)
+            }
+          }
+
+          // Use IMAP MOVE command if available, otherwise COPY + DELETE
+          const currentPath = currentFolder.path === 'INBOX' ? 'INBOX' : currentFolder.path
+          await imapClient.moveEmail(email.uid, currentPath, asidePath)
+        }
+        
+        await imapClient.disconnect()
+      } catch (error) {
+        console.error('Error moving email on IMAP server:', error)
+        // Continue anyway - email is already moved in database
+      }
+    }
+    
+    // Create the reminder
     db.prepare(`
       INSERT INTO reminders (id, email_id, account_id, due_date, message, completed, created_at)
       VALUES (?, ?, ?, ?, ?, 0, ?)

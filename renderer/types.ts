@@ -17,6 +17,8 @@ declare global {
         send: (email: any) => Promise<any>
         delete: (id: string) => Promise<any>
         archive: (id: string) => Promise<{ success: boolean; message?: string }>
+        spam: (id: string) => Promise<{ success: boolean; message?: string }>
+        downloadAttachment: (attachmentId: string) => Promise<any>
         onSyncProgress: (callback: (data: any) => void) => () => void
       }
       folders: {

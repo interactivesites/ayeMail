@@ -1,17 +1,21 @@
 
 ## Functionality
 - add del / space / T / S to email lsit (delete, archive, reminder, spam)
-- Instead of selecting account, show all as accordion or like apple mail
+
 - Search (nav)
 
-- autoomplete mails / recipients by name
+- Instead of selecting account, show all as accordion or like apple mail
 
-- ADD to Folders: 
--- all accounts inboxes (first section)
--- custom folders of the app: reminders / lists of flagged items (if we have any)
+
 
 #### MAIL
+- Add Folder list section (first section): Inboxes and make sections a tree (first level)
+- MULTI Account handling /ADD to Folders: 
+-- all accounts inboxes (first section)
+-- custom folders of the app: reminders / lists of flagged items (if we have any)
 - SPAM Logic?
+-- Select ALL in a folder (EmailList) and make deletion possible? OR: junk/spam -> add clear button (autoclean)
+- Move mails into folders
 
 ## UI
 - add loading anims for load / send / refresh
@@ -37,5 +41,7 @@
 
 
 
-
-
+## NEW UX
+- make the grid a new view. 
+- check: https://www.mailpilot.app/ 
+- 

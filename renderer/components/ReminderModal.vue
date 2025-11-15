@@ -1,5 +1,6 @@
 <template>
-  <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+  <!-- Full-screen modal version -->
+  <div v-if="!isPopover" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
     <div class="bg-white rounded-lg shadow-xl w-full max-w-md">
       <div class="p-4 border-b border-gray-200 flex items-center justify-between">
         <h2 class="text-lg font-semibold text-gray-900">Set Reminder</h2>
@@ -46,14 +47,37 @@
       </div>
     </div>
   </div>
+  
+  <!-- Popover version - calendar only -->
+  <div v-else class="reminder-calendar-popover bg-white rounded-lg shadow-xl border border-gray-200 relative" style="width: 320px; padding: 8px;">
+    <VueTailwindDatepicker
+      v-model="selectedDate"
+      :start-from="new Date()"
+      @update:model-value="handleDateSelect"
+      :no-input="true"
+      :as-single="true"
+      :overlay="false"
+      i18n="en"
+      :shortcuts="false"
+      :auto-apply="true"
+    />
+    <div v-if="saving" class="absolute inset-0 bg-white/50 backdrop-blur-xl z-50 flex items-center justify-center rounded-lg">
+      <div class="flex flex-col items-center space-y-4">
+        <div class="w-12 h-12 border-4 border-primary-600 border-t-transparent rounded-full animate-spin"></div>
+        <p class="text-gray-700 text-sm font-medium">Creating reminder...</p>
+      </div>
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted, watch } from 'vue'
+import VueTailwindDatepicker from 'vue-tailwind-datepicker'
 
 const props = defineProps<{
   emailId: string
   accountId: string
+  isPopover?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -66,7 +90,134 @@ const form = ref({
   message: ''
 })
 
+const selectedDate = ref<[Date, Date]>([new Date(), new Date()])
 const saving = ref(false)
+
+// Track if component is mounted to prevent initial trigger
+let isMounted = false
+// Initialize lastSelectedValue to prevent watch from triggering on mount
+let lastSelectedValue: any = [new Date(), new Date()]
+
+// Reset selected date when popover opens
+onMounted(() => {
+  if (props.isPopover) {
+    // Initialize with current date for single date picker
+    const today = new Date()
+    selectedDate.value = [today, today]
+    lastSelectedValue = [today, today]
+    // Set mounted flag after a short delay to allow initial value to settle
+    setTimeout(() => {
+      isMounted = true
+    }, 100)
+  } else {
+    isMounted = true
+  }
+})
+
+// Watch for changes in selectedDate (backup handler in case @update:model-value doesn't fire)
+watch(selectedDate, (newValue) => {
+  // Don't trigger on initial mount or if already processing
+  if (!isMounted || !props.isPopover || !newValue || saving.value || isProcessing) {
+    return
+  }
+  
+  // Only trigger if it's a meaningful change (not just initialization)
+  const valueStr = JSON.stringify(newValue)
+  const lastStr = JSON.stringify(lastSelectedValue)
+  if (valueStr !== lastStr && Array.isArray(newValue) && newValue.length > 0) {
+    // Check if dates are actually different (not just same date in array)
+    const newDate = newValue[0]
+    const lastDate = lastSelectedValue?.[0]
+    if (!lastDate || newDate.getTime() !== lastDate.getTime()) {
+      lastSelectedValue = newValue
+      // Small delay to avoid double-triggering with @update:model-value
+      setTimeout(() => {
+        if (!saving.value && !isProcessing && isMounted) {
+          handleDateSelect(newValue)
+        }
+      }, 200)
+    }
+  }
+}, { deep: true })
+
+let isProcessing = false
+
+const handleDateSelect = async (value: string | string[] | Date | Date[] | any) => {
+  // Prevent multiple simultaneous calls
+  if (isProcessing || saving.value) {
+    return
+  }
+  
+  if (!value) {
+    return
+  }
+  
+  isProcessing = true
+  
+  try {
+    let selected: Date | null = null
+    
+    // Handle different return types from vue-tailwind-datepicker
+    if (Array.isArray(value)) {
+      // Date array: [Date, Date] for range, or single date
+      if (value.length > 0) {
+        const firstValue = value[0]
+        if (firstValue instanceof Date) {
+          selected = firstValue
+        } else if (typeof firstValue === 'string') {
+          selected = new Date(firstValue)
+        } else if (firstValue && typeof firstValue === 'object' && 'toDate' in firstValue) {
+          // Dayjs object
+          selected = firstValue.toDate()
+        } else {
+          selected = new Date(firstValue)
+        }
+      }
+    } else if (value instanceof Date) {
+      // Direct Date object
+      selected = value
+    } else if (typeof value === 'string') {
+      // String date
+      selected = new Date(value)
+    } else if (value && typeof value === 'object') {
+      // Object with start/end or startDate/endDate
+      if (value.start) {
+        selected = value.start instanceof Date ? value.start : new Date(value.start)
+      } else if (value.startDate) {
+        selected = value.startDate instanceof Date ? value.startDate : new Date(value.startDate)
+      } else if (value.toDate) {
+        // Dayjs object
+        selected = typeof value.toDate === 'function' ? value.toDate() : new Date(value.toDate)
+      }
+    }
+    
+    if (!selected || isNaN(selected.getTime())) {
+      return
+    }
+    
+    saving.value = true
+    
+    // Convert date to end of day timestamp (23:59:59)
+    const dueDateObj = new Date(selected)
+    dueDateObj.setHours(23, 59, 59, 999)
+    const dueDate = dueDateObj.getTime()
+    
+    await window.electronAPI.reminders.create({
+      emailId: props.emailId,
+      accountId: props.accountId,
+      dueDate,
+      message: props.isPopover ? undefined : form.value.message || undefined
+    })
+    
+    emit('saved')
+    emit('close')
+  } catch (error: any) {
+    alert(`Failed to create reminder: ${error.message}`)
+  } finally {
+    saving.value = false
+    isProcessing = false
+  }
+}
 
 const saveReminder = async () => {
   if (!form.value.dueDate) {
@@ -92,4 +243,34 @@ const saveReminder = async () => {
   }
 }
 </script>
+
+<style scoped>
+.reminder-calendar-popover {
+  min-width: 320px;
+  min-height: 300px;
+}
+
+.reminder-calendar-popover :deep(input) {
+  display: none !important;
+}
+
+.reminder-calendar-popover :deep(.dp__input_wrap) {
+  display: none !important;
+}
+
+.reminder-calendar-popover :deep(.dp__input_container) {
+  display: none !important;
+}
+
+.reminder-calendar-popover :deep(.dp__calendar) {
+  width: 100%;
+  display: block;
+}
+
+.reminder-calendar-popover :deep(.dp__calendar_wrap) {
+  width: 100%;
+  display: block;
+}
+
+</style>
 

@@ -41,18 +41,21 @@
     "wait-on": "^7.2.0"
   },
   "dependencies": {
+    "@floating-ui/dom": "^1.7.4",
     "@heroicons/vue": "^2.2.0",
     "@tiptap/extension-bubble-menu": "^3.10.7",
     "@tiptap/extension-image": "^3.10.7",
     "@tiptap/starter-kit": "^3.10.7",
     "@tiptap/vue-3": "^3.10.7",
     "better-sqlite3": "^11.7.0",
+    "dayjs": "^1.11.19",
     "imap": "^0.8.19",
     "mailparser": "^3.6.5",
     "nodemailer": "^6.9.7",
     "openpgp": "^5.10.1",
     "pinia": "^3.0.4",
     "poplib": "^0.1.7",
-    "vue": "^3.4.0"
+    "vue": "^3.4.0",
+    "vue-tailwind-datepicker": "^1.7.4"
   }
 }

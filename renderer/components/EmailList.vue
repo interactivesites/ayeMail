@@ -1,5 +1,5 @@
 <template>
-  <div class="flex flex-col h-full">
+  <div ref="containerRef" tabindex="0" class="flex flex-col h-full outline-none" @keydown="handleKeyDown" @focus="handleFocus" @click="handleContainerClick">
     <div class="p-4 border-b border-gray-200 flex items-center justify-between">
       <h2 class="text-lg font-semibold text-gray-900">{{ folderName }}</h2>
       <div class="flex items-center space-x-1 bg-gray-100 rounded-full p-0.5">
@@ -55,14 +55,25 @@
             <button
               v-for="email in group.emails"
               :key="email.id"
+              :data-email-id="email.id"
               @click="$emit('select-email', email.id)"
-              class="w-full text-left px-4 py-3 my-2 transition-colors rounded-lg"
+              class="w-full text-left px-4 py-3 my-2 transition-colors rounded-lg relative"
               :class="{
                 'bg-primary-900 text-white': selectedEmailId === email.id,
                 'hover:bg-primary-800/20': selectedEmailId !== email.id,
                 'border-l-2 border-primary-600': isEmailUnread(email)
               }"
             >
+              <!-- Archive Loading Overlay -->
+              <div
+                v-if="archivingEmailId === email.id"
+                class="absolute inset-0 bg-white/50 backdrop-blur-sm z-10 flex items-center justify-center rounded-lg"
+              >
+                <div class="flex flex-col items-center space-y-2">
+                  <div class="w-8 h-8 border-4 border-primary-600 border-t-transparent rounded-full animate-spin"></div>
+                  <p class="text-gray-700 text-xs font-medium">Archiving...</p>
+                </div>
+              </div>
               <div class="flex items-start gap-3">
                 <!-- Rounded Checkbox -->
                 <div class="flex-shrink-0 self-center relative">
@@ -81,11 +92,13 @@
                   </button>
                   
                   <!-- Archive Confirmation Popover -->
-                  <div
-                    v-if="archiveConfirmId === email.id"
-                    class="absolute left-8 top-0 z-50 bg-white rounded-lg shadow-lg border border-gray-200 p-3 min-w-[200px]"
-                    @click.stop
-                  >
+                  <Teleport to="body">
+                    <div
+                      v-if="archiveConfirmId === email.id" 
+                      :ref="(el: any) => { if (el) archivePopoverRefs.set(email.id, el as HTMLElement) }"
+                      class="fixed z-50 bg-white rounded-lg shadow-lg border border-gray-200 p-3 min-w-[200px]"
+                      @click.stop
+                    >
                     <div class="flex items-center gap-2 mb-3">
                       <button
                         @click="cancelArchive"
@@ -101,7 +114,8 @@
                       </button>
                     </div>
                     <p class="text-xs text-gray-500">Disable confirmation messages in Preferences</p>
-                  </div>
+                    </div>
+                  </Teleport>
                 </div>
                 
                 
@@ -201,14 +215,34 @@
         </div>
       </div>
     </div>
+    <!-- Reminder Modal as Popover -->
+    <Teleport to="body">
+      <div
+        v-if="showReminderModal && reminderEmail"
+        ref="reminderModalRef"
+        class="fixed z-[9999]"
+        :style="reminderModalStyle"
+        style="pointer-events: auto;"
+      >
+        <ReminderModal
+          :email-id="reminderEmail.id"
+          :account-id="reminderEmail.accountId"
+          :is-popover="true"
+          @close="showReminderModal = false; reminderEmail = null"
+          @saved="handleReminderSaved"
+        />
+      </div>
+    </Teleport>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch, onUnmounted } from 'vue'
+import { ref, computed, onMounted, watch, onUnmounted, nextTick } from 'vue'
 import { storeToRefs } from 'pinia'
 import { usePreferencesStore } from '../stores/preferences'
 import { formatTime } from '../utils/formatters'
+import ReminderModal from './ReminderModal.vue'
+import { computePosition, offset, flip, shift } from '@floating-ui/dom'
 
 const props = defineProps<{
   folderId: string
@@ -230,6 +264,17 @@ const groupingMode = ref<'bydate'>('bydate')
 
 // Archive confirmation state
 const archiveConfirmId = ref<string | null>(null)
+const archivePopoverRefs = new Map<string, HTMLElement>()
+const archivingEmailId = ref<string | null>(null)
+
+// Reminder modal state
+const showReminderModal = ref(false)
+const reminderEmail = ref<{ id: string; accountId: string } | null>(null)
+const reminderModalStyle = ref<{ top?: string; left?: string; right?: string; transform?: string }>({})
+const reminderModalRef = ref<HTMLElement | null>(null)
+
+// Container ref for focus management
+const containerRef = ref<HTMLElement | null>(null)
 
 const isEmailUnread = (email: any): boolean => {
   // Handle various formats: boolean, number (0/1), undefined, null
@@ -270,8 +315,37 @@ const handlePreviewLevelChange = (level: 1 | 2 | 3) => {
   preferences.setPreviewLevel(level)
 }
 
-const showArchiveConfirm = (emailId: string) => {
+const showArchiveConfirm = async (emailId: string) => {
   archiveConfirmId.value = emailId
+  
+  // Position archive popover using Floating UI
+  await nextTick()
+  await nextTick() // Double nextTick to ensure Teleport has rendered
+  
+  // Small delay to ensure popover is fully rendered
+  await new Promise(resolve => setTimeout(resolve, 10))
+  
+  const emailElement = document.querySelector(`[data-email-id="${emailId}"]`) as HTMLElement
+  const archiveButton = emailElement?.querySelector('button[title="Archive email"]') as HTMLElement
+  const popoverElement = archivePopoverRefs.get(emailId)
+  
+  if (archiveButton && popoverElement) {
+    try {
+      const { x, y } = await computePosition(archiveButton, popoverElement, {
+        placement: 'right',
+        middleware: [
+          offset(10),
+          flip(),
+          shift({ padding: 10 })
+        ]
+      })
+      
+      popoverElement.style.top = `${y}px`
+      popoverElement.style.left = `${x}px`
+    } catch (error) {
+      console.error('Error positioning archive popover:', error)
+    }
+  }
 }
 
 const cancelArchive = () => {
@@ -280,6 +354,7 @@ const cancelArchive = () => {
 
 const confirmArchive = async (emailId: string) => {
   archiveConfirmId.value = null
+  archivingEmailId.value = emailId
   
   try {
     const result = await window.electronAPI.emails.archive(emailId)
@@ -288,11 +363,297 @@ const confirmArchive = async (emailId: string) => {
       emails.value = emails.value.filter(e => e.id !== emailId)
       // Refresh email list
       window.dispatchEvent(new CustomEvent('refresh-emails'))
+      // Clear selection if deleted email was selected
+      if (props.selectedEmailId === emailId) {
+        emit('select-email', '')
+      }
     } else {
       console.error('Failed to archive email:', result.message)
     }
   } catch (error) {
     console.error('Error archiving email:', error)
+  } finally {
+    archivingEmailId.value = null
+  }
+}
+
+const handleDeleteEmail = async (emailId: string) => {
+  if (!emailId) return
+  
+  try {
+    const result = await window.electronAPI.emails.delete(emailId)
+    if (result.success) {
+      // Get flat list before filtering to find next email
+      const flatEmails = getAllEmailsFlat()
+      const currentIndex = flatEmails.findIndex(e => e.id === emailId)
+      
+      // Remove email from list
+      emails.value = emails.value.filter(e => e.id !== emailId)
+      // Refresh email list
+      window.dispatchEvent(new CustomEvent('refresh-emails'))
+      
+      // Update selection if deleted email was selected
+      if (props.selectedEmailId === emailId) {
+        const remainingEmails = getAllEmailsFlat()
+        if (remainingEmails.length > 0) {
+          // Select next email, or previous if at end, or first if we were at first
+          const nextIndex = currentIndex < remainingEmails.length ? currentIndex : remainingEmails.length - 1
+          emit('select-email', remainingEmails[nextIndex].id)
+        } else {
+          emit('select-email', '')
+        }
+      }
+    } else {
+      console.error('Failed to delete email:', result.message)
+    }
+  } catch (error) {
+    console.error('Error deleting email:', error)
+  }
+}
+
+const handleSpamEmail = async (emailId: string) => {
+  if (!emailId) return
+  
+  try {
+    const result = await window.electronAPI.emails.spam(emailId)
+    if (result.success) {
+      // Get flat list before filtering to find next email
+      const flatEmails = getAllEmailsFlat()
+      const currentIndex = flatEmails.findIndex(e => e.id === emailId)
+      
+      // Remove email from list
+      emails.value = emails.value.filter(e => e.id !== emailId)
+      // Refresh email list
+      window.dispatchEvent(new CustomEvent('refresh-emails'))
+      
+      // Update selection if spammed email was selected
+      if (props.selectedEmailId === emailId) {
+        const remainingEmails = getAllEmailsFlat()
+        if (remainingEmails.length > 0) {
+          // Select next email, or previous if at end, or first if we were at first
+          const nextIndex = currentIndex < remainingEmails.length ? currentIndex : remainingEmails.length - 1
+          emit('select-email', remainingEmails[nextIndex].id)
+        } else {
+          emit('select-email', '')
+        }
+      }
+    } else {
+      console.error('Failed to mark email as spam:', result.message)
+    }
+  } catch (error) {
+    console.error('Error marking email as spam:', error)
+  }
+}
+
+const handleReminderSaved = async () => {
+  showReminderModal.value = false
+  reminderEmail.value = null
+  
+  // Refresh the email list to reflect the move to Aside folder
+  await loadEmails()
+}
+
+const showReminderForEmail = async (emailId: string) => {
+  const email = getAllEmailsFlat().find(e => e.id === emailId)
+  if (!email || !email.accountId) {
+    console.error('Email not found or missing accountId', { emailId, email })
+    return
+  }
+  
+  console.log('Setting reminder modal state')
+  reminderEmail.value = { id: emailId, accountId: email.accountId }
+  
+  // Set initial position first (centered) so modal is visible immediately
+  reminderModalStyle.value = {
+    top: '50%',
+    left: '50%',
+    transform: 'translate(-50%, -50%)'
+  }
+  
+  // Show modal first, then position it
+  showReminderModal.value = true
+  console.log('showReminderModal set to true', showReminderModal.value)
+  
+  // Wait for modal to render - need multiple ticks for Teleport + component mount
+  await nextTick()
+  await nextTick()
+  await nextTick()
+  
+  // Additional small delay to ensure calendar component has rendered
+  await new Promise(resolve => setTimeout(resolve, 50))
+  
+  const emailElement = document.querySelector(`[data-email-id="${emailId}"]`) as HTMLElement
+  const modalElement = reminderModalRef.value
+  
+  console.log('Positioning modal', { 
+    emailElement: !!emailElement, 
+    modalElement: !!modalElement,
+    emailElementRect: emailElement?.getBoundingClientRect(),
+    modalElementRect: modalElement?.getBoundingClientRect(),
+    modalElementChildren: modalElement?.children.length,
+    modalElementInnerHTML: modalElement?.innerHTML.substring(0, 100)
+  })
+  
+  if (emailElement && modalElement) {
+    try {
+      const { x, y } = await computePosition(emailElement, modalElement, {
+        placement: 'bottom-start',
+        middleware: [
+          offset(10),
+          flip(),
+          shift({ padding: 10 })
+        ]
+      })
+      
+      console.log('Computed position', { x, y })
+      reminderModalStyle.value = {
+        top: `${y}px`,
+        left: `${x}px`,
+        transform: 'none'
+      }
+    } catch (error) {
+      console.error('Error positioning reminder modal:', error)
+      // Fallback positioning
+      const rect = emailElement.getBoundingClientRect()
+      reminderModalStyle.value = {
+        top: `${rect.bottom + 10}px`,
+        left: `${rect.left}px`,
+        transform: 'none'
+      }
+    }
+  } else {
+    console.warn('Email or modal element not found, keeping centered position')
+  }
+  
+  console.log('Final modal state', {
+    showReminderModal: showReminderModal.value,
+    reminderEmail: reminderEmail.value,
+    style: reminderModalStyle.value
+  })
+}
+
+// Get all emails as a flat array (for navigation)
+const getAllEmailsFlat = (): any[] => {
+  return groupedEmails.value.flatMap(group => group.emails)
+}
+
+// Navigate to next/previous email
+const navigateEmail = (direction: 'up' | 'down') => {
+  const flatEmails = getAllEmailsFlat()
+  if (flatEmails.length === 0) return
+  
+  const currentIndex = props.selectedEmailId 
+    ? flatEmails.findIndex(e => e.id === props.selectedEmailId)
+    : -1
+  
+  let newIndex: number
+  if (currentIndex === -1) {
+    // No selection, start at first email
+    newIndex = 0
+  } else if (direction === 'down') {
+    // Move to next, wrap to first if at end
+    newIndex = currentIndex < flatEmails.length - 1 ? currentIndex + 1 : 0
+  } else {
+    // Move to previous, wrap to last if at start
+    newIndex = currentIndex > 0 ? currentIndex - 1 : flatEmails.length - 1
+  }
+  
+  const newEmail = flatEmails[newIndex]
+  if (newEmail) {
+    // Ensure container is focused before selecting
+    containerRef.value?.focus()
+    emit('select-email', newEmail.id)
+    // Scroll selected email into view
+    nextTick(() => {
+      const emailElement = document.querySelector(`[data-email-id="${newEmail.id}"]`) as HTMLElement
+      if (emailElement) {
+        emailElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+        // Keep focus on container
+        containerRef.value?.focus()
+      }
+    })
+  }
+}
+
+// Keyboard handler - handle globally when EmailList is active
+const handleKeyDown = (event: KeyboardEvent) => {
+  // Only handle if EmailList is mounted and has emails
+  if (!containerRef.value || emails.value.length === 0) return
+  
+  // Don't handle shortcuts when typing in inputs/textareas
+  const target = event.target as HTMLElement
+  if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return
+  
+  // Handle Escape to close reminder modal
+  if (event.key === 'Escape' && showReminderModal.value) {
+    event.preventDefault()
+    event.stopPropagation()
+    showReminderModal.value = false
+    reminderEmail.value = null
+    return
+  }
+  
+  // Check if user is actively interacting with calendar (clicking on it)
+  const isInCalendar = target.closest('.reminder-calendar-popover') || 
+                       target.closest('.dp__calendar') ||
+                       target.closest('.dp__calendar_wrap') ||
+                       target.closest('.dp__inner_nav') ||
+                       target.closest('.dp__cell_inner')
+  
+  // Don't handle shortcuts if actively clicking/interacting with calendar (but allow Escape)
+  if (isInCalendar && event.key !== 'Escape') {
+    return
+  }
+  
+  // If reminder modal is open but user is NOT interacting with calendar, allow shortcuts
+  // (they will close the modal and execute the action)
+  if (showReminderModal.value && event.key !== 'Escape' && !isInCalendar) {
+    // Close modal first, then continue to handle the key
+    showReminderModal.value = false
+    reminderEmail.value = null
+  }
+  
+  switch (event.key) {
+    case 'ArrowUp':
+      event.preventDefault()
+      event.stopPropagation()
+      navigateEmail('up')
+      break
+    case 'ArrowDown':
+      event.preventDefault()
+      event.stopPropagation()
+      navigateEmail('down')
+      break
+    case 'Delete':
+      if (props.selectedEmailId) {
+        event.preventDefault()
+        event.stopPropagation()
+        handleDeleteEmail(props.selectedEmailId)
+      }
+      break
+    case ' ':
+      if (props.selectedEmailId) {
+        event.preventDefault()
+        event.stopPropagation()
+        confirmArchive(props.selectedEmailId)
+      }
+      break
+    case 't':
+    case 'T':
+      if (props.selectedEmailId) {
+        event.preventDefault()
+        event.stopPropagation()
+        showReminderForEmail(props.selectedEmailId)
+      }
+      break
+    case 's':
+    case 'S':
+      if (props.selectedEmailId) {
+        event.preventDefault()
+        event.stopPropagation()
+        handleSpamEmail(props.selectedEmailId)
+      }
+      break
   }
 }
 
@@ -444,12 +805,35 @@ const refreshEmails = () => {
 
 // Close popover when clicking outside
 const handleClickOutside = (event: MouseEvent) => {
+  const target = event.target as HTMLElement
+  
   if (archiveConfirmId.value) {
-    const target = event.target as HTMLElement
     // Close if click is outside the checkbox container and popover
     if (!target.closest('.relative') && !target.closest('.absolute')) {
       archiveConfirmId.value = null
     }
+  }
+  
+  if (showReminderModal.value) {
+    // Close reminder modal if clicking outside
+    const reminderModalElement = target.closest('.bg-white.rounded-lg.shadow-xl')
+    if (!reminderModalElement) {
+      showReminderModal.value = false
+      reminderEmail.value = null
+    }
+  }
+}
+
+const handleFocus = () => {
+  // Ensure container stays focused when clicking on it
+  containerRef.value?.focus()
+}
+
+const handleContainerClick = (event: MouseEvent) => {
+  // Focus container when clicking in empty space
+  const target = event.target as HTMLElement
+  if (target === containerRef.value || target.closest('.flex-1.overflow-y-auto')) {
+    containerRef.value?.focus()
   }
 }
 
@@ -459,15 +843,45 @@ onMounted(() => {
   window.addEventListener('refresh-emails', refreshEmails)
   // Listen for clicks outside to close popover
   document.addEventListener('click', handleClickOutside)
+  // Listen for global keyboard events when EmailList is active
+  window.addEventListener('keydown', handleKeyDown)
+  // Auto-focus the container
+  nextTick(() => {
+    containerRef.value?.focus()
+  })
 })
 
 watch(() => props.folderId, () => {
   loadEmails()
   archiveConfirmId.value = null // Close popover when folder changes
+  archivingEmailId.value = null // Clear archiving state when folder changes
+  showReminderModal.value = false // Close reminder modal when folder changes
+  reminderEmail.value = null
+  // Re-focus container when folder changes
+  nextTick(() => {
+    containerRef.value?.focus()
+  })
+})
+
+// Also watch for when emails are loaded to ensure focus
+watch(() => emails.value.length, () => {
+  if (emails.value.length > 0) {
+    nextTick(() => {
+      containerRef.value?.focus()
+      // Auto-select first email if none selected
+      if (!props.selectedEmailId) {
+        const flatEmails = getAllEmailsFlat()
+        if (flatEmails.length > 0) {
+          emit('select-email', flatEmails[0].id)
+        }
+      }
+    })
+  }
 })
 
 onUnmounted(() => {
   window.removeEventListener('refresh-emails', refreshEmails)
   document.removeEventListener('click', handleClickOutside)
+  window.removeEventListener('keydown', handleKeyDown)
 })
 </script>

@@ -30,6 +30,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     send: (email: any) => ipcRenderer.invoke('emails:send', email),
     delete: (id: string) => ipcRenderer.invoke('emails:delete', id),
     archive: (id: string) => ipcRenderer.invoke('emails:archive', id),
+    spam: (id: string) => ipcRenderer.invoke('emails:spam', id),
     downloadAttachment: (attachmentId: string) => ipcRenderer.invoke('emails:download-attachment', attachmentId),
     onSyncProgress: (callback: (data: any) => void) => {
       ipcRenderer.on('emails:sync-progress', (_, data) => callback(data))
