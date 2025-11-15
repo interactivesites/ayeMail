@@ -1,6 +1,6 @@
 <template>
   <ComposeWindow v-if="isComposeMode" :account-id="composeAccountId" :reply-to="composeReplyTo" />
-  <div v-else class="h-screen flex flex-col bg-gray-50">
+  <div v-else class="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
     <MainNav
       key="main-nav"
       :syncing="syncing"
@@ -18,7 +18,10 @@
       @clear-search="handleClearSearch"
     />
     <main class="flex-1 flex overflow-hidden">
-      <aside class="w-64 border-r border-white/10 bg-slate-900/70 text-slate-100 backdrop-blur-2xl shadow-xl flex flex-col">
+      <aside 
+        class="border-r border-white/10 dark:border-gray-700 bg-slate-900/70 dark:bg-gray-800 text-slate-100 dark:text-gray-100 backdrop-blur-2xl shadow-xl flex flex-col transition-all duration-200 flex-shrink-0"
+        :style="{ width: sidebarWidth + 'px', minWidth: sidebarWidth + 'px', maxWidth: sidebarWidth + 'px' }"
+      >
         <div class="flex-1 overflow-hidden">
           <FolderList :selected-folder-id="selectedFolderId" @select-folder="handleFolderSelect" />
         </div>
@@ -46,7 +49,7 @@
       </aside>
         <div class="flex-1 flex overflow-hidden">
           <div :class="[
-            isGridLayout ? 'flex-1 px-2' : 'border-r border-gray-200 flex-shrink-0',
+            isGridLayout ? 'flex-1 px-2' : 'border-r border-gray-200 dark:border-gray-700 flex-shrink-0',
             !isResizingMailPane ? 'transition-all duration-200' : ''
           ]" :style="!isGridLayout ? { width: mailPaneWidth + 'px' } : undefined">
             <component
@@ -66,13 +69,13 @@
           </div>
           <div
             v-if="!isGridLayout"
-            class="w-2 flex-shrink-0 cursor-col-resize relative group bg-transparent hover:bg-gray-100/50 transition-colors"
+            class="w-2 flex-shrink-0 cursor-col-resize relative group bg-transparent hover:bg-gray-100/50 dark:hover:bg-gray-700/50 transition-colors"
             role="separator"
             aria-orientation="vertical"
             aria-label="Resize email list"
             @mousedown.prevent="startMailResize"
           >
-            <span class="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-gray-300 group-hover:bg-gray-500 transition-colors"></span>
+            <span class="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-gray-300 dark:bg-gray-600 group-hover:bg-gray-500 dark:group-hover:bg-gray-400 transition-colors"></span>
           </div>
           <div v-if="!isGridLayout" class="flex-1 relative">
             <EmailDropZone
@@ -97,9 +100,9 @@
     </main>
     <SettingsModal v-if="showSettings" @close="showSettings = false" @account-selected="handleAccountSelect" />
     <ReminderModal v-if="showReminderModal && reminderEmail" :email-id="reminderEmail.id" :account-id="reminderEmail.accountId" @close="showReminderModal = false; reminderEmail = null" @saved="handleReminderSaved" />
-    <div v-if="isGridLayout && selectedEmailId" class="fixed inset-0 bg-black/60 z-40 flex items-center justify-center p-4" @click.self="clearSelectedEmail">
-      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-4xl h-[90vh] flex flex-col relative">
-        <button type="button" class="absolute top-4 right-4 text-gray-500 hover:text-gray-700" @click="clearSelectedEmail" title="Close">
+    <div v-if="isGridLayout && selectedEmailId" class="fixed inset-0 bg-black/60 dark:bg-black/80 z-40 flex items-center justify-center p-4" @click.self="clearSelectedEmail">
+      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-4xl h-[90vh] flex flex-col relative">
+        <button type="button" class="absolute top-4 right-4 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200" @click="clearSelectedEmail" title="Close">
           ✕
         </button>
         <EmailViewer class="flex-1" :email-id="selectedEmailId" @reply="handleReply" @forward="handleForward" @set-reminder="handleSetReminder" @delete="handleDeleteEmail" />
@@ -128,18 +131,12 @@ const composeAccountId = ref(urlParams.get('accountId') || '')
 const composeReplyTo = ref<any>(null)
 
 // Listen for reply data from main process via IPC
+let composeReplyListener: (() => void) | null = null
 onMounted(() => {
   if (isComposeMode.value) {
-    const removeListener = (window.electronAPI as any).window?.onComposeReplyData?.((data: any) => {
+    composeReplyListener = (window.electronAPI as any).window?.onComposeReplyData?.((data: any) => {
       composeReplyTo.value = data
-    })
-    
-    // Cleanup listener on unmount
-    if (removeListener) {
-      onBeforeUnmount(() => {
-        removeListener()
-      })
-    }
+    }) || null
   }
 })
 
@@ -167,6 +164,30 @@ const MAX_MAIL_WIDTH = 640
 const isDraggingEmail = ref(false)
 const draggedEmail = ref<any>(null)
 const searchQuery = ref<string>('')
+const windowWidth = ref(window.innerWidth)
+
+// Sidebar width: default 256px (w-64), but 30% narrower (179px) when email list < 20% of screen width
+const sidebarWidth = computed(() => {
+  if (isGridLayout.value) return 256 // Grid layout doesn't use email list pane
+  
+  const screenWidth = windowWidth.value
+  const thresholdPercent = 20 // 20% threshold
+  const thresholdPixels = (screenWidth * thresholdPercent) / 100
+  
+  // Check if email list width is at or below 20% of screen width
+  // Since MIN_MAIL_WIDTH prevents going below 280px, we need to use the higher of:
+  // - 20% of screen width, OR
+  // - MIN_MAIL_WIDTH + a small buffer (so it triggers when near minimum)
+  const effectiveThreshold = Math.max(thresholdPixels, MIN_MAIL_WIDTH + 5) // 5px buffer above minimum
+  const shouldShrink = mailPaneWidth.value <= effectiveThreshold
+  
+  
+  if (shouldShrink) {
+    // 30% narrower: 256px * 0.7 = 179.2px ≈ 179px
+    return 179
+  }
+  return 256 // Default width
+})
 
 const handleMailResizeMouseMove = (event: MouseEvent) => {
   if (!isResizingMailPane.value) return
@@ -551,7 +572,23 @@ const syncOtherFoldersInBackground = async (accountId: string, folders: any[]) =
   await syncNextFolder(0)
 }
 
+// Track window width for responsive sidebar
+let resizeHandler: (() => void) | null = null
+
 onMounted(async () => {
+  // Initialize dark mode
+  if (preferences.darkMode) {
+    document.documentElement.classList.add('dark')
+  } else {
+    document.documentElement.classList.remove('dark')
+  }
+
+  // Track window width for responsive sidebar
+  resizeHandler = () => {
+    windowWidth.value = window.innerWidth
+  }
+  window.addEventListener('resize', resizeHandler)
+
   // Note: FolderList now handles loading all accounts and folders
   // Auto-select "All Inboxes" unified folder
   try {
@@ -568,6 +605,18 @@ onMounted(async () => {
   } catch (error) {
     console.error('Error loading accounts:', error)
   }
+})
+
+onBeforeUnmount(() => {
+  // Cleanup resize listener
+  if (resizeHandler) {
+    window.removeEventListener('resize', resizeHandler)
+  }
+  // Cleanup compose reply listener if in compose mode
+  if (composeReplyListener) {
+    composeReplyListener()
+  }
+  stopMailResize()
 })
 
 const handleDragStart = (email: any) => {
@@ -619,8 +668,4 @@ const handleClearSearch = () => {
     // This will be handled by FolderList if needed
   }
 }
-
-onBeforeUnmount(() => {
-  stopMailResize()
-})
 </script>

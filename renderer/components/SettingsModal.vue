@@ -1,11 +1,11 @@
 <template>
-  <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-    <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
-      <div class="p-4 border-b border-gray-200 flex items-center justify-between">
-        <h2 class="text-lg font-semibold text-gray-900">Settings</h2>
+  <div class="fixed inset-0 bg-black bg-opacity-50 dark:bg-opacity-70 flex items-center justify-center z-50">
+    <div class="bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
+      <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Settings</h2>
         <button
           @click="$emit('close')"
-          class="text-gray-500 hover:text-gray-700"
+          class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
         >
           ✕
         </button>
@@ -16,18 +16,18 @@
             <div v-if="currentTab === 'accounts'" class="space-y-6">
               <div>
                 <h3 class="text-md font-semibold text-gray-900 mb-2">Accounts</h3>
-                <div v-if="accounts.length === 0" class="text-gray-500 text-sm mb-4">
+                <div v-if="accounts.length === 0" class="text-gray-500 dark:text-gray-400 text-sm mb-4">
                   No accounts configured
                 </div>
                 <div v-else class="space-y-2 mb-4">
                   <div
                     v-for="account in accounts"
                     :key="account.id"
-                    class="p-3 border border-gray-200 rounded flex items-center justify-between"
+                    class="p-3 border border-gray-200 dark:border-gray-700 rounded flex items-center justify-between dark:bg-gray-800"
                   >
                     <div>
-                      <div class="font-medium text-gray-900">{{ account.name }}</div>
-                      <div class="text-sm text-gray-500">{{ account.email }}</div>
+                      <div class="font-medium text-gray-900 dark:text-gray-100">{{ account.name }}</div>
+                      <div class="text-sm text-gray-500 dark:text-gray-400">{{ account.email }}</div>
                     </div>
                     <div class="flex items-center space-x-2">
                       <button
@@ -62,19 +62,19 @@
             <div v-else-if="currentTab === 'signatures'" class="space-y-6">
               <div>
                 <h3 class="text-md font-semibold text-gray-900 mb-2">Select Account</h3>
-                <div v-if="accounts.length === 0" class="text-gray-500 text-sm mb-4">
+                <div v-if="accounts.length === 0" class="text-gray-500 dark:text-gray-400 text-sm mb-4">
                   No accounts configured. Please add an account first.
                 </div>
                 <div v-else class="space-y-2 mb-4">
                   <div
                     v-for="account in accounts"
                     :key="account.id"
-                    class="p-3 border border-gray-200 rounded flex items-center justify-between"
-                    :class="{ 'border-primary-600 bg-primary-50': selectedAccountId === account.id }"
+                    class="p-3 border border-gray-200 dark:border-gray-700 rounded flex items-center justify-between dark:bg-gray-800"
+                    :class="{ 'border-primary-600 bg-primary-50 dark:bg-primary-900/20 dark:border-primary-500': selectedAccountId === account.id }"
                   >
                     <div>
-                      <div class="font-medium text-gray-900">{{ account.name }}</div>
-                      <div class="text-sm text-gray-500">{{ account.email }}</div>
+                      <div class="font-medium text-gray-900 dark:text-gray-100">{{ account.name }}</div>
+                      <div class="text-sm text-gray-500 dark:text-gray-400">{{ account.email }}</div>
                     </div>
                     <button
                       @click="selectAccountForSignatures(account)"
@@ -91,16 +91,27 @@
             </div>
             <div v-else class="space-y-6">
               <div>
-                <h3 class="text-md font-semibold text-gray-900 mb-2">Appearance</h3>
-                <label class="flex items-center justify-between p-3 border border-gray-200 rounded">
+                <h3 class="text-md font-semibold text-gray-900 dark:text-gray-100 mb-2">Appearance</h3>
+                <label class="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-700 rounded dark:bg-gray-800">
                   <div>
-                    <p class="text-sm font-medium text-gray-900">Show action button labels</p>
-                    <p class="text-xs text-gray-500">Hide labels for an icon-only toolbar</p>
+                    <p class="text-sm font-medium text-gray-900 dark:text-gray-100">Show action button labels</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Hide labels for an icon-only toolbar</p>
                   </div>
                   <input
                     v-model="showActionLabels"
                     type="checkbox"
-                    class="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-600"
+                    class="w-4 h-4 text-primary-600 border-gray-300 dark:border-gray-600 rounded focus:ring-primary-600 dark:bg-gray-700"
+                  />
+                </label>
+                <label class="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-700 rounded mt-2 dark:bg-gray-800">
+                  <div>
+                    <p class="text-sm font-medium text-gray-900 dark:text-gray-100">Dark mode</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Toggle dark theme</p>
+                  </div>
+                  <input
+                    v-model="darkMode"
+                    type="checkbox"
+                    class="w-4 h-4 text-primary-600 border-gray-300 dark:border-gray-600 rounded focus:ring-primary-600 dark:bg-gray-700"
                   />
                 </label>
               </div>
@@ -109,24 +120,24 @@
                 <GPGKeyManager />
               </div>
               <div>
-                <h3 class="text-md font-semibold text-gray-900 mb-2">Security</h3>
+                <h3 class="text-md font-semibold text-gray-900 dark:text-gray-100 mb-2">Security</h3>
                 <div class="space-y-2">
                   <label class="flex items-center">
                     <input
                       v-model="autoLockEnabled"
                       type="checkbox"
-                      class="mr-2"
+                      class="mr-2 w-4 h-4 text-primary-600 border-gray-300 dark:border-gray-600 rounded focus:ring-primary-600 dark:bg-gray-700"
                       @change="updateAutoLock"
                     />
-                    <span class="text-sm text-gray-700">Auto-lock after inactivity</span>
+                    <span class="text-sm text-gray-700 dark:text-gray-300">Auto-lock after inactivity</span>
                   </label>
                   <div v-if="autoLockEnabled" class="ml-6">
-                    <label class="block text-sm text-gray-700 mb-1">Lock after (minutes)</label>
+                    <label class="block text-sm text-gray-700 dark:text-gray-300 mb-1">Lock after (minutes)</label>
                     <input
                       v-model.number="autoLockMinutes"
                       type="number"
                       min="1"
-                      class="w-32 px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary-600"
+                      class="w-32 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-600 dark:bg-gray-800 dark:text-gray-100"
                       @change="updateAutoLock"
                     />
                   </div>
@@ -180,6 +191,11 @@ const preferences = usePreferencesStore()
 const showActionLabels = computed({
   get: () => preferences.showActionLabels,
   set: (value: boolean) => preferences.setShowActionLabels(value),
+})
+
+const darkMode = computed({
+  get: () => preferences.darkMode,
+  set: (value: boolean) => preferences.setDarkMode(value),
 })
 
 const loadAccounts = async () => {

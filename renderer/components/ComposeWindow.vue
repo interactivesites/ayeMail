@@ -1,7 +1,7 @@
 <template>
-  <div class="h-screen flex flex-col bg-white relative">
+  <div class="h-screen flex flex-col bg-white dark:bg-gray-900 relative">
     <!-- Custom Title Bar -->
-    <div class="app-drag-region bg-white/70 backdrop-blur-xl border-b border-white/60 shadow-sm flex items-center justify-between px-4 py-2 h-12">
+    <div class="app-drag-region bg-white/70 dark:bg-gray-800/70 backdrop-blur-xl border-b border-white/60 dark:border-gray-700 shadow-sm flex items-center justify-between px-4 py-2 h-12">
       <div class="app-no-drag flex items-center space-x-3 flex-1 min-w-0">
        
         <button
@@ -13,68 +13,68 @@
           <PaperAirplaneIcon class="w-5 h-5 text-primary-600" />
         </button>
         <!-- <img src="../../assets/ilogo.png" alt="iMail" class="w-6 h-6 rounded-lg flex-shrink-0" /> -->
-        <h2 class="text-sm font-medium text-gray-900 truncate min-w-0 flex-1" :title="displayTitle">{{ displayTitle }}</h2>
-        <div class="border-l border-gray-300 h-4 mx-4 flex-shrink-0"></div>
+        <h2 class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate min-w-0 flex-1" :title="displayTitle">{{ displayTitle }}</h2>
+        <div class="border-l border-gray-300 dark:border-gray-600 h-4 mx-4 flex-shrink-0"></div>
         <div class="flex items-center space-x-2">
-          <label class="text-xs text-gray-600">From:</label>
+          <label class="text-xs text-gray-600 dark:text-gray-300">From:</label>
           <select
             v-model="selectedAccountId"
             @change="handleAccountChange"
-            class="text-xs px-2 py-1 border border-gray-300 rounded bg-white focus:outline-none focus:ring-1 focus:ring-primary-600 focus:border-primary-600"
+            class="text-xs px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-primary-600 focus:border-primary-600"
           >
             <option v-for="account in accounts" :key="account.id" :value="account.id">
               {{ account.name || account.email }}
             </option>
           </select>
         </div>
-        <div class="border-l border-gray-300 h-4 mx-4 flex-shrink-0"></div>
+        <div class="border-l border-gray-300 dark:border-gray-600 h-4 mx-4 flex-shrink-0"></div>
         <label class="flex items-center space-x-1.5 cursor-pointer">
           <input
             v-model="form.encrypt"
             type="checkbox"
-            class="w-3.5 h-3.5 rounded border-gray-300 text-primary-600 focus:ring-primary-600"
+            class="w-3.5 h-3.5 rounded border-gray-300 dark:border-gray-600 text-primary-600 dark:bg-gray-700 focus:ring-primary-600"
           />
-          <span class="text-xs text-gray-700">Encrypt</span>
+          <span class="text-xs text-gray-700 dark:text-gray-300">Encrypt</span>
         </label>
         <label class="flex items-center space-x-1.5 cursor-pointer">
           <input
             v-model="form.sign"
             type="checkbox"
-            class="w-3.5 h-3.5 rounded border-gray-300 text-primary-600 focus:ring-primary-600"
+            class="w-3.5 h-3.5 rounded border-gray-300 dark:border-gray-600 text-primary-600 dark:bg-gray-700 focus:ring-primary-600"
           />
-          <span class="text-xs text-gray-700">Sign</span>
+          <span class="text-xs text-gray-700 dark:text-gray-300">Sign</span>
         </label>
       </div>
       <div class="app-no-drag flex items-center space-x-1">
         <button
           @click="fileInput?.click()"
-          class="p-1.5 rounded hover:bg-gray-200 transition-colors"
+          class="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
           title="Attach Files"
         >
-          <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg class="w-4 h-4 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
           </svg>
         </button>
         <button
           @click="handleMinimize"
-          class="p-1.5 rounded hover:bg-gray-200 transition-colors"
+          class="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
           title="Minimize"
         >
-          <MinusIcon class="w-4 h-4 text-gray-600" />
+          <MinusIcon class="w-4 h-4 text-gray-600 dark:text-gray-300" />
         </button>
         <button
           @click="handleMaximize"
-          class="p-1.5 rounded hover:bg-gray-200 transition-colors"
+          class="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
           title="Maximize"
         >
-          <ArrowsPointingOutIcon class="w-4 h-4 text-gray-600" />
+          <ArrowsPointingOutIcon class="w-4 h-4 text-gray-600 dark:text-gray-300" />
         </button>
         <button
           @click="handleClose"
-          class="p-1.5 rounded hover:bg-red-100 transition-colors"
+          class="p-1.5 rounded hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
           title="Close"
         >
-          <XMarkIcon class="w-4 h-4 text-gray-600 hover:text-red-600" />
+          <XMarkIcon class="w-4 h-4 text-gray-600 dark:text-gray-300 hover:text-red-600 dark:hover:text-red-400" />
         </button>
       </div>
     </div>
@@ -82,7 +82,7 @@
     <!-- Compose Form -->
     <div 
       class="flex-1 flex flex-col overflow-hidden"
-      :class="{ 'border-2 border-dashed border-primary-400 bg-primary-50/30': isDragging }"
+      :class="{ 'border-2 border-dashed border-primary-400 dark:border-primary-500 bg-primary-50/30 dark:bg-primary-900/20': isDragging }"
       @dragover="handleDragOver"
       @dragenter="handleDragEnter"
       @dragleave="handleDragLeave"
@@ -99,7 +99,7 @@
           <input
             v-model="form.cc"
             type="text"
-            class="w-full px-3 py-2 bg-transparent border-0 border-b border-gray-300 rounded-none focus:outline-none focus:ring-0 focus:border-primary-600 transition-colors"
+            class="w-full px-3 py-2 bg-transparent dark:bg-transparent border-0 border-b border-gray-300 dark:border-gray-600 rounded-none focus:outline-none focus:ring-0 focus:border-primary-600 dark:focus:border-primary-500 transition-colors dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
             placeholder="CC"
           />
         </div>
@@ -107,7 +107,7 @@
           <input
             v-model="form.subject"
             type="text"
-            class="w-full px-3 py-2 bg-transparent border-0 border-b border-gray-300 rounded-none focus:outline-none focus:ring-0 focus:border-primary-600 transition-colors"
+            class="w-full px-3 py-2 bg-transparent dark:bg-transparent border-0 border-b border-gray-300 dark:border-gray-600 rounded-none focus:outline-none focus:ring-0 focus:border-primary-600 dark:focus:border-primary-500 transition-colors dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
             placeholder="Subject"
           />
         </div>
@@ -120,12 +120,12 @@
               :tippy-options="{ duration: 100, placement: 'top' }"
               class="bubble-menu"
             >
-              <div class="bg-white border border-gray-300 rounded-lg shadow-lg p-1 flex items-center space-x-1">
+              <div class="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg p-1 flex items-center space-x-1">
                 <button
                   @click="editor.chain().focus().toggleBold().run()"
                   :class="[
-                    'p-1.5 rounded hover:bg-gray-200 transition-colors font-bold',
-                    editor.isActive('bold') ? 'bg-gray-300' : ''
+                    'p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors font-bold dark:text-gray-100',
+                    editor.isActive('bold') ? 'bg-gray-300 dark:bg-gray-600' : ''
                   ]"
                   title="Bold"
                 >
@@ -134,8 +134,8 @@
                 <button
                   @click="editor.chain().focus().toggleItalic().run()"
                   :class="[
-                    'p-1.5 rounded hover:bg-gray-200 transition-colors italic',
-                    editor.isActive('italic') ? 'bg-gray-300' : ''
+                    'p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors italic dark:text-gray-100',
+                    editor.isActive('italic') ? 'bg-gray-300 dark:bg-gray-600' : ''
                   ]"
                   title="Italic"
                 >
@@ -144,14 +144,14 @@
                 <button
                   @click="editor.chain().focus().toggleStrike().run()"
                   :class="[
-                    'p-1.5 rounded hover:bg-gray-200 transition-colors line-through',
-                    editor.isActive('strike') ? 'bg-gray-300' : ''
+                    'p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors line-through dark:text-gray-100',
+                    editor.isActive('strike') ? 'bg-gray-300 dark:bg-gray-600' : ''
                   ]"
                   title="Strikethrough"
                 >
                   <span class="text-xs">S</span>
                 </button>
-                <div class="w-px h-6 bg-gray-300 mx-1"></div>
+                <div class="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1"></div>
                 <button
                   @click="editor.chain().focus().toggleHeading({ level: 1 }).run()"
                   :class="[
@@ -172,7 +172,7 @@
                 >
                   <span class="text-xs font-bold">H2</span>
                 </button>
-                <div class="w-px h-6 bg-gray-300 mx-1"></div>
+                <div class="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1"></div>
                 <button
                   @click="editor.chain().focus().toggleBulletList().run()"
                   :class="[
@@ -193,7 +193,7 @@
                 >
                   <span class="text-xs">1.</span>
                 </button>
-                <div class="w-px h-6 bg-gray-300 mx-1"></div>
+                <div class="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1"></div>
                 <button
                   @click="editor.chain().focus().toggleBlockquote().run()"
                   :class="[
@@ -215,8 +215,8 @@
           @change="handleFileSelect"
           class="hidden"
         />
-        <div v-if="attachments.length > 0" class="flex items-center border-t border-gray-200 pt-4 mt-4">
-          <span class="text-sm text-gray-600">
+        <div v-if="attachments.length > 0" class="flex items-center border-t border-gray-200 dark:border-gray-700 pt-4 mt-4">
+          <span class="text-sm text-gray-600 dark:text-gray-300">
             {{ attachments.length }} file{{ attachments.length > 1 ? 's' : '' }} attached ({{ formatTotalSize() }})
           </span>
         </div>
@@ -224,16 +224,16 @@
           <div
             v-for="(attachment, index) in attachments"
             :key="index"
-            class="flex items-center justify-between p-2 bg-gray-50 rounded-lg"
-            :class="{ 'border-2 border-red-300 bg-red-50': attachment.size > MAX_FILE_SIZE }"
+            class="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800 rounded-lg"
+            :class="{ 'border-2 border-red-300 dark:border-red-600 bg-red-50 dark:bg-red-900/20': attachment.size > MAX_FILE_SIZE }"
           >
             <div class="flex items-center space-x-2 flex-1 min-w-0">
-              <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg class="w-4 h-4 text-gray-400 dark:text-gray-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
               </svg>
               <div class="flex-1 min-w-0">
-                <span class="text-sm text-gray-700 block truncate">{{ attachment.name }}</span>
-                <span class="text-xs" :class="attachment.size > MAX_FILE_SIZE ? 'text-red-600 font-medium' : 'text-gray-500'">
+                <span class="text-sm text-gray-700 dark:text-gray-300 block truncate">{{ attachment.name }}</span>
+                <span class="text-xs" :class="attachment.size > MAX_FILE_SIZE ? 'text-red-600 dark:text-red-400 font-medium' : 'text-gray-500 dark:text-gray-400'">
                   {{ formatSize(attachment.size) }}
                   <span v-if="attachment.size > MAX_FILE_SIZE"> (exceeds 15MB limit)</span>
                 </span>
@@ -241,7 +241,7 @@
             </div>
             <button
               @click="removeAttachment(index)"
-              class="ml-2 text-gray-400 hover:text-red-600 transition-colors"
+              class="ml-2 text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 transition-colors"
               title="Remove attachment"
             >
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
