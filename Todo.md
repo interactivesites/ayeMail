@@ -10,7 +10,7 @@
 - click on sender mail opens a new composer window
 
 ## UI
-
+- add unread count badge to folders
 - make 3 columns (main) and give each its navigation (see apple mail)
 
 ## Settings

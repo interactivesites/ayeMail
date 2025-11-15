@@ -56,7 +56,7 @@
               v-for="email in group.emails"
               :key="email.id"
               @click="$emit('select-email', email.id)"
-              class="w-full text-left px-4 py-3 transition-colors"
+              class="w-full text-left px-4 py-3 transition-colors rounded-lg"
               :class="{
                 'bg-primary-900 text-white': selectedEmailId === email.id,
                 'hover:bg-primary-800/20': selectedEmailId !== email.id,
