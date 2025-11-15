@@ -254,6 +254,16 @@ export function registerFolderHandlers() {
             }
           }
         }
+
+        // Third pass: remove folders from database that no longer exist on server
+        const serverPaths = new Set(allPaths)
+        const dbFolders = db.prepare('SELECT id, path FROM folders WHERE account_id = ?').all(accountId) as any[]
+        for (const dbFolder of dbFolders) {
+          if (!serverPaths.has(dbFolder.path)) {
+            console.log(`Removing folder from database that no longer exists on server: ${dbFolder.path}`)
+            db.prepare('DELETE FROM folders WHERE id = ?').run(dbFolder.id)
+          }
+        }
         
         await imapClient.disconnect()
       } catch (error) {

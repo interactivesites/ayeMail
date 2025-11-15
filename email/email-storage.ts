@@ -6,6 +6,14 @@ import type { Email, Attachment, EmailAddress } from '../shared/types'
 export class EmailStorage {
   private db = getDatabase()
 
+  private isMailboxNotExistError(err: any): boolean {
+    // Check for IMAP "mailbox doesn't exist" errors
+    // Error can have type: 'no' or message containing "doesn't exist" or "Mailbox doesn't exist"
+    return err?.type === 'no' || 
+           err?.message?.toLowerCase().includes("doesn't exist") ||
+           err?.message?.toLowerCase().includes("mailbox doesn't exist")
+  }
+
   hasFolders(accountId: string): boolean {
     const result = this.db.prepare('SELECT COUNT(*) as count FROM folders WHERE account_id = ?').get(accountId) as any
     return (result?.count || 0) > 0
@@ -428,7 +436,20 @@ export class EmailStorage {
           progressCallback?.({ folder: folder.name, current: i + 1, total: emails.length, emailUid: email.uid })
         }
       }
-    } catch (err) {
+    } catch (err: any) {
+      // Check if this is a "mailbox doesn't exist" error
+      if (this.isMailboxNotExistError(err)) {
+        console.warn(`Folder ${folder.name} (path: ${folder.path}) no longer exists on server, removing from database`)
+        try {
+          // Remove the folder from database since it no longer exists on server
+          this.db.prepare('DELETE FROM folders WHERE id = ?').run(folder.id)
+          console.log(`Removed folder ${folder.name} from database`)
+        } catch (dbErr) {
+          console.error(`Error removing folder ${folder.name} from database:`, dbErr)
+        }
+        // Don't count this as an error since we've handled it
+        return { synced: 0, errors: 0 }
+      }
       console.error(`Error syncing folder ${folder.name}:`, err)
       errors++
     }
@@ -557,7 +578,20 @@ export class EmailStorage {
                 progressCallback?.({ folder: folder.name, current: i + 1, total: emails.length, emailUid: email.uid })
               }
             }
-          } catch (err) {
+          } catch (err: any) {
+            // Check if this is a "mailbox doesn't exist" error
+            if (this.isMailboxNotExistError(err)) {
+              console.warn(`Folder ${folder.name} (path: ${folder.path}) no longer exists on server, removing from database`)
+              try {
+                // Remove the folder from database since it no longer exists on server
+                this.db.prepare('DELETE FROM folders WHERE id = ?').run(folder.id)
+                console.log(`Removed folder ${folder.name} from database`)
+              } catch (dbErr) {
+                console.error(`Error removing folder ${folder.name} from database:`, dbErr)
+              }
+              // Don't count this as an error since we've handled it
+              continue
+            }
             console.error(`Error syncing folder ${folder.name}:`, err)
             errors++
           }
