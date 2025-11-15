@@ -13,8 +13,11 @@ declare global {
         list: (folderId: string, page: number, limit: number) => Promise<any[]>
         get: (id: string) => Promise<any>
         sync: (accountId: string) => Promise<any>
+        syncFolder: (accountId: string, folderId: string) => Promise<any>
         send: (email: any) => Promise<any>
         delete: (id: string) => Promise<any>
+        archive: (id: string) => Promise<{ success: boolean; message?: string }>
+        onSyncProgress: (callback: (data: any) => void) => () => void
       }
       folders: {
         list: (accountId: string) => Promise<any[]>

@@ -58,18 +58,29 @@
               @click="$emit('select-email', email.id)"
               class="w-full text-left px-4 py-3 transition-colors"
               :class="{
-                'bg-gray-100': selectedEmailId === email.id,
-                'hover:bg-gray-50': selectedEmailId !== email.id
+                'bg-primary-900': selectedEmailId === email.id,
+                'hover:bg-primary-800/20': selectedEmailId !== email.id,
+                'border-l-2 border-blue-600': isEmailUnread(email)
               }"
             >
               <div class="flex items-start gap-3">
-                <!-- Circle Icon (Unread Indicator) -->
-                <div class="flex-shrink-0 mt-1">
-                  <div 
-                    class="w-2 h-2 rounded-full"
-                    :class="isEmailUnread(email) ? 'bg-blue-600' : 'bg-transparent'"
-                  ></div>
+                <!-- Rounded Checkbox -->
+                <div class="flex-shrink-0 self-center">
+                  <button
+                    @click.stop="handleArchive(email.id)"
+                    class="w-5 h-5 rounded-full border-2 border-gray-300 flex items-center justify-center transition-colors hover:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
+                    :class="{
+                      'bg-blue-600 border-blue-600': false,
+                      'hover:bg-gray-50': true
+                    }"
+                    title="Archive email"
+                  >
+                    <svg v-if="false" class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </button>
                 </div>
+                
                 
                 <!-- Email Content -->
                 <div class="flex-1 min-w-0">
@@ -188,6 +199,22 @@ const getEmailPreview = (email: any): string => {
 
 const handlePreviewLevelChange = (level: 1 | 2 | 3) => {
   preferences.setPreviewLevel(level)
+}
+
+const handleArchive = async (emailId: string) => {
+  try {
+    const result = await window.electronAPI.emails.archive(emailId)
+    if (result.success) {
+      // Remove email from list
+      emails.value = emails.value.filter(e => e.id !== emailId)
+      // Refresh email list
+      window.dispatchEvent(new CustomEvent('refresh-emails'))
+    } else {
+      console.error('Failed to archive email:', result.message)
+    }
+  } catch (error) {
+    console.error('Error archiving email:', error)
+  }
 }
 
 const loadEmails = async () => {

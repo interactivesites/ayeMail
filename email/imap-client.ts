@@ -666,6 +666,46 @@ export class IMAPClient {
     })
   }
 
+  async moveEmail(uid: number, sourceFolder: string, destinationFolder: string): Promise<void> {
+    await this.ensureConnected()
+
+    return new Promise((resolve, reject) => {
+      // Open source folder
+      this.connection!.openBox(sourceFolder, false, (err, box) => {
+        if (err) {
+          reject(err)
+          return
+        }
+
+        // Use COPY + DELETE + EXPUNGE
+        this.connection!.copy(uid, destinationFolder, (copyErr) => {
+          if (copyErr) {
+            reject(copyErr)
+            return
+          }
+
+          // Mark as deleted in source folder
+          this.connection!.addFlags(uid, '\\Deleted', (deleteErr) => {
+            if (deleteErr) {
+              reject(deleteErr)
+              return
+            }
+
+            // Expunge to actually delete (expunge doesn't take uid parameter)
+            this.connection!.expunge((expungeErr) => {
+              if (expungeErr) {
+                reject(expungeErr)
+                return
+              }
+
+              resolve()
+            })
+          })
+        })
+      })
+    })
+  }
+
   private async ensureConnected(): Promise<void> {
     if (!this.connection || this.connection.state === 'disconnected') {
       await this.connect()

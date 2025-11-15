@@ -516,6 +516,148 @@ export function registerEmailHandlers() {
     db.prepare('DELETE FROM emails WHERE id = ?').run(id)
     return { success: true }
   })
+
+  ipcMain.handle('emails:archive', async (_, id: string) => {
+    const db = getDatabase()
+    
+    // Get email details
+    const email = db.prepare('SELECT * FROM emails WHERE id = ?').get(id) as any
+    if (!email) {
+      return { success: false, message: 'Email not found' }
+    }
+
+    // Find or create Archive folder
+    let archiveFolder = db.prepare(`
+      SELECT * FROM folders 
+      WHERE account_id = ? AND (LOWER(name) = 'archive' OR LOWER(path) LIKE '%archive%')
+      LIMIT 1
+    `).get(email.account_id) as any
+
+    if (!archiveFolder) {
+      // Try to find or create Archive folder on IMAP server
+      const account = await accountManager.getAccount(email.account_id)
+      if (account && account.type === 'imap') {
+        try {
+          const imapClient = getIMAPClient(account)
+          await imapClient.connect()
+          const folders = await imapClient.listFolders()
+          let archiveFolderOnServer = folders.find(
+            f => f.name.toLowerCase() === 'archive' || f.path.toLowerCase().includes('archive')
+          )
+
+          // If Archive folder doesn't exist on server, create it
+          if (!archiveFolderOnServer) {
+            try {
+              await imapClient.createFolder('Archive')
+              // Re-list folders to get the newly created folder
+              const updatedFolders = await imapClient.listFolders()
+              archiveFolderOnServer = updatedFolders.find(
+                f => f.name.toLowerCase() === 'archive' || f.path.toLowerCase().includes('archive')
+              )
+            } catch (createError) {
+              console.error('Error creating Archive folder on IMAP server:', createError)
+              // Continue to create local folder
+            }
+          }
+
+          if (archiveFolderOnServer) {
+            // Check if folder exists in DB
+            archiveFolder = db.prepare('SELECT * FROM folders WHERE account_id = ? AND path = ?')
+              .get(email.account_id, archiveFolderOnServer.path) as any
+            
+            if (!archiveFolder) {
+              // Create folder in DB
+              const folderId = randomUUID()
+              const now = Date.now()
+              db.prepare(`
+                INSERT INTO folders (id, account_id, name, path, subscribed, attributes, created_at, updated_at)
+                VALUES (?, ?, ?, ?, 1, ?, ?, ?)
+              `).run(
+                folderId,
+                email.account_id,
+                archiveFolderOnServer.name,
+                archiveFolderOnServer.path,
+                JSON.stringify(archiveFolderOnServer.attributes),
+                now,
+                now
+              )
+              archiveFolder = { id: folderId, path: archiveFolderOnServer.path }
+            }
+          }
+
+          await imapClient.disconnect()
+        } catch (error) {
+          console.error('Error finding/creating Archive folder:', error)
+        }
+      }
+
+      // If still no archive folder, create a local one (for non-IMAP accounts or as fallback)
+      if (!archiveFolder) {
+        const folderId = randomUUID()
+        const now = Date.now()
+        db.prepare(`
+          INSERT INTO folders (id, account_id, name, path, subscribed, attributes, created_at, updated_at)
+          VALUES (?, ?, ?, ?, 1, ?, ?, ?)
+        `).run(
+          folderId,
+          email.account_id,
+          'Archive',
+          'Archive',
+          JSON.stringify([]),
+          now,
+          now
+        )
+        archiveFolder = { id: folderId, path: 'Archive' }
+      }
+    }
+
+    // Move email to Archive folder
+    const now = Date.now()
+    db.prepare(`
+      UPDATE emails 
+      SET folder_id = ?, updated_at = ?
+      WHERE id = ?
+    `).run(archiveFolder.id, now, id)
+
+    // Try to move on IMAP server if account is IMAP
+    const account = await accountManager.getAccount(email.account_id)
+    if (account && account.type === 'imap') {
+      try {
+        const imapClient = getIMAPClient(account)
+        await imapClient.connect()
+        
+        // Get current folder path
+        const currentFolder = db.prepare('SELECT path FROM folders WHERE id = ?').get(email.folder_id) as any
+        // Get archive folder path from database (should have the correct server path)
+        const archiveFolderFromDb = db.prepare('SELECT path FROM folders WHERE id = ?').get(archiveFolder.id) as any
+        const archivePath = archiveFolderFromDb?.path || archiveFolder.path || 'Archive'
+        
+        if (currentFolder && archivePath) {
+          // Ensure Archive folder exists on server before moving
+          // Try to create it if it doesn't exist (idempotent - won't error if it exists)
+          try {
+            await imapClient.createFolder(archivePath)
+          } catch (createError: any) {
+            // If folder already exists, that's fine - continue
+            if (createError && !createError.message?.includes('already exists') && !createError.message?.includes('EXISTS')) {
+              console.warn('Archive folder may already exist or creation failed:', createError.message)
+            }
+          }
+
+          // Use IMAP MOVE command if available, otherwise COPY + DELETE
+          const currentPath = currentFolder.path === 'INBOX' ? 'INBOX' : currentFolder.path
+          await imapClient.moveEmail(email.uid, currentPath, archivePath)
+        }
+        
+        await imapClient.disconnect()
+      } catch (error) {
+        console.error('Error moving email on IMAP server:', error)
+        // Continue anyway - email is already moved in database
+      }
+    }
+
+    return { success: true }
+  })
 }
 
 // Reminder handlers

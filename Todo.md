@@ -16,3 +16,7 @@
 ## Settings
 - formatters (date, time, etc.) - try to get from system
 - language
+
+
+## Bugs
+- html mails with formatting (e.g. font) change the global app fonts - sandbox!
