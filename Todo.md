@@ -1,10 +1,11 @@
 
 ## Functionality
-- add del / space / T / S to email lsit (delete, archive, reminder, spam)
+- open links externally
 
 - Search (nav)
 
 - Instead of selecting account, show all as accordion or like apple mail
+- Starr folders (Aside): 1) default ones and 2) user-starred / collapse imap folders
 
 
 
@@ -21,7 +22,6 @@
 ## UI
 - add loading anims for load / send / refresh
 - all checkboexs to toggles
-- add unread count badge to folders
 - make 3 columns (main) and give each its navigation (see apple mail) 
 
 ## Settings
@@ -32,8 +32,7 @@
 
 
 ## Bugs
-- html mails with formatting (e.g. font) change the global app fonts - sandbox!
-- EmailList.vue:65 Error archiving email: Error: Error invoking remote method 'emails:archive': SqliteError: UNIQUE constraint failed: emails.account_id, emails.folder_id, emails.uid
+
 
 ## Feat
 - threads?

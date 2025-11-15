@@ -265,6 +265,7 @@ const loading = ref(false)
 const preferences = usePreferencesStore()
 const { previewLevel } = storeToRefs(preferences)
 const isDragging = ref<string | null>(null)
+const removedEmails = ref<Map<string, any>>(new Map()) // Store removed emails for potential restoration
 
 // Grouping mode - can be extended later for other grouping options
 const groupingMode = ref<'bydate'>('bydate')
@@ -807,7 +808,40 @@ const groupedEmails = computed(() => {
 })
 
 const refreshEmails = () => {
+  // Clear removed emails cache on refresh since we're getting fresh data
+  removedEmails.value.clear()
   loadEmails()
+}
+
+const handleRemoveEmailOptimistic = (event: CustomEvent) => {
+  const { emailId } = event.detail
+  const emailToRemove = emails.value.find(e => e.id === emailId)
+  
+  if (emailToRemove) {
+    // Store email for potential restoration
+    removedEmails.value.set(emailId, emailToRemove)
+    // Remove from list immediately
+    emails.value = emails.value.filter(e => e.id !== emailId)
+    
+    // Clear selection if removed email was selected
+    if (props.selectedEmailId === emailId) {
+      emit('select-email', '')
+    }
+  }
+}
+
+const handleRestoreEmail = (event: CustomEvent) => {
+  const { emailId } = event.detail
+  const emailToRestore = removedEmails.value.get(emailId)
+  
+  if (emailToRestore) {
+    // Restore email to list
+    emails.value.push(emailToRestore)
+    // Sort emails by date (newest first) to maintain order
+    emails.value.sort((a, b) => b.date - a.date)
+    // Remove from removed emails map
+    removedEmails.value.delete(emailId)
+  }
 }
 
 // Close popover when clicking outside
@@ -848,6 +882,10 @@ onMounted(() => {
   loadEmails()
   // Listen for refresh event
   window.addEventListener('refresh-emails', refreshEmails)
+  // Listen for optimistic email removal
+  window.addEventListener('remove-email-optimistic', handleRemoveEmailOptimistic as EventListener)
+  // Listen for email restoration on error
+  window.addEventListener('restore-email', handleRestoreEmail as EventListener)
   // Listen for clicks outside to close popover
   document.addEventListener('click', handleClickOutside)
   // Listen for global keyboard events when EmailList is active
@@ -904,6 +942,8 @@ const handleDragEnd = () => {
 
 onUnmounted(() => {
   window.removeEventListener('refresh-emails', refreshEmails)
+  window.removeEventListener('remove-email-optimistic', handleRemoveEmailOptimistic as EventListener)
+  window.removeEventListener('restore-email', handleRestoreEmail as EventListener)
   document.removeEventListener('click', handleClickOutside)
   window.removeEventListener('keydown', handleKeyDown)
 })

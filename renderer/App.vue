@@ -73,6 +73,8 @@
               :account-id="selectedAccount?.id || ''"
               @action-complete="handleDragActionComplete"
               @close="handleDragEnd"
+              @drop-start="handleDropStart"
+              @drop-error="handleDropError"
             />
             <EmailViewer
               v-else
@@ -549,6 +551,18 @@ const handleDragActionComplete = () => {
     selectedEmailId.value = ''
     selectedEmail.value = null
   }
+}
+
+const handleDropStart = (emailId: string) => {
+  // Emit event to EmailList to remove email optimistically
+  window.dispatchEvent(new CustomEvent('remove-email-optimistic', { detail: { emailId } }))
+}
+
+const handleDropError = (emailId: string) => {
+  // Emit event to EmailList to restore email on error
+  window.dispatchEvent(new CustomEvent('restore-email', { detail: { emailId } }))
+  // Refresh email list to ensure consistency
+  window.dispatchEvent(new CustomEvent('refresh-emails'))
 }
 
 onBeforeUnmount(() => {
