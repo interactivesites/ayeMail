@@ -12,53 +12,65 @@
       @delete="handleNavDelete"
     />
     <main class="flex-1 flex overflow-hidden">
-      <!-- Folder List -->
-      <aside v-if="selectedAccount" class="w-64 bg-white border-r border-gray-200 flex flex-col">
-        <div class="flex-1 overflow-hidden">
-          <FolderList :account-id="selectedAccount.id" :selected-folder-id="selectedFolderId" @select-folder="handleFolderSelect" />
-        </div>
-        <div v-if="syncProgress.show" class="p-2 border-t border-gray-200 bg-gray-50">
-          <div class="flex items-center justify-between mb-1">
-            <span class="text-xs text-gray-600">
-              <span v-if="syncProgress.folder === 'folders'">Syncing folders</span>
-              <span v-else-if="syncProgress.folder === 'Complete'">Sync complete</span>
-              <span v-else-if="syncProgress.folder">
-                <span v-if="syncProgress.total === undefined || syncProgress.total === null">Connecting to {{ syncProgress.folder }}</span>
-                <span v-else-if="syncProgress.total === 0">No emails in {{ syncProgress.folder }}</span>
-                <span v-else>Downloading {{ syncProgress.folder }} ({{ syncProgress.current }}/{{ syncProgress.total }})</span>
+      <template v-if="selectedAccount">
+        <aside class="w-64 bg-white border-r border-gray-200 flex flex-col">
+          <div class="flex-1 overflow-hidden">
+            <FolderList :account-id="selectedAccount.id" :selected-folder-id="selectedFolderId" @select-folder="handleFolderSelect" />
+          </div>
+          <div v-if="syncProgress.show" class="p-2 border-t border-gray-200 bg-gray-50">
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-xs text-gray-600">
+                <span v-if="syncProgress.folder === 'folders'">Syncing folders</span>
+                <span v-else-if="syncProgress.folder === 'Complete'">Sync complete</span>
+                <span v-else-if="syncProgress.folder">
+                  <span v-if="syncProgress.total === undefined || syncProgress.total === null">Connecting to {{ syncProgress.folder }}</span>
+                  <span v-else-if="syncProgress.total === 0">No emails in {{ syncProgress.folder }}</span>
+                  <span v-else>Downloading {{ syncProgress.folder }} ({{ syncProgress.current }}/{{ syncProgress.total }})</span>
+                </span>
+                <span v-else>Downloading emails</span>
               </span>
-              <span v-else>Downloading emails</span>
-            </span>
+            </div>
+            <div class="w-full bg-gray-200 rounded-full h-1.5">
+              <div class="bg-blue-600 h-1.5 rounded-full transition-all duration-300" :style="{
+                width: syncProgress.total > 0 ? `${Math.min(100, (syncProgress.current / syncProgress.total) * 100)}%` :
+                  syncProgress.total === 0 ? '100%' :
+                    '25%'
+              }"></div>
+            </div>
           </div>
-          <div class="w-full bg-gray-200 rounded-full h-1.5">
-            <div class="bg-blue-600 h-1.5 rounded-full transition-all duration-300" :style="{
-              width: syncProgress.total > 0 ? `${Math.min(100, (syncProgress.current / syncProgress.total) * 100)}%` :
-                syncProgress.total === 0 ? '100%' :
-                  '25%'
-            }"></div>
+        </aside>
+        <div class="flex-1 flex overflow-hidden">
+          <div :class="[
+            'transition-all duration-200',
+            isGridLayout ? 'flex-1 px-2' : 'border-r border-gray-200 flex-shrink-0'
+          ]" :style="!isGridLayout ? { width: mailPaneWidth + 'px' } : undefined">
+            <component v-if="selectedFolderId" :is="isGridLayout ? EmailGrid : EmailList" :folder-id="selectedFolderId" :folder-name="selectedFolderName" :selected-email-id="selectedEmailId" @select-email="handleEmailSelect" />
+          </div>
+          <div
+            v-if="!isGridLayout"
+            class="w-1.5 flex-shrink-0 cursor-col-resize relative group bg-transparent"
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize email list"
+            @mousedown.prevent="startMailResize"
+          >
+            <span class="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-gray-200 group-hover:bg-gray-400 transition-colors"></span>
+          </div>
+          <div v-if="!isGridLayout" class="flex-1">
+            <EmailViewer :email-id="selectedEmailId" @reply="handleReply" @forward="handleForward" @set-reminder="handleSetReminder" @delete="handleDeleteEmail" />
           </div>
         </div>
-      </aside>
-      <div v-if="!selectedAccount" class="flex-1 flex items-center justify-center">
-        <div class="text-center">
-          <p class="text-gray-500 mb-4">No account selected</p>
-          <button @click="showSettings = true" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
-            Add Account
-          </button>
+      </template>
+      <template v-else>
+        <div class="flex-1 flex items-center justify-center">
+          <div class="text-center">
+            <p class="text-gray-500 mb-4">No account selected</p>
+            <button @click="showSettings = true" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+              Add Account
+            </button>
+          </div>
         </div>
-      </div>
-      <!-- Email List and Viewer -->
-      <div v-else class="flex-1 flex overflow-hidden">
-        <div :class="[
-          'transition-all duration-200',
-          isGridLayout ? 'flex-1 px-2' : 'w-1/3 border-r border-gray-200'
-        ]">
-          <component v-if="selectedFolderId" :is="isGridLayout ? EmailGrid : EmailList" :folder-id="selectedFolderId" :folder-name="selectedFolderName" :selected-email-id="selectedEmailId" @select-email="handleEmailSelect" />
-        </div>
-        <div v-if="!isGridLayout" class="flex-1">
-          <EmailViewer :email-id="selectedEmailId" @reply="handleReply" @forward="handleForward" @set-reminder="handleSetReminder" @delete="handleDeleteEmail" />
-        </div>
-      </div>
+      </template>
     </main>
     <ComposeEmail v-if="showCompose" :account-id="selectedAccount?.id || ''" :reply-to="replyToEmail" @close="showCompose = false; replyToEmail = undefined" @sent="handleEmailSent" />
     <SettingsModal v-if="showSettings" @close="showSettings = false" @account-selected="handleAccountSelect" />
@@ -75,7 +87,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, onBeforeUnmount } from 'vue'
 import FolderList from './components/FolderList.vue'
 import EmailList from './components/EmailList.vue'
 import EmailGrid from './components/EmailGrid.vue'
@@ -100,6 +112,37 @@ const syncing = ref(false)
 const syncProgress = ref({ show: false, current: 0, total: 0, folder: '' })
 const preferences = usePreferencesStore()
 const isGridLayout = computed(() => preferences.mailLayout === 'grid')
+const mailPaneWidth = ref(384)
+const isResizingMailPane = ref(false)
+const mailResizeStartX = ref(0)
+const mailResizeStartWidth = ref(384)
+const MIN_MAIL_WIDTH = 280
+const MAX_MAIL_WIDTH = 640
+
+const handleMailResizeMouseMove = (event: MouseEvent) => {
+  if (!isResizingMailPane.value) return
+  const nextWidth = mailResizeStartWidth.value + (event.clientX - mailResizeStartX.value)
+  mailPaneWidth.value = Math.min(Math.max(nextWidth, MIN_MAIL_WIDTH), MAX_MAIL_WIDTH)
+}
+
+const stopMailResize = () => {
+  if (!isResizingMailPane.value) return
+  isResizingMailPane.value = false
+  document.body.classList.remove('select-none')
+  document.body.style.removeProperty('cursor')
+  document.removeEventListener('mousemove', handleMailResizeMouseMove)
+  document.removeEventListener('mouseup', stopMailResize)
+}
+
+const startMailResize = (event: MouseEvent) => {
+  isResizingMailPane.value = true
+  mailResizeStartX.value = event.clientX
+  mailResizeStartWidth.value = mailPaneWidth.value
+  document.body.classList.add('select-none')
+  document.body.style.cursor = 'col-resize'
+  document.addEventListener('mousemove', handleMailResizeMouseMove)
+  document.addEventListener('mouseup', stopMailResize)
+}
 
 const clearSelectedEmail = () => {
   selectedEmailId.value = ''
@@ -363,5 +406,9 @@ onMounted(async () => {
   } catch (error) {
     console.error('Error loading accounts:', error)
   }
+})
+
+onBeforeUnmount(() => {
+  stopMailResize()
 })
 </script>
