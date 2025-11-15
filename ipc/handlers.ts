@@ -971,11 +971,32 @@ export function registerWindowHandlers() {
     return { success: true }
   })
 
-  ipcMain.handle('window:compose:close', async () => {
-    const { getComposeWindow } = await import('../electron/main')
-    const composeWindow = getComposeWindow()
-    if (composeWindow) {
-      composeWindow.close()
+  ipcMain.handle('window:compose:close', async (_, windowId?: number) => {
+    const { getAllComposeWindows } = await import('../electron/main')
+    if (windowId) {
+      const window = BrowserWindow.fromId(windowId)
+      if (window) {
+        window.close()
+      }
+    } else {
+      // Close focused window or first compose window
+      const focused = BrowserWindow.getFocusedWindow()
+      if (focused) {
+        focused.close()
+      } else {
+        const windows = getAllComposeWindows()
+        if (windows.length > 0) {
+          windows[0].close()
+        }
+      }
+    }
+    return { success: true }
+  })
+
+  ipcMain.handle('window:set-title', async (_, windowId: number, title: string) => {
+    const window = BrowserWindow.fromId(windowId)
+    if (window) {
+      window.setTitle(title)
     }
     return { success: true }
   })
@@ -1006,6 +1027,11 @@ export function registerWindowHandlers() {
       window.close()
     }
     return { success: true }
+  })
+
+  ipcMain.handle('window:getId', async (event) => {
+    const window = BrowserWindow.fromWebContents(event.sender)
+    return window ? window.id : null
   })
 }
 

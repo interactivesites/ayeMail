@@ -10,7 +10,7 @@ import { autoLockManager } from '../security/auto-lock'
 declare const __dirname: string
 
 let mainWindow: BrowserWindow | null = null
-let composeWindow: BrowserWindow | null = null
+const composeWindows = new Set<BrowserWindow>()
 const isMac = process.platform === 'darwin'
 
 function createWindow() {
@@ -69,11 +69,6 @@ function createWindow() {
 }
 
 function createComposeWindow(accountId: string, replyTo?: any) {
-  // Close existing compose window if open
-  if (composeWindow) {
-    composeWindow.close()
-  }
-
   const windowOptions: BrowserWindowConstructorOptions = {
     width: 900,
     height: 700,
@@ -97,7 +92,8 @@ function createComposeWindow(accountId: string, replyTo?: any) {
     })
   }
 
-  composeWindow = new BrowserWindow(windowOptions)
+  const composeWindow = new BrowserWindow(windowOptions)
+  composeWindows.add(composeWindow)
 
   if (isMac) {
     composeWindow.setVibrancy('under-window')
@@ -136,12 +132,23 @@ function createComposeWindow(accountId: string, replyTo?: any) {
   })
 
   composeWindow.on('closed', () => {
-    composeWindow = null
+    composeWindows.delete(composeWindow)
   })
+  
+  return composeWindow
 }
 
 export function getComposeWindow() {
-  return composeWindow
+  // Return the most recently focused compose window, or first one if none focused
+  const focused = BrowserWindow.getFocusedWindow()
+  if (focused && composeWindows.has(focused)) {
+    return focused
+  }
+  return composeWindows.size > 0 ? Array.from(composeWindows)[0] : null
+}
+
+export function getAllComposeWindows(): BrowserWindow[] {
+  return Array.from(composeWindows)
 }
 
 export { createComposeWindow }

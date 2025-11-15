@@ -89,11 +89,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     compose: {
       create: (accountId: string, replyTo?: any) => 
         ipcRenderer.invoke('window:compose:create', accountId, replyTo),
-      close: () => ipcRenderer.invoke('window:compose:close')
+      close: (windowId?: number) => ipcRenderer.invoke('window:compose:close', windowId)
     },
     minimize: (windowId?: string) => ipcRenderer.invoke('window:minimize', windowId),
     maximize: (windowId?: string) => ipcRenderer.invoke('window:maximize', windowId),
     close: (windowId?: string) => ipcRenderer.invoke('window:close', windowId),
+    setTitle: (windowId: number, title: string) => ipcRenderer.invoke('window:set-title', windowId, title),
+    getId: () => ipcRenderer.invoke('window:getId'),
     onComposeReplyData: (callback: (data: any) => void) => {
       ipcRenderer.on('compose:reply-data', (_, data) => callback(data))
       return () => ipcRenderer.removeAllListeners('compose:reply-data')

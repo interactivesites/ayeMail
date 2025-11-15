@@ -392,9 +392,61 @@ const editor = useEditor({
 const fileInput = ref<HTMLInputElement | null>(null)
 const attachments = ref<Array<{ name: string; size: number; file: File }>>([])
 const isDragging = ref(false)
+const windowId = ref<number | null>(null)
 
 const signatures = ref<any[]>([])
 const defaultSignature = ref<any>(null)
+
+// Parse recipient name from To field
+const getRecipientName = (toField: string): string => {
+  if (!toField || !toField.trim()) return ''
+  
+  // Parse first recipient
+  const firstRecipient = toField.split(',')[0].trim()
+  
+  // Try to extract name from "Name <email@example.com>" format
+  const nameMatch = firstRecipient.match(/^(.+?)\s*<(.+?)>$/)
+  if (nameMatch && nameMatch[1]) {
+    return nameMatch[1].trim()
+  }
+  
+  // If no name, return email address (or empty if invalid)
+  const emailMatch = firstRecipient.match(/^(.+?@.+?)$/)
+  if (emailMatch) {
+    return emailMatch[1].trim()
+  }
+  
+  return firstRecipient
+}
+
+// Update window title based on recipient and subject
+const updateWindowTitle = () => {
+  if (!windowId.value) return
+  
+  const recipient = getRecipientName(form.value.to)
+  const subject = form.value.subject?.trim() || ''
+  
+  let title = 'Compose Email'
+  if (recipient) {
+    title = recipient
+    if (subject) {
+      title += ` - ${subject}`
+    }
+  } else if (subject) {
+    title = `Compose Email - ${subject}`
+  }
+  
+  ;(window.electronAPI as any).window?.setTitle?.(windowId.value, title)
+}
+
+// Watch form fields to update title
+watch(() => form.value.to, () => {
+  updateWindowTitle()
+})
+
+watch(() => form.value.subject, () => {
+  updateWindowTitle()
+})
 
 // Prevent browser default file drag behavior at document level
 const preventDocumentDragOver = (e: DragEvent) => {
@@ -420,6 +472,13 @@ onMounted(async () => {
   document.addEventListener('dragover', preventDocumentDragOver, true)
   document.addEventListener('drop', preventDocumentDrop, true)
   
+  // Get window ID for title updates
+  try {
+    windowId.value = await (window.electronAPI as any).window?.getId?.() || null
+  } catch (error) {
+    console.error('Error getting window ID:', error)
+  }
+  
   // Initialize editor content if replyTo is already available
   if (props.replyTo && editor.value) {
     updateEditorContent(props.replyTo)
@@ -438,6 +497,9 @@ onMounted(async () => {
       console.error('Error loading signatures:', error)
     }
   }
+  
+  // Initial title update
+  updateWindowTitle()
 })
 
 onUnmounted(() => {
@@ -723,15 +785,27 @@ const sendEmail = async () => {
 }
 
 const handleMinimize = () => {
-  ;(window.electronAPI as any).window?.minimize()
+  if (windowId.value !== null) {
+    ;(window.electronAPI as any).window?.minimize?.(windowId.value.toString())
+  } else {
+    ;(window.electronAPI as any).window?.minimize?.()
+  }
 }
 
 const handleMaximize = () => {
-  ;(window.electronAPI as any).window?.maximize()
+  if (windowId.value !== null) {
+    ;(window.electronAPI as any).window?.maximize?.(windowId.value.toString())
+  } else {
+    ;(window.electronAPI as any).window?.maximize?.()
+  }
 }
 
 const handleClose = () => {
-  ;(window.electronAPI as any).window?.close()
+  if (windowId.value !== null) {
+    ;(window.electronAPI as any).window?.compose?.close?.(windowId.value)
+  } else {
+    ;(window.electronAPI as any).window?.close?.()
+  }
 }
 </script>
 
