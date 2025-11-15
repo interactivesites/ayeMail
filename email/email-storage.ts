@@ -7,13 +7,17 @@ export class EmailStorage {
   private db = getDatabase()
 
   async storeEmail(email: Email): Promise<string> {
+    // Always generate ID from current folderId (database ID) to ensure consistency
+    // Don't use pre-generated email.id which might have been created with folder name
+    const id = `${email.accountId}-${email.folderId}-${email.uid}`
+    
     const existing = this.db.prepare(`
       SELECT id FROM emails WHERE account_id = ? AND folder_id = ? AND uid = ?
     `).get(email.accountId, email.folderId, email.uid) as any
 
     if (existing) {
       // Update existing email including body content
-      const id = existing.id
+      const existingId = existing.id
       const now = Date.now()
       
       // Encrypt body - always update body fields to ensure they're set
@@ -65,14 +69,13 @@ export class EmailStorage {
         email.signed ? 1 : 0,
         email.signatureVerified !== undefined ? (email.signatureVerified ? 1 : 0) : null,
         now,
-        id
+        existingId
       )
       
-      return id
+      return existingId
     }
 
     // Insert new email
-    const id = email.id || `${email.accountId}-${email.folderId}-${email.uid}`
     const now = Date.now()
 
     // Encrypt body
@@ -80,42 +83,101 @@ export class EmailStorage {
     const htmlBodyEncrypted = email.htmlBody ? encryption.encrypt(email.htmlBody) : null
     const textBodyEncrypted = email.textBody ? encryption.encrypt(email.textBody) : null
 
-    this.db.prepare(`
-      INSERT INTO emails (
-        id, account_id, folder_id, uid, message_id, subject,
-        from_addresses, to_addresses, cc_addresses, bcc_addresses, reply_to_addresses,
-        date, body_encrypted, html_body_encrypted, text_body_encrypted,
-        flags, is_read, is_starred, thread_id, in_reply_to, email_references,
-        encrypted, signed, signature_verified, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      id,
-      email.accountId,
-      email.folderId,
-      email.uid,
-      email.messageId,
-      email.subject,
-      JSON.stringify(email.from),
-      JSON.stringify(email.to),
-      email.cc ? JSON.stringify(email.cc) : null,
-      email.bcc ? JSON.stringify(email.bcc) : null,
-      email.replyTo ? JSON.stringify(email.replyTo) : null,
-      email.date,
-      bodyEncrypted,
-      htmlBodyEncrypted,
-      textBodyEncrypted,
-      JSON.stringify(email.flags),
-      email.isRead ? 1 : 0,
-      email.isStarred ? 1 : 0,
-      email.threadId || null,
-      email.inReplyTo || null,
-      email.references ? JSON.stringify(email.references) : null,
-      email.encrypted ? 1 : 0,
-      email.signed ? 1 : 0,
-      email.signatureVerified !== undefined ? (email.signatureVerified ? 1 : 0) : null,
-      now,
-      now
-    )
+    try {
+      this.db.prepare(`
+        INSERT INTO emails (
+          id, account_id, folder_id, uid, message_id, subject,
+          from_addresses, to_addresses, cc_addresses, bcc_addresses, reply_to_addresses,
+          date, body_encrypted, html_body_encrypted, text_body_encrypted,
+          flags, is_read, is_starred, thread_id, in_reply_to, email_references,
+          encrypted, signed, signature_verified, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        id,
+        email.accountId,
+        email.folderId,
+        email.uid,
+        email.messageId,
+        email.subject,
+        JSON.stringify(email.from),
+        JSON.stringify(email.to),
+        email.cc ? JSON.stringify(email.cc) : null,
+        email.bcc ? JSON.stringify(email.bcc) : null,
+        email.replyTo ? JSON.stringify(email.replyTo) : null,
+        email.date,
+        bodyEncrypted,
+        htmlBodyEncrypted,
+        textBodyEncrypted,
+        JSON.stringify(email.flags),
+        email.isRead ? 1 : 0,
+        email.isStarred ? 1 : 0,
+        email.threadId || null,
+        email.inReplyTo || null,
+        email.references ? JSON.stringify(email.references) : null,
+        email.encrypted ? 1 : 0,
+        email.signed ? 1 : 0,
+        email.signatureVerified !== undefined ? (email.signatureVerified ? 1 : 0) : null,
+        now,
+        now
+      )
+    } catch (err: any) {
+      // Handle race condition: if UNIQUE constraint fails, the email was inserted
+      // by another concurrent operation, so update it instead
+      if (err?.code === 'SQLITE_CONSTRAINT_PRIMARYKEY' || err?.code === 'SQLITE_CONSTRAINT') {
+        // Email with this ID already exists, update it instead
+        const updateNow = Date.now()
+        
+        this.db.prepare(`
+          UPDATE emails SET
+            subject = ?,
+            from_addresses = ?,
+            to_addresses = ?,
+            cc_addresses = ?,
+            bcc_addresses = ?,
+            reply_to_addresses = ?,
+            date = ?,
+            body_encrypted = ?,
+            html_body_encrypted = ?,
+            text_body_encrypted = ?,
+            flags = ?,
+            is_read = ?,
+            is_starred = ?,
+            thread_id = ?,
+            in_reply_to = ?,
+            email_references = ?,
+            encrypted = ?,
+            signed = ?,
+            signature_verified = ?,
+            updated_at = ?
+          WHERE id = ?
+        `).run(
+          email.subject,
+          JSON.stringify(email.from),
+          JSON.stringify(email.to),
+          email.cc ? JSON.stringify(email.cc) : null,
+          email.bcc ? JSON.stringify(email.bcc) : null,
+          email.replyTo ? JSON.stringify(email.replyTo) : null,
+          email.date,
+          bodyEncrypted,
+          htmlBodyEncrypted,
+          textBodyEncrypted,
+          JSON.stringify(email.flags),
+          email.isRead ? 1 : 0,
+          email.isStarred ? 1 : 0,
+          email.threadId || null,
+          email.inReplyTo || null,
+          email.references ? JSON.stringify(email.references) : null,
+          email.encrypted ? 1 : 0,
+          email.signed ? 1 : 0,
+          email.signatureVerified !== undefined ? (email.signatureVerified ? 1 : 0) : null,
+          updateNow,
+          id
+        )
+      } else {
+        // Re-throw if it's a different error
+        throw err
+      }
+    }
 
     // Store attachments
     if (email.attachments && email.attachments.length > 0) {
