@@ -50,6 +50,21 @@
   
   <!-- Popover version - calendar only -->
   <div v-else class="reminder-calendar-popover bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 relative" style="width: 320px; padding: 8px;">
+    <!-- Clear reminder button if reminder exists -->
+    <div v-if="existingReminder" class="mb-2 flex items-center justify-between px-2">
+      <span class="text-xs text-gray-600 dark:text-gray-400">Reminder set</span>
+      <button
+        @click="clearReminder"
+        :disabled="clearing"
+        class="flex items-center gap-1 px-2 py-1 text-xs text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 disabled:opacity-50 transition-colors"
+        title="Remove reminder and move email back to original folder"
+      >
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+        Clear Reminder
+      </button>
+    </div>
     <VueTailwindDatepicker
       v-model="selectedDate"
       :start-from="new Date()"
@@ -92,19 +107,37 @@ const form = ref({
 
 const selectedDate = ref<[Date, Date]>([new Date(), new Date()])
 const saving = ref(false)
+const clearing = ref(false)
+const existingReminder = ref<any>(null)
 
 // Track if component is mounted to prevent initial trigger
 let isMounted = false
 // Initialize lastSelectedValue to prevent watch from triggering on mount
 let lastSelectedValue: any = [new Date(), new Date()]
 
-// Reset selected date when popover opens
-onMounted(() => {
+// Check for existing reminder and reset selected date when popover opens
+onMounted(async () => {
   if (props.isPopover) {
-    // Initialize with current date for single date picker
-    const today = new Date()
-    selectedDate.value = [today, today]
-    lastSelectedValue = [today, today]
+    // Check if email already has a reminder
+    try {
+      existingReminder.value = await window.electronAPI.reminders.getByEmail(props.emailId)
+      if (existingReminder.value) {
+        // Set selected date to reminder date
+        const reminderDate = new Date(existingReminder.value.due_date)
+        selectedDate.value = [reminderDate, reminderDate]
+        lastSelectedValue = [reminderDate, reminderDate]
+      } else {
+        // Initialize with current date for single date picker
+        const today = new Date()
+        selectedDate.value = [today, today]
+        lastSelectedValue = [today, today]
+      }
+    } catch (error) {
+      console.error('Error checking for existing reminder:', error)
+      const today = new Date()
+      selectedDate.value = [today, today]
+      lastSelectedValue = [today, today]
+    }
     // Set mounted flag after a short delay to allow initial value to settle
     setTimeout(() => {
       isMounted = true
@@ -216,6 +249,26 @@ const handleDateSelect = async (value: string | string[] | Date | Date[] | any) 
   } finally {
     saving.value = false
     isProcessing = false
+  }
+}
+
+const clearReminder = async () => {
+  if (!existingReminder.value) return
+  
+  clearing.value = true
+  try {
+    const result = await window.electronAPI.reminders.deleteByEmail(props.emailId)
+    if (result.success) {
+      existingReminder.value = null
+      emit('saved')
+      emit('close')
+    } else {
+      alert(result.message || 'Failed to clear reminder')
+    }
+  } catch (error: any) {
+    alert(`Failed to clear reminder: ${error.message}`)
+  } finally {
+    clearing.value = false
   }
 }
 

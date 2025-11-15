@@ -1248,6 +1248,9 @@ export function registerEmailHandlers() {
       return { success: false, message: 'Email not found' }
     }
 
+    // Delete any reminders for this email when archiving
+    db.prepare('DELETE FROM reminders WHERE email_id = ? AND completed = 0').run(id)
+
     // Find or create Archive folder
     let archiveFolder = db.prepare(`
       SELECT * FROM folders 
@@ -1694,11 +1697,12 @@ export function registerReminderHandlers() {
     const id = randomUUID()
     const now = Date.now()
     
-    // Get email details
+    // Get email details and store original folder before moving
     const email = db.prepare('SELECT * FROM emails WHERE id = ?').get(reminder.emailId) as any
     if (!email) {
       throw new Error('Email not found')
     }
+    const originalFolderId = email.folder_id
 
     // Find or create Aside folder
     let asideFolder = db.prepare(`
@@ -1871,20 +1875,59 @@ export function registerReminderHandlers() {
 
     if (existingReminder) {
       // Update existing reminder instead of creating a duplicate
+      // Preserve original folder from existing reminder message
+      const existingReminderData = db.prepare('SELECT message FROM reminders WHERE id = ?').get(existingReminder.id) as any
+      let originalFolderIdFromExisting: string | null = null
+      try {
+        const existingData = JSON.parse(existingReminderData?.message || '{}')
+        originalFolderIdFromExisting = existingData.originalFolderId || originalFolderId
+      } catch {
+        originalFolderIdFromExisting = originalFolderId
+      }
+
+      // Update reminder message with original folder
+      let reminderMessage = reminder.message || null
+      if (!reminderMessage) {
+        reminderMessage = JSON.stringify({ originalFolderId: originalFolderIdFromExisting })
+      } else {
+        try {
+          const existingData = JSON.parse(reminderMessage)
+          reminderMessage = JSON.stringify({ ...existingData, originalFolderId: originalFolderIdFromExisting })
+        } catch {
+          reminderMessage = JSON.stringify({ originalFolderId: originalFolderIdFromExisting, customMessage: reminderMessage })
+        }
+      }
+
       db.prepare(`
         UPDATE reminders 
         SET due_date = ?, message = ?
         WHERE id = ?
-      `).run(reminder.dueDate, reminder.message || null, existingReminder.id)
+      `).run(reminder.dueDate, reminderMessage, existingReminder.id)
       
       return { id: existingReminder.id, ...reminder, completed: false, createdAt: now }
     }
     
     // Create new reminder if none exists
+    // Store original folder_id in message field as JSON (if no custom message) or append to custom message
+    let reminderMessage = reminder.message || null
+    if (!reminderMessage) {
+      // No custom message, store original folder in JSON
+      reminderMessage = JSON.stringify({ originalFolderId })
+    } else {
+      // Has custom message, store both
+      try {
+        const existingData = JSON.parse(reminderMessage)
+        reminderMessage = JSON.stringify({ ...existingData, originalFolderId })
+      } catch {
+        // Not JSON, create new structure
+        reminderMessage = JSON.stringify({ originalFolderId, customMessage: reminderMessage })
+      }
+    }
+    
     db.prepare(`
       INSERT INTO reminders (id, email_id, account_id, due_date, message, completed, created_at)
       VALUES (?, ?, ?, ?, ?, 0, ?)
-    `).run(id, reminder.emailId, reminder.accountId, reminder.dueDate, reminder.message || null, now)
+    `).run(id, reminder.emailId, reminder.accountId, reminder.dueDate, reminderMessage, now)
     
     return { id, ...reminder, completed: false, createdAt: now }
   })
@@ -1915,7 +1958,164 @@ export function registerReminderHandlers() {
 
   ipcMain.handle('reminders:delete', async (_, id: string) => {
     const db = getDatabase()
+    const reminder = db.prepare('SELECT * FROM reminders WHERE id = ?').get(id) as any
+    if (!reminder) {
+      throw new Error('Reminder not found')
+    }
+
+    // Get email to find original folder
+    const email = db.prepare('SELECT * FROM emails WHERE id = ?').get(reminder.email_id) as any
+    if (!email) {
+      // Email doesn't exist, just delete reminder
+      db.prepare('DELETE FROM reminders WHERE id = ?').run(id)
+      return { success: true }
+    }
+
+    // Try to extract original folder from message field (if stored)
+    let originalFolderId: string | null = null
+    try {
+      const messageData = JSON.parse(reminder.message || '{}')
+      if (messageData.originalFolderId) {
+        originalFolderId = messageData.originalFolderId
+      }
+    } catch {
+      // If message is not JSON, it's a custom message, try to find original folder
+      // For now, default to Inbox if we can't determine
+      const inboxFolder = db.prepare(`
+        SELECT id FROM folders 
+        WHERE account_id = ? AND LOWER(name) = 'inbox'
+        LIMIT 1
+      `).get(reminder.account_id) as any
+      originalFolderId = inboxFolder?.id || null
+    }
+
+    // If we have an original folder, move email back
+    if (originalFolderId) {
+      const now = Date.now()
+      try {
+        db.prepare(`
+          UPDATE emails 
+          SET folder_id = ?, updated_at = ?
+          WHERE id = ?
+        `).run(originalFolderId, now, reminder.email_id)
+
+        // Try to move on IMAP server if account is IMAP
+        const account = await accountManager.getAccount(reminder.account_id)
+        if (account && account.type === 'imap') {
+          try {
+            const imapClient = getIMAPClient(account)
+            await imapClient.connect()
+            
+            // Get current folder (Aside) and original folder paths
+            const currentFolder = db.prepare('SELECT path FROM folders WHERE id = ?').get(email.folder_id) as any
+            const originalFolder = db.prepare('SELECT path FROM folders WHERE id = ?').get(originalFolderId) as any
+            
+            if (currentFolder && originalFolder) {
+              const currentPath = currentFolder.path === 'INBOX' ? 'INBOX' : currentFolder.path
+              const originalPath = originalFolder.path === 'INBOX' ? 'INBOX' : originalFolder.path
+              await imapClient.moveEmail(email.uid, currentPath, originalPath)
+            }
+            
+            await imapClient.disconnect()
+          } catch (error) {
+            console.error('Error moving email back on IMAP server:', error)
+            // Continue anyway - email is already moved in database
+          }
+        }
+      } catch (error) {
+        console.error('Error moving email back to original folder:', error)
+        // Continue to delete reminder anyway
+      }
+    }
+
+    // Delete the reminder
     db.prepare('DELETE FROM reminders WHERE id = ?').run(id)
+    return { success: true }
+  })
+
+  ipcMain.handle('reminders:getByEmail', async (_, emailId: string) => {
+    const db = getDatabase()
+    const reminder = db.prepare(`
+      SELECT * FROM reminders 
+      WHERE email_id = ? AND completed = 0
+      ORDER BY due_date ASC
+      LIMIT 1
+    `).get(emailId) as any
+    return reminder || null
+  })
+
+  ipcMain.handle('reminders:deleteByEmail', async (_, emailId: string) => {
+    const db = getDatabase()
+    const reminder = db.prepare(`
+      SELECT * FROM reminders 
+      WHERE email_id = ? AND completed = 0
+      ORDER BY due_date ASC
+      LIMIT 1
+    `).get(emailId) as any
+    
+    if (!reminder) {
+      return { success: false, message: 'No reminder found for this email' }
+    }
+
+    // Reuse the delete logic
+    const email = db.prepare('SELECT * FROM emails WHERE id = ?').get(reminder.email_id) as any
+    if (!email) {
+      db.prepare('DELETE FROM reminders WHERE id = ?').run(reminder.id)
+      return { success: true }
+    }
+
+    // Try to extract original folder from message field
+    let originalFolderId: string | null = null
+    try {
+      const messageData = JSON.parse(reminder.message || '{}')
+      if (messageData.originalFolderId) {
+        originalFolderId = messageData.originalFolderId
+      }
+    } catch {
+      const inboxFolder = db.prepare(`
+        SELECT id FROM folders 
+        WHERE account_id = ? AND LOWER(name) = 'inbox'
+        LIMIT 1
+      `).get(reminder.account_id) as any
+      originalFolderId = inboxFolder?.id || null
+    }
+
+    // Move email back to original folder if we have it
+    if (originalFolderId) {
+      const now = Date.now()
+      try {
+        db.prepare(`
+          UPDATE emails 
+          SET folder_id = ?, updated_at = ?
+          WHERE id = ?
+        `).run(originalFolderId, now, reminder.email_id)
+
+        const account = await accountManager.getAccount(reminder.account_id)
+        if (account && account.type === 'imap') {
+          try {
+            const imapClient = getIMAPClient(account)
+            await imapClient.connect()
+            
+            const currentFolder = db.prepare('SELECT path FROM folders WHERE id = ?').get(email.folder_id) as any
+            const originalFolder = db.prepare('SELECT path FROM folders WHERE id = ?').get(originalFolderId) as any
+            
+            if (currentFolder && originalFolder) {
+              const currentPath = currentFolder.path === 'INBOX' ? 'INBOX' : currentFolder.path
+              const originalPath = originalFolder.path === 'INBOX' ? 'INBOX' : originalFolder.path
+              await imapClient.moveEmail(email.uid, currentPath, originalPath)
+            }
+            
+            await imapClient.disconnect()
+          } catch (error) {
+            console.error('Error moving email back on IMAP server:', error)
+          }
+        }
+      } catch (error) {
+        console.error('Error moving email back to original folder:', error)
+      }
+    }
+
+    db.prepare('DELETE FROM reminders WHERE id = ?').run(reminder.id)
     return { success: true }
   })
 }
