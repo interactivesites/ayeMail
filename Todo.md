@@ -3,8 +3,10 @@
 - add del / space / T / S to email lsit (delete, archive, reminder, spam)
 - Instead of selecting account, show all as accordion or like apple mail
 - Search (nav)
-- click on sender mail opens a new composer window
+
+- multi-compose windows | set title as subject & recipient name
 - autoomplete mails / recipients by name
+
 - ADD to Folders: 
 -- all accounts inboxes (first section)
 -- custom folders of the app: reminders / lists of flagged items (if we have any)

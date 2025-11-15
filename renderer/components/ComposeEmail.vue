@@ -161,13 +161,40 @@ const emit = defineEmits<{
 
 const MAX_FILE_SIZE = 15 * 1024 * 1024 // 15MB
 
+// Get the text content from email, preferring textBody over body, and stripping HTML if needed
+const getEmailTextContent = (email: any): string => {
+  if (!email) return ''
+  // Prefer textBody (plain text), then body, then strip HTML from htmlBody
+  if (email.textBody) return email.textBody
+  if (email.body) return email.body
+  if (email.htmlBody) {
+    // Strip HTML tags for plain text display
+    const tmp = document.createElement('div')
+    tmp.innerHTML = email.htmlBody
+    return tmp.textContent || tmp.innerText || ''
+  }
+  return ''
+}
+
+// Format email address for display in To field
+const formatAddressForTo = (address: any): string => {
+  if (!address) return ''
+  if (typeof address === 'string') return address
+  if (address.name && address.address) {
+    return `${address.name} <${address.address}>`
+  }
+  return address.address || ''
+}
+
 const form = ref({
-  to: '',
+  to: props.replyTo && !props.replyTo.forward && props.replyTo.from && props.replyTo.from.length > 0
+    ? props.replyTo.from.map(formatAddressForTo).join(', ')
+    : '',
   cc: '',
   subject: props.replyTo?.forward ? `Fwd: ${props.replyTo.subject || ''}` : (props.replyTo ? `Re: ${props.replyTo.subject || ''}` : ''),
   body: props.replyTo?.forward 
-    ? `\n\n---------- Forwarded message ----------\nFrom: ${props.replyTo.from?.[0]?.address || ''}\nDate: ${new Date(props.replyTo.date).toLocaleString()}\nSubject: ${props.replyTo.subject || ''}\n\n${props.replyTo.body || ''}`
-    : (props.replyTo ? `\n\n--- Original Message ---\n${props.replyTo.body || ''}` : ''),
+    ? `\n\n---------- Forwarded message ----------\nFrom: ${props.replyTo.from?.[0]?.address || ''}\nDate: ${new Date(props.replyTo.date).toLocaleString()}\nSubject: ${props.replyTo.subject || ''}\n\n${getEmailTextContent(props.replyTo)}`
+    : (props.replyTo ? `\n\n--- Original Message ---\n${getEmailTextContent(props.replyTo)}` : ''),
   encrypt: false,
   sign: false
 })

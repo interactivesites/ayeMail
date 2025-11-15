@@ -1,5 +1,6 @@
 <template>
-  <div class="h-screen flex flex-col bg-white">
+  <div class="h-screen flex flex-col bg-white relative">
+    <LoadingOverlay :show="props.loading === true" text="Loading email..." />
     <!-- Custom Title Bar -->
     <div class="app-drag-region bg-white/70 backdrop-blur-xl border-b border-white/60 shadow-sm flex items-center justify-between px-4 py-2 h-12">
       <div class="app-no-drag flex items-center space-x-3">
@@ -245,12 +246,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, onUnmounted } from 'vue'
+import { ref, onMounted, onBeforeUnmount, onUnmounted, watch } from 'vue'
 import { useEditor, EditorContent } from '@tiptap/vue-3'
 import { BubbleMenu } from '@tiptap/vue-3/menus'
 import StarterKit from '@tiptap/starter-kit'
 import Image from '@tiptap/extension-image'
 import { formatSize } from '../utils/formatters'
+import LoadingOverlay from './LoadingOverlay.vue'
 import {
   ArrowsPointingOutIcon,
   XMarkIcon,
@@ -262,17 +264,85 @@ import {
 const props = defineProps<{
   accountId: string
   replyTo?: any
+  loading?: boolean
 }>()
+
+// Format email address for display in To field
+const formatAddressForTo = (address: any): string => {
+  if (!address) return ''
+  if (typeof address === 'string') return address
+  if (address.name && address.address) {
+    return `${address.name} <${address.address}>`
+  }
+  return address.address || ''
+}
 
 const form = ref({
   to: '',
   cc: '',
-  subject: props.replyTo?.forward ? `Fwd: ${props.replyTo.subject || ''}` : (props.replyTo ? `Re: ${props.replyTo.subject || ''}` : ''),
+  subject: '',
   encrypt: false,
   sign: false
 })
 
+// Update form when replyTo becomes available
+const updateFormFromReplyTo = (replyTo: any) => {
+  if (!replyTo) return
+  
+  if (!replyTo.forward && replyTo.from && replyTo.from.length > 0) {
+    form.value.to = replyTo.from.map(formatAddressForTo).join(', ')
+  } else if (replyTo.to && replyTo.to.length > 0 && !replyTo.subject) {
+    form.value.to = replyTo.to.map(formatAddressForTo).join(', ')
+  }
+  
+  if (replyTo.forward) {
+    form.value.subject = `Fwd: ${replyTo.subject || ''}`
+  } else if (replyTo.subject) {
+    form.value.subject = `Re: ${replyTo.subject || ''}`
+  }
+}
+
+// Initialize form if replyTo is already available
+if (props.replyTo) {
+  updateFormFromReplyTo(props.replyTo)
+}
+
+// Watch for changes in replyTo (for async loading)
+watch(() => props.replyTo, (newReplyTo) => {
+  if (newReplyTo) {
+    updateFormFromReplyTo(newReplyTo)
+    updateEditorContent(newReplyTo)
+  }
+}, { immediate: true })
+
 const MAX_FILE_SIZE = 15 * 1024 * 1024 // 15MB
+
+// Strip images from HTML content to prevent re-attaching them in replies
+const stripImagesFromHtml = (html: string): string => {
+  if (!html) return html
+  // Remove img tags (both with data URLs and CID references)
+  return html.replace(/<img[^>]*>/gi, '')
+}
+
+// Get HTML content from email, preferring htmlBody, then converting textBody to HTML, then body
+const getEmailHtmlContent = (email: any): string => {
+  if (!email) return ''
+  if (email.htmlBody) return email.htmlBody
+  if (email.textBody) return email.textBody.replace(/\n/g, '<br>')
+  if (email.body) return email.body
+  return ''
+}
+
+// Update editor content when replyTo becomes available
+const updateEditorContent = (replyTo: any) => {
+  if (!replyTo || !editor.value) return
+  
+  const content = replyTo.forward 
+    ? `<p><br></p><p>---------- Forwarded message ----------</p><p>From: ${replyTo.from?.[0]?.address || ''}</p><p>Date: ${new Date(replyTo.date).toLocaleString()}</p><p>Subject: ${replyTo.subject || ''}</p><p><br></p>${stripImagesFromHtml(getEmailHtmlContent(replyTo))}`
+    : `<p><br></p><p>--- Original Message ---</p>${stripImagesFromHtml(getEmailHtmlContent(replyTo))}`
+  
+  editor.value.commands.setContent(content)
+}
 
 const editor = useEditor({
   extensions: [
@@ -282,9 +352,7 @@ const editor = useEditor({
       allowBase64: true
     })
   ],
-  content: props.replyTo?.forward 
-    ? `<p><br></p><p>---------- Forwarded message ----------</p><p>From: ${props.replyTo.from?.[0]?.address || ''}</p><p>Date: ${new Date(props.replyTo.date).toLocaleString()}</p><p>Subject: ${props.replyTo.subject || ''}</p><p><br></p>${props.replyTo.htmlBody || props.replyTo.body || ''}`
-    : (props.replyTo ? `<p><br></p><p>--- Original Message ---</p>${props.replyTo.htmlBody || props.replyTo.body || ''}` : ''),
+  content: '',
   editorProps: {
     attributes: {
       class: 'prose prose-sm sm:prose lg:prose-lg xl:prose-2xl mx-auto focus:outline-none min-h-[300px] p-4',
@@ -351,6 +419,11 @@ onMounted(async () => {
   // Add document-level handlers to prevent browser/Electron from opening files
   document.addEventListener('dragover', preventDocumentDragOver, true)
   document.addEventListener('drop', preventDocumentDrop, true)
+  
+  // Initialize editor content if replyTo is already available
+  if (props.replyTo && editor.value) {
+    updateEditorContent(props.replyTo)
+  }
   
   if (props.accountId) {
     try {

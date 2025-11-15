@@ -1,5 +1,5 @@
 <template>
-  <ComposeWindow v-if="isComposeMode" :account-id="composeAccountId" :reply-to="composeReplyTo" />
+  <ComposeWindow v-if="isComposeMode" :account-id="composeAccountId" :reply-to="composeReplyTo" :loading="composeLoading" />
   <div v-else class="h-screen flex flex-col bg-gray-50">
     <MainNav
       :syncing="syncing"
@@ -102,16 +102,25 @@ import { usePreferencesStore } from './stores/preferences'
 const urlParams = new URLSearchParams(window.location.search)
 const isComposeMode = ref(urlParams.get('compose') === 'true')
 const composeAccountId = ref(urlParams.get('accountId') || '')
-const replyToParam = urlParams.get('replyTo')
-let composeReplyToValue: any = undefined
-if (replyToParam) {
-  try {
-    composeReplyToValue = JSON.parse(replyToParam)
-  } catch {
-    composeReplyToValue = undefined
-  }
+const composeEmailId = ref(urlParams.get('emailId') || '')
+const composeForward = ref(urlParams.get('forward') === 'true')
+const composeReplyTo = ref<any>(null)
+const composeLoading = ref(false)
+
+// Fetch email if emailId is provided
+if (composeEmailId.value) {
+  composeLoading.value = true
+  window.electronAPI.emails.get(composeEmailId.value)
+    .then((email: any) => {
+      composeReplyTo.value = { ...email, forward: composeForward.value }
+    })
+    .catch((error: any) => {
+      console.error('Error loading email for reply:', error)
+    })
+    .finally(() => {
+      composeLoading.value = false
+    })
 }
-const composeReplyTo = ref(composeReplyToValue)
 
 const selectedAccount = ref<any>(null)
 const selectedFolderId = ref<string>('')
@@ -212,21 +221,19 @@ const handleEmailSelect = async (emailId: string) => {
 
 const handleCompose = () => {
   if (!selectedAccount.value) return
-  window.electronAPI.window.compose.create(selectedAccount.value.id)
+  ;(window.electronAPI as any).window.compose.create(selectedAccount.value.id)
 }
 
 const handleReply = (email: any) => {
-  if (!email || !selectedAccount.value) return
-  // Serialize the email object to ensure it can be passed through IPC
-  const serializedEmail = JSON.parse(JSON.stringify(email))
-  window.electronAPI.window.compose.create(selectedAccount.value.id, serializedEmail)
+  if (!email || !selectedAccount.value || !email.id) return
+  // Pass only the email ID to avoid cloning issues and URL size limits
+  ;(window.electronAPI as any).window.compose.create(selectedAccount.value.id, { emailId: email.id, forward: false })
 }
 
 const handleForward = (email: any) => {
-  if (!email || !selectedAccount.value) return
-  // Serialize the email object and add forward flag
-  const serializedEmail = JSON.parse(JSON.stringify({ ...email, forward: true }))
-  window.electronAPI.window.compose.create(selectedAccount.value.id, serializedEmail)
+  if (!email || !selectedAccount.value || !email.id) return
+  // Pass only the email ID to avoid cloning issues and URL size limits
+  ;(window.electronAPI as any).window.compose.create(selectedAccount.value.id, { emailId: email.id, forward: true })
 }
 
 const handleSetReminder = (email: any) => {

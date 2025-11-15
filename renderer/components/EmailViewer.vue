@@ -17,7 +17,23 @@
         <div class="text-sm text-gray-600 space-y-1">
           <div>
             <span class="font-medium">From:</span>
-            <span class="ml-2">{{ formatAddresses(email.from as EmailAddress[]) }}</span>
+            <span class="ml-2">
+              <template v-if="email.from && (email.from as EmailAddress[]).length > 0">
+                <template v-for="(addr, index) in (email.from as EmailAddress[])" :key="index">
+                  <button
+                    v-if="addr.address"
+                    @click="handleComposeToAddress(addr.address)"
+                    class="text-primary-600 hover:text-primary-800 hover:underline cursor-pointer"
+                    :title="`Compose email to ${addr.address}`"
+                  >
+                    {{ addr.name ? `${addr.name} <${addr.address}>` : addr.address }}
+                  </button>
+                  <span v-else>{{ addr.name || addr.address || '' }}</span>
+                  <span v-if="index < (email.from as EmailAddress[]).length - 1">, </span>
+                </template>
+              </template>
+              <span v-else>—</span>
+            </span>
           </div>
           <div v-if="email.to && email.to.length > 0">
             <span class="font-medium">To:</span>
@@ -242,6 +258,17 @@ const onIframeLoad = () => {
   }
 }
 
+const handleComposeToAddress = (address: string) => {
+  if (!email.value || !email.value.accountId || !address) return
+  
+  // Create a minimal email object with just the "to" field set
+  const composeData = {
+    to: [{ address }]
+  }
+  
+  // Open compose window with the email address pre-filled
+  window.electronAPI.window.compose.create(email.value.accountId, composeData)
+}
 
 watch(() => props.emailId, () => {
   loadEmail()

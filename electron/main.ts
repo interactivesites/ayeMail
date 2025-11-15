@@ -123,13 +123,23 @@ function createComposeWindow(accountId: string, replyTo?: any) {
   
   if (isDev) {
     const params = new URLSearchParams({ compose: 'true', accountId })
-    if (replyTo) {
-      params.set('replyTo', JSON.stringify(replyTo))
+    if (replyTo?.emailId) {
+      params.set('emailId', replyTo.emailId)
+      if (replyTo.forward) {
+        params.set('forward', 'true')
+      }
     }
     composeWindow.loadURL(`http://localhost:5173?${params.toString()}`)
   } else {
     const indexPath = join(__dirname, '../dist/index.html')
-    composeWindow.loadFile(indexPath, { query: { compose: 'true', accountId, ...(replyTo ? { replyTo: JSON.stringify(replyTo) } : {}) } })
+    const query: any = { compose: 'true', accountId }
+    if (replyTo?.emailId) {
+      query.emailId = replyTo.emailId
+      if (replyTo.forward) {
+        query.forward = 'true'
+      }
+    }
+    composeWindow.loadFile(indexPath, { query })
   }
 
   composeWindow.on('closed', () => {
