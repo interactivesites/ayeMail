@@ -230,6 +230,12 @@ const handleFolderSelect = async (folder: any) => {
     } else if (folder.id === 'unified-reminders') {
       unifiedFolderType.value = 'reminders'
       // Reminders are already unified, no account IDs needed
+      // Clean up any duplicate reminders when opening the reminders folder
+      try {
+        await window.electronAPI.reminders.cleanupDuplicates()
+      } catch (error) {
+        console.error('Error cleaning up duplicate reminders:', error)
+      }
     } else if (folder.id === 'unified-aside') {
       unifiedFolderType.value = 'aside'
       // Aside shows starred emails from all accounts
@@ -283,7 +289,20 @@ const handleForward = (email: any) => {
   ;(window.electronAPI as any).window.compose.create(selectedAccount.value.id, { emailId: email.id, forward: true })
 }
 
-const handleSetReminder = (email: any) => {
+const handleSetReminder = async (email: any) => {
+  if (!email || !email.id) return
+  
+  // Check if email already has a reminder
+  try {
+    const hasReminder = await window.electronAPI.reminders.hasReminder(email.id)
+    if (hasReminder) {
+      // Still allow setting reminder, but it will update the existing one
+      // The backend will handle updating instead of creating a duplicate
+    }
+  } catch (error) {
+    console.error('Error checking for existing reminder:', error)
+  }
+  
   reminderEmail.value = email
   showReminderModal.value = true
 }
@@ -498,12 +517,17 @@ const syncOtherFoldersInBackground = async (accountId: string, folders: any[]) =
 
 onMounted(async () => {
   // Note: FolderList now handles loading all accounts and folders
-  // We can optionally select the first account's inbox here if needed
+  // Auto-select "All Inboxes" unified folder
   try {
     const accounts = await window.electronAPI.accounts.list()
     if (accounts.length > 0) {
       selectedAccount.value = accounts[0]
-      // FolderList will handle loading folders and selecting inbox
+      
+      // Auto-select "All Inboxes" unified folder
+      selectedFolderId.value = 'unified-all-inboxes'
+      selectedFolderName.value = 'All Inboxes'
+      unifiedFolderType.value = 'all-inboxes'
+      unifiedFolderAccountIds.value = accounts.map((a: any) => a.id)
     }
   } catch (error) {
     console.error('Error loading accounts:', error)

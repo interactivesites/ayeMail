@@ -65,7 +65,8 @@ const emit = defineEmits<{
   select: [folder: any]
 }>()
 
-const expanded = ref(true) // Start expanded
+// Start collapsed for unified folders, expanded for others
+const expanded = ref(!props.folder.isUnified)
 
 const handleClick = (event: MouseEvent) => {
   // If clicking on the expand/collapse area, toggle expansion
@@ -80,7 +81,23 @@ const handleClick = (event: MouseEvent) => {
 }
 
 // Auto-expand if this folder or any child is selected
+// But keep unified folders collapsed unless a child is selected
 const shouldAutoExpand = computed(() => {
+  // For unified folders, only expand if a child is selected, not the root
+  if (props.folder.isUnified) {
+    const checkChildren = (children: any[]): boolean => {
+      return children.some(child => {
+        if (child.id === props.selectedFolderId) return true
+        if (child.children && child.children.length > 0) {
+          return checkChildren(child.children)
+        }
+        return false
+      })
+    }
+    return props.folder.children && checkChildren(props.folder.children)
+  }
+  
+  // For regular folders, expand if folder or any child is selected
   if (props.selectedFolderId === props.folder.id) {
     return true
   }

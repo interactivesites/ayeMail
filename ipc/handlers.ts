@@ -497,14 +497,20 @@ export function registerEmailHandlers() {
       `
       params = [...folderIds, limit, offset]
     } else if (type === 'reminders') {
-      // Get emails that have reminders
+      // Get emails that have reminders (use subquery to prevent duplicates if multiple reminders exist)
+      // Get the earliest reminder for each email
       query = `
         SELECT emails.*,
-          (SELECT COUNT(*) FROM attachments WHERE email_id = emails.id) as attachmentCount
+          (SELECT COUNT(*) FROM attachments WHERE email_id = emails.id) as attachmentCount,
+          earliest_reminder.due_date as reminder_due_date
         FROM emails
-        INNER JOIN reminders ON emails.id = reminders.email_id
-        WHERE reminders.completed = 0
-        ORDER BY reminders.due_date ASC, emails.date DESC
+        INNER JOIN (
+          SELECT email_id, MIN(due_date) as due_date
+          FROM reminders
+          WHERE completed = 0
+          GROUP BY email_id
+        ) earliest_reminder ON emails.id = earliest_reminder.email_id
+        ORDER BY earliest_reminder.due_date ASC, emails.date DESC
         LIMIT ? OFFSET ?
       `
       params = [limit, offset]
@@ -1315,6 +1321,51 @@ export function registerReminderHandlers() {
     `).all()
   })
 
+  ipcMain.handle('reminders:hasReminder', async (_, emailId: string) => {
+    const db = getDatabase()
+    const reminder = db.prepare(`
+      SELECT id FROM reminders 
+      WHERE email_id = ? AND completed = 0
+      LIMIT 1
+    `).get(emailId) as any
+    return !!reminder
+  })
+
+  ipcMain.handle('reminders:cleanupDuplicates', async () => {
+    const db = getDatabase()
+    // Find all emails with multiple active reminders
+    const duplicates = db.prepare(`
+      SELECT email_id, COUNT(*) as count, GROUP_CONCAT(id) as reminder_ids
+      FROM reminders
+      WHERE completed = 0
+      GROUP BY email_id
+      HAVING count > 1
+    `).all() as any[]
+
+    let cleaned = 0
+    for (const dup of duplicates) {
+      // Get all reminders for this email, ordered by due_date (earliest first)
+      const reminders = db.prepare(`
+        SELECT id FROM reminders
+        WHERE email_id = ? AND completed = 0
+        ORDER BY due_date ASC, created_at ASC
+      `).all(dup.email_id) as any[]
+
+      // Keep the first (earliest) reminder, delete the rest
+      if (reminders.length > 1) {
+        const keepId = reminders[0].id
+        const deleteIds = reminders.slice(1).map((r: any) => r.id)
+        
+        for (const deleteId of deleteIds) {
+          db.prepare('DELETE FROM reminders WHERE id = ?').run(deleteId)
+          cleaned++
+        }
+      }
+    }
+
+    return { cleaned, duplicatesFound: duplicates.length }
+  })
+
   ipcMain.handle('reminders:create', async (_, reminder: Omit<Reminder, 'id' | 'createdAt'>) => {
     const db = getDatabase()
     const id = randomUUID()
@@ -1488,7 +1539,25 @@ export function registerReminderHandlers() {
       }
     }
     
-    // Create the reminder
+    // Check if a reminder already exists for this email (not completed)
+    const existingReminder = db.prepare(`
+      SELECT id FROM reminders 
+      WHERE email_id = ? AND completed = 0
+      LIMIT 1
+    `).get(reminder.emailId) as any
+
+    if (existingReminder) {
+      // Update existing reminder instead of creating a duplicate
+      db.prepare(`
+        UPDATE reminders 
+        SET due_date = ?, message = ?
+        WHERE id = ?
+      `).run(reminder.dueDate, reminder.message || null, existingReminder.id)
+      
+      return { id: existingReminder.id, ...reminder, completed: false, createdAt: now }
+    }
+    
+    // Create new reminder if none exists
     db.prepare(`
       INSERT INTO reminders (id, email_id, account_id, due_date, message, completed, created_at)
       VALUES (?, ?, ?, ?, ?, 0, ?)

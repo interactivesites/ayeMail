@@ -628,14 +628,17 @@ const showReminderForEmail = async (emailId: string) => {
 
 const showFolderPickerForEmail = async (emailId: string) => {
   const email = getAllEmailsFlat().find(e => e.id === emailId)
-  if (!email || !email.accountId || !props.accountId) {
+  if (!email || !email.accountId) {
     console.error('Email not found or missing accountId', { emailId, email })
     return
   }
   
+  // Use the email's accountId, not props.accountId (which might be from unified folder)
+  const emailAccountId = email.accountId
+  
   // Check if account is IMAP (only IMAP supports folders)
   try {
-    const account = await window.electronAPI.accounts.get(props.accountId)
+    const account = await window.electronAPI.accounts.get(emailAccountId)
     if (!account || account.type !== 'imap') {
       return // Don't show folder picker for non-IMAP accounts
     }
@@ -644,7 +647,7 @@ const showFolderPickerForEmail = async (emailId: string) => {
     return
   }
   
-  folderPickerEmail.value = { id: emailId, accountId: props.accountId }
+  folderPickerEmail.value = { id: emailId, accountId: emailAccountId }
   
   // Set initial position (centered)
   folderPickerStyle.value = {
@@ -869,7 +872,7 @@ const handleKeyDown = (event: KeyboardEvent) => {
       break
     case 'm':
     case 'M':
-      if (props.selectedEmailId && props.accountId) {
+      if (props.selectedEmailId) {
         event.preventDefault()
         event.stopPropagation()
         showFolderPickerForEmail(props.selectedEmailId)

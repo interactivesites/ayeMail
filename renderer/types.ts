@@ -35,9 +35,11 @@ declare global {
       }
       reminders: {
         list: () => Promise<any[]>
+        hasReminder: (emailId: string) => Promise<boolean>
         create: (reminder: any) => Promise<any>
         update: (id: string, reminder: any) => Promise<any>
         delete: (id: string) => Promise<any>
+        cleanupDuplicates: () => Promise<{ cleaned: number; duplicatesFound: number }>
       }
       signatures: {
         list: (accountId: string) => Promise<any[]>
