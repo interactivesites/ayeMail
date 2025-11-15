@@ -49,6 +49,7 @@
     "@tiptap/vue-3": "^3.10.7",
     "better-sqlite3": "^11.7.0",
     "dayjs": "^1.11.19",
+    "gsap": "^3.13.0",
     "imap": "^0.8.19",
     "mailparser": "^3.6.5",
     "nodemailer": "^6.9.7",

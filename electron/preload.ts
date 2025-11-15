@@ -32,6 +32,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     archive: (id: string) => ipcRenderer.invoke('emails:archive', id),
     spam: (id: string) => ipcRenderer.invoke('emails:spam', id),
     downloadAttachment: (attachmentId: string) => ipcRenderer.invoke('emails:download-attachment', attachmentId),
+    setStatus: (emailId: string, status: 'now' | 'later' | 'reference' | 'noise' | 'archived' | null) =>
+      ipcRenderer.invoke('emails:setStatus', emailId, status),
+    getByStatus: (accountId: string, status: 'now' | 'later' | 'reference' | 'noise' | 'archived' | null, limit?: number) =>
+      ipcRenderer.invoke('emails:getByStatus', accountId, status, limit),
+    getUncategorized: (accountId: string, limit?: number) =>
+      ipcRenderer.invoke('emails:getUncategorized', accountId, limit),
     onSyncProgress: (callback: (data: any) => void) => {
       ipcRenderer.on('emails:sync-progress', (_, data) => callback(data))
       return () => ipcRenderer.removeAllListeners('emails:sync-progress')

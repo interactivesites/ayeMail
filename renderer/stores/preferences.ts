@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
-type MailLayout = 'list' | 'grid'
+type MailLayout = 'list' | 'grid' | 'calm'
 type PreviewLevel = 1 | 2 | 3
 
 const ACTION_LABELS_KEY = 'showActionLabels'
@@ -18,7 +18,8 @@ const loadActionLabelsPreference = () => {
 const loadMailLayout = (): MailLayout => {
   if (typeof window === 'undefined') return 'list'
   const stored = window.localStorage.getItem(MAIL_LAYOUT_KEY)
-  return stored === 'grid' ? 'grid' : 'list'
+  if (stored === 'grid' || stored === 'calm') return stored as MailLayout
+  return 'list'
 }
 
 const loadPreviewLevel = (): PreviewLevel => {

@@ -171,6 +171,24 @@ export function createDatabase(): Database.Database {
     CREATE INDEX IF NOT EXISTS idx_recipients_last_used ON recipients(last_used DESC);
   `)
   
+  // Migration: Add status column if it doesn't exist
+  try {
+    const tableInfo = db.prepare("PRAGMA table_info(emails)").all() as any[]
+    const hasStatusColumn = tableInfo.some(col => col.name === 'status')
+    
+    if (!hasStatusColumn) {
+      db.exec(`
+        ALTER TABLE emails ADD COLUMN status TEXT CHECK(status IN ('now', 'later', 'reference', 'noise', 'archived', NULL));
+        CREATE INDEX IF NOT EXISTS idx_emails_status ON emails(status);
+      `)
+    } else {
+      // Ensure index exists even if column already exists
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_emails_status ON emails(status)`)
+    }
+  } catch (error) {
+    console.error('Error migrating emails table for status column:', error)
+  }
+  
   return db
 }
 

@@ -41,25 +41,29 @@
         </div>
       </aside>
         <div class="flex-1 flex overflow-hidden">
-          <div :class="[
-            'transition-all duration-200',
-            isGridLayout ? 'flex-1 px-2' : 'border-r border-gray-200 flex-shrink-0'
-          ]" :style="!isGridLayout ? { width: mailPaneWidth + 'px' } : undefined">
-            <component v-if="selectedFolderId" :is="isGridLayout ? EmailGrid : EmailList" :folder-id="selectedFolderId" :folder-name="selectedFolderName" :selected-email-id="selectedEmailId" @select-email="handleEmailSelect" />
-          </div>
-          <div
-            v-if="!isGridLayout"
-            class="w-1.5 flex-shrink-0 cursor-col-resize relative group bg-transparent"
-            role="separator"
-            aria-orientation="vertical"
-            aria-label="Resize email list"
-            @mousedown.prevent="startMailResize"
-          >
-            <span class="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-gray-200 group-hover:bg-gray-400 transition-colors"></span>
-          </div>
-          <div v-if="!isGridLayout" class="flex-1">
-            <EmailViewer :email-id="selectedEmailId" @reply="handleReply" @forward="handleForward" @set-reminder="handleSetReminder" @delete="handleDeleteEmail" />
-          </div>
+          <template v-if="isCalmMode">
+            <CalmMode v-if="selectedAccount" :account-id="selectedAccount.id" :selected-email-id="selectedEmailId" @select-email="handleEmailSelect" />
+          </template>
+          <template v-else>
+            <div :class="[
+              'transition-all duration-200',
+              'border-r border-gray-200 flex-shrink-0'
+            ]" :style="{ width: mailPaneWidth + 'px' }">
+              <EmailList v-if="selectedFolderId" :folder-id="selectedFolderId" :folder-name="selectedFolderName" :selected-email-id="selectedEmailId" @select-email="handleEmailSelect" />
+            </div>
+            <div
+              class="w-1.5 flex-shrink-0 cursor-col-resize relative group bg-transparent"
+              role="separator"
+              aria-orientation="vertical"
+              aria-label="Resize email list"
+              @mousedown.prevent="startMailResize"
+            >
+              <span class="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-gray-200 group-hover:bg-gray-400 transition-colors"></span>
+            </div>
+            <div class="flex-1">
+              <EmailViewer :email-id="selectedEmailId" @reply="handleReply" @forward="handleForward" @set-reminder="handleSetReminder" @delete="handleDeleteEmail" />
+            </div>
+          </template>
         </div>
       </template>
       <template v-else>
@@ -75,14 +79,6 @@
     </main>
     <SettingsModal v-if="showSettings" @close="showSettings = false" @account-selected="handleAccountSelect" />
     <ReminderModal v-if="showReminderModal && reminderEmail" :email-id="reminderEmail.id" :account-id="reminderEmail.accountId" @close="showReminderModal = false; reminderEmail = null" @saved="handleReminderSaved" />
-    <div v-if="isGridLayout && selectedEmailId" class="fixed inset-0 bg-black/60 z-40 flex items-center justify-center p-4" @click.self="clearSelectedEmail">
-      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-4xl h-[90vh] flex flex-col relative">
-        <button type="button" class="absolute top-4 right-4 text-gray-500 hover:text-gray-700" @click="clearSelectedEmail" title="Close">
-          ✕
-        </button>
-        <EmailViewer class="flex-1" :email-id="selectedEmailId" @reply="handleReply" @forward="handleForward" @set-reminder="handleSetReminder" @delete="handleDeleteEmail" />
-      </div>
-    </div>
   </div>
 </template>
 
@@ -90,7 +86,7 @@
 import { ref, onMounted, computed, onBeforeUnmount } from 'vue'
 import FolderList from './components/FolderList.vue'
 import EmailList from './components/EmailList.vue'
-import EmailGrid from './components/EmailGrid.vue'
+import CalmMode from './components/CalmMode.vue'
 import EmailViewer from './components/EmailViewer.vue'
 import ComposeWindow from './components/ComposeWindow.vue'
 import SettingsModal from './components/SettingsModal.vue'
@@ -132,7 +128,7 @@ const syncing = ref(false)
 const syncProgress = ref({ show: false, current: 0, total: 0, folder: '' })
 const backgroundSyncing = ref(false)
 const preferences = usePreferencesStore()
-const isGridLayout = computed(() => preferences.mailLayout === 'grid')
+const isCalmMode = computed(() => preferences.mailLayout === 'calm' || preferences.mailLayout === 'grid')
 const mailPaneWidth = ref(384)
 const isResizingMailPane = ref(false)
 const mailResizeStartX = ref(0)
