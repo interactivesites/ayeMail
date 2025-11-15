@@ -13,32 +13,32 @@
     />
     <main class="flex-1 flex overflow-hidden">
       <template v-if="selectedAccount">
-        <aside class="w-64 bg-white border-r border-gray-200 flex flex-col">
-          <div class="flex-1 overflow-hidden">
-            <FolderList :account-id="selectedAccount.id" :selected-folder-id="selectedFolderId" @select-folder="handleFolderSelect" />
-          </div>
-          <div v-if="syncProgress.show" class="p-2 border-t border-gray-200 bg-gray-50">
-            <div class="flex items-center justify-between mb-1">
-              <span class="text-xs text-gray-600">
-                <span v-if="syncProgress.folder === 'folders'">Syncing folders</span>
-                <span v-else-if="syncProgress.folder === 'Complete'">Sync complete</span>
-                <span v-else-if="syncProgress.folder">
-                  <span v-if="syncProgress.total === undefined || syncProgress.total === null">Connecting to {{ syncProgress.folder }}</span>
-                  <span v-else-if="syncProgress.total === 0">No emails in {{ syncProgress.folder }}</span>
-                  <span v-else>Downloading {{ syncProgress.folder }} ({{ syncProgress.current }}/{{ syncProgress.total }})</span>
-                </span>
-                <span v-else>Downloading emails</span>
+        <aside class="w-64 border-r border-white/10 bg-slate-900/70 text-slate-100 backdrop-blur-2xl shadow-xl flex flex-col">
+        <div class="flex-1 overflow-hidden">
+          <FolderList :account-id="selectedAccount.id" :selected-folder-id="selectedFolderId" @select-folder="handleFolderSelect" />
+        </div>
+          <div v-if="syncProgress.show" class="p-3 border-t border-white/10 bg-white/5">
+          <div class="flex items-center justify-between mb-1">
+              <span class="text-xs text-slate-200">
+              <span v-if="syncProgress.folder === 'folders'">Syncing folders</span>
+              <span v-else-if="syncProgress.folder === 'Complete'">Sync complete</span>
+              <span v-else-if="syncProgress.folder">
+                <span v-if="syncProgress.total === undefined || syncProgress.total === null">Connecting to {{ syncProgress.folder }}</span>
+                <span v-else-if="syncProgress.total === 0">No emails in {{ syncProgress.folder }}</span>
+                <span v-else>Downloading {{ syncProgress.folder }} ({{ syncProgress.current }}/{{ syncProgress.total }})</span>
               </span>
-            </div>
-            <div class="w-full bg-gray-200 rounded-full h-1.5">
-              <div class="bg-blue-600 h-1.5 rounded-full transition-all duration-300" :style="{
-                width: syncProgress.total > 0 ? `${Math.min(100, (syncProgress.current / syncProgress.total) * 100)}%` :
-                  syncProgress.total === 0 ? '100%' :
-                    '25%'
-              }"></div>
-            </div>
+              <span v-else>Downloading emails</span>
+            </span>
           </div>
-        </aside>
+            <div class="w-full bg-white/10 rounded-full h-1.5">
+              <div class="bg-blue-400 h-1.5 rounded-full transition-all duration-300" :style="{
+              width: syncProgress.total > 0 ? `${Math.min(100, (syncProgress.current / syncProgress.total) * 100)}%` :
+                syncProgress.total === 0 ? '100%' :
+                  '25%'
+            }"></div>
+          </div>
+        </div>
+      </aside>
         <div class="flex-1 flex overflow-hidden">
           <div :class="[
             'transition-all duration-200',
@@ -63,13 +63,13 @@
       </template>
       <template v-else>
         <div class="flex-1 flex items-center justify-center">
-          <div class="text-center">
-            <p class="text-gray-500 mb-4">No account selected</p>
-            <button @click="showSettings = true" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
-              Add Account
-            </button>
-          </div>
+        <div class="text-center">
+          <p class="text-gray-500 mb-4">No account selected</p>
+          <button @click="showSettings = true" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+            Add Account
+          </button>
         </div>
+      </div>
       </template>
     </main>
     <ComposeEmail v-if="showCompose" :account-id="selectedAccount?.id || ''" :reply-to="replyToEmail" @close="showCompose = false; replyToEmail = undefined" @sent="handleEmailSent" />

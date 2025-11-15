@@ -2,14 +2,16 @@
   <div>
     <button
       @click="handleClick"
-      class="w-full text-left flex items-center px-4 py-2 hover:bg-gray-50 transition-colors"
-      :class="{ 'bg-blue-50': selectedFolderId === folder.id }"
+      class="w-full text-left flex items-center px-4 py-2 rounded-lg transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
+      :class="[
+        selectedFolderId === folder.id ? 'bg-white/15 text-white shadow-inner' : 'text-white/80 hover:bg-white/5'
+      ]"
       :style="{ paddingLeft: `${16 + level * 20}px` }"
     >
       <!-- Expand/collapse icon -->
       <div v-if="folder.children && folder.children.length > 0" class="mr-2 w-4 h-4 flex items-center justify-center">
         <svg
-          class="w-3 h-3 text-gray-500 transition-transform"
+          class="w-3 h-3 text-white/60 transition-transform"
           :class="{ 'rotate-90': expanded }"
           fill="none"
           stroke="currentColor"
@@ -22,16 +24,16 @@
       <div v-else class="mr-2 w-4 h-4"></div>
 
       <!-- Folder icon -->
-      <svg class="w-4 h-4 mr-2 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <svg class="w-4 h-4 mr-2 text-white/70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2-2z"></path>
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5a2 2 0 012-2h4a2 2 0 012 2v2H8V5z"></path>
       </svg>
 
       <!-- Folder name -->
-      <span class="text-sm font-medium text-gray-900 truncate flex-1">{{ folder.name }}</span>
+      <span class="text-sm font-medium truncate flex-1">{{ folder.name }}</span>
 
       <!-- Unread count badge -->
-      <span v-if="folder.unread_count > 0" class="text-xs bg-blue-600 text-white px-2 py-1 rounded ml-2">
+      <span v-if="folder.unread_count > 0" class="text-xs bg-white/15 text-white px-2 py-0.5 rounded-full ml-2 border border-white/20">
         {{ folder.unread_count }}
       </span>
     </button>
