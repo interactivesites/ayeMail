@@ -15,40 +15,34 @@
           v-for="email in emails"
           :key="email.id"
           @click="$emit('select-email', email.id)"
-          class="w-full text-left p-4 hover:bg-gray-50 transition-colors"
-          :class="{ 'bg-blue-50': selectedEmailId === email.id }"
+          class="w-full text-left p-4 hover:bg-gray-50 transition-colors border-l-4"
+          :class="isEmailUnread(email) ? 'border-l-blue-600' : 'border-l-transparent'"
+          :style="{ borderLeftColor: isEmailUnread(email) ? '#2563eb' : 'transparent' }"
         >
-          <div class="flex items-start justify-between">
+          <div class="flex items-start justify-between" >
             <div class="flex items-start flex-1 min-w-0 space-x-4">
-              <div
-                class="flex-shrink-0 w-10 h-10 rounded-full bg-blue-100 text-blue-700 font-semibold uppercase flex items-center justify-center"
-                aria-hidden="true"
-              >
+              
+              <div class="flex-shrink-0 w-10 h-10 rounded-full bg-blue-100 text-blue-700 font-semibold uppercase flex items-center justify-center" aria-hidden="true">
                 {{ getSenderInitials(email) }}
               </div>
               <div class="flex-1 min-w-0">
-                <div class="flex items-center space-x-2">
-                  <span
-                    class="truncate text-gray-900"
-                    :class="email.isRead ? 'font-extralight' : 'font-medium'"
-                  >
+                <div class="flex items-center space-x-2 justify-between">
+                  <span class="truncate text-gray-500" >
                     {{ email.from[0]?.name || email.from[0]?.address }}
                   </span>
                   <span v-if="email.encrypted" class="text-blue-600" title="Encrypted">🔒</span>
                   <span v-if="email.signed" class="text-green-600" title="Signed">✓</span>
+                  <div class="mt-1 text-sm text-gray-500 self-end">
+                    {{ formatDate(email.date) }}
+                  </div>
                 </div>
                 <div class="mt-1 flex items-center space-x-2">
-                  <span
-                    class="text-sm text-gray-900 truncate"
-                    :class="email.isRead ? 'font-extralight' : 'font-medium'"
-                  >
+                  <span class="text-sm text-gray-900 truncate" :class="isEmailUnread(email) ? 'font-medium' : 'font-extralight'">
                     {{ email.subject || '(No subject)' }}
                   </span>
-                  <span v-if="!email.isRead" class="w-2 h-2 bg-blue-600 rounded-full"></span>
+                  
                 </div>
-                <div class="mt-1 text-sm text-gray-500">
-                  {{ formatDate(email.date) }}
-                </div>
+
               </div>
             </div>
             <div class="ml-4 flex-shrink-0">
@@ -78,9 +72,16 @@ const emit = defineEmits<{
 const emails = ref<any[]>([])
 const loading = ref(false)
 
+const isEmailUnread = (email: any): boolean => {
+  // Handle various formats: boolean, number (0/1), undefined, null
+  if (email.isRead === undefined || email.isRead === null) return true
+  if (typeof email.isRead === 'number') return email.isRead === 0
+  return !email.isRead
+}
+
 const loadEmails = async () => {
   if (!props.folderId) return
-  
+
   loading.value = true
   try {
     emails.value = await window.electronAPI.emails.list(props.folderId, 0, 50)
@@ -96,7 +97,7 @@ const formatDate = (timestamp: number) => {
   const now = new Date()
   const diff = now.getTime() - date.getTime()
   const days = Math.floor(diff / (1000 * 60 * 60 * 24))
-  
+
   if (days === 0) {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   } else if (days < 7) {
@@ -124,4 +125,3 @@ onUnmounted(() => {
   window.removeEventListener('refresh-emails', refreshEmails)
 })
 </script>
-
