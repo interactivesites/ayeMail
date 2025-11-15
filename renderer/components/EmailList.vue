@@ -7,7 +7,7 @@
           type="button"
           @click="handlePreviewLevelChange(1)"
           :aria-pressed="previewLevel === 1"
-          class="p-1.5 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+          class="p-1.5 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
           :class="previewLevel === 1 ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'"
           title="Title only"
         >
@@ -17,7 +17,7 @@
           type="button"
           @click="handlePreviewLevelChange(2)"
           :aria-pressed="previewLevel === 2"
-          class="p-1.5 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+          class="p-1.5 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
           :class="previewLevel === 2 ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'"
           title="2 lines preview"
         >
@@ -27,7 +27,7 @@
           type="button"
           @click="handlePreviewLevelChange(3)"
           :aria-pressed="previewLevel === 3"
-          class="p-1.5 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+          class="p-1.5 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
           :class="previewLevel === 3 ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'"
           title="4 lines preview"
         >
@@ -46,7 +46,7 @@
         <div v-for="group in groupedEmails" :key="group.key" class="mb-6">
           <!-- Date Group Header -->
           <div class="sticky top-0 z-10 flex items-center justify-between px-4 py-2 border-b border-gray-200 bg-white">
-            <span class="text-sm font-medium text-blue-600">{{ group.dayName }}</span>
+            <span class="text-sm font-medium text-primary-600">{{ group.dayName }}</span>
             <span class="text-sm text-gray-500">{{ group.dateString }}</span>
           </div>
           
@@ -58,9 +58,9 @@
               @click="$emit('select-email', email.id)"
               class="w-full text-left px-4 py-3 transition-colors"
               :class="{
-                'bg-primary-900': selectedEmailId === email.id,
+                'bg-primary-900 text-white': selectedEmailId === email.id,
                 'hover:bg-primary-800/20': selectedEmailId !== email.id,
-                'border-l-2 border-blue-600': isEmailUnread(email)
+                'border-l-2 border-primary-600': isEmailUnread(email)
               }"
             >
               <div class="flex items-start gap-3">
@@ -68,9 +68,9 @@
                 <div class="flex-shrink-0 self-center">
                   <button
                     @click.stop="handleArchive(email.id)"
-                    class="w-5 h-5 rounded-full border-2 border-gray-300 flex items-center justify-center transition-colors hover:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
+                    class="w-5 h-5 rounded-full border-2 border-gray-300 flex items-center justify-center transition-colors hover:border-primary-600 focus:outline-none focus:ring-2 focus:ring-primary-600 focus:ring-offset-1"
                     :class="{
-                      'bg-blue-600 border-blue-600': false,
+                      'bg-primary-600 border-primary-600': false,
                       'hover:bg-gray-50': true
                     }"
                     title="Archive email"
@@ -90,19 +90,33 @@
                       <div class="flex items-center gap-2">
                         <span 
                           class="text-sm font-semibold truncate"
-                          :class="isEmailUnread(email) ? 'text-blue-600' : 'text-gray-900'"
+                          :class="selectedEmailId === email.id 
+                            ? 'text-white' 
+                            : (isEmailUnread(email) ? 'text-primary-600' : 'text-gray-900')"
                         >
                           {{ email.from[0]?.name || email.from[0]?.address }}
                         </span>
-                        <span v-if="email.encrypted" class="text-blue-600 text-xs" title="Encrypted">🔒</span>
-                        <span v-if="email.signed" class="text-green-600 text-xs" title="Signed">✓</span>
+                        <span 
+                          v-if="email.encrypted" 
+                          class="text-xs" 
+                          :class="selectedEmailId === email.id ? 'text-white/80' : 'text-primary-600'"
+                          title="Encrypted"
+                        >🔒</span>
+                        <span 
+                          v-if="email.signed" 
+                          class="text-xs" 
+                          :class="selectedEmailId === email.id ? 'text-green-300' : 'text-green-600'"
+                          title="Signed"
+                        >✓</span>
                       </div>
                       
                       <!-- Subject -->
                       <div class="mt-0.5">
                         <span 
                           class="text-sm truncate"
-                          :class="isEmailUnread(email) ? 'text-gray-900 font-medium' : 'text-gray-600'"
+                          :class="selectedEmailId === email.id 
+                            ? 'text-white' 
+                            : (isEmailUnread(email) ? 'text-gray-900 font-medium' : 'text-gray-600')"
                         >
                           {{ email.subject || '(No subject)' }}
                         </span>
@@ -111,20 +125,42 @@
                       <!-- Preview Text -->
                       <div 
                         v-if="previewLevel > 1 && getEmailPreview(email)" 
-                        class="mt-1 text-xs text-gray-500"
-                        :class="previewLevel === 3 ? 'line-clamp-4' : 'line-clamp-2'"
+                        class="mt-1 text-xs"
+                        :class="[
+                          previewLevel === 3 ? 'line-clamp-4' : 'line-clamp-2',
+                          selectedEmailId === email.id ? 'text-white/70' : 'text-gray-500'
+                        ]"
                       >
                         {{ getEmailPreview(email) }}
                       </div>
                     </div>
                     
-                    <!-- Right Side Icons -->
+                    <!-- Right Side: Time and Icons -->
                     <div class="flex items-center gap-2 flex-shrink-0">
+                      <!-- Time Display -->
+                      <span 
+                        class="text-xs"
+                        :class="selectedEmailId === email.id ? 'text-white/60' : 'text-gray-500'"
+                      >
+                        {{ formatTime(email.date) }}
+                      </span>
+                      
                       <span v-if="email.isStarred" class="text-yellow-500 text-sm">★</span>
-                      <span v-if="email.threadCount && email.threadCount > 1" class="text-xs text-gray-500 bg-gray-200 px-1.5 py-0.5 rounded">
+                      <span 
+                        v-if="email.threadCount && email.threadCount > 1" 
+                        class="text-xs px-1.5 py-0.5 rounded"
+                        :class="selectedEmailId === email.id ? 'text-white/80 bg-white/20' : 'text-gray-500 bg-gray-200'"
+                      >
                         {{ email.threadCount }}
                       </span>
-                      <svg v-if="email.isDraft" class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg 
+                        v-if="email.isDraft" 
+                        class="w-4 h-4" 
+                        :class="selectedEmailId === email.id ? 'text-white/60' : 'text-gray-400'"
+                        fill="none" 
+                        stroke="currentColor" 
+                        viewBox="0 0 24 24"
+                      >
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                       </svg>
                     </div>
@@ -143,6 +179,7 @@
 import { ref, computed, onMounted, watch, onUnmounted } from 'vue'
 import { storeToRefs } from 'pinia'
 import { usePreferencesStore } from '../stores/preferences'
+import { formatTime } from '../utils/formatters'
 
 const props = defineProps<{
   folderId: string

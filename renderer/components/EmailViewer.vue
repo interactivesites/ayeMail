@@ -8,7 +8,7 @@
         <div class="flex items-start justify-between mb-2">
           <h2 class="text-lg font-semibold text-gray-900">{{ email.subject || '(No subject)' }}</h2>
           <div class="flex items-center space-x-2">
-            <span v-if="email.encrypted" class="text-blue-600" title="Encrypted">🔒</span>
+            <span v-if="email.encrypted" class="text-primary-600" title="Encrypted">🔒</span>
             <span v-if="email.signed" class="text-green-600" :title="email.signatureVerified ? 'Signature verified' : 'Signed'">
               {{ email.signatureVerified ? '✓' : '?' }}
             </span>

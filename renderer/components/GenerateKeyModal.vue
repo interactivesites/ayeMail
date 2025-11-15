@@ -16,7 +16,7 @@
           <input
             v-model="userId"
             type="text"
-            class="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+            class="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary-600"
             placeholder="John Doe <john@example.com>"
           />
         </div>
@@ -25,7 +25,7 @@
           <input
             v-model="passphrase"
             type="password"
-            class="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+            class="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary-600"
             placeholder="Passphrase"
           />
         </div>

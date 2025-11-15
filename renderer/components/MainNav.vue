@@ -19,17 +19,17 @@
       <!-- Mail actions -->
 
       <div class="app-no-drag flex items-center space-x-1 pl-3 border-l border-gray-200">
-        <button type="button" @click="$emit('reply')" :disabled="!hasSelectedEmail" class="p-2 rounded-md border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500" :class="hasSelectedEmail
+        <button type="button" @click="$emit('reply')" :disabled="!hasSelectedEmail" class="p-2 rounded-md border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600" :class="hasSelectedEmail
           ? 'border-transparent text-gray-600 hover:text-gray-900'
           : 'border-transparent text-gray-300 cursor-not-allowed'" title="Reply">
           <ArrowUturnLeftIcon class="w-5 h-5" />
         </button>
-        <button type="button" @click="$emit('forward')" :disabled="!hasSelectedEmail" class="p-2 rounded-md border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500" :class="hasSelectedEmail
+        <button type="button" @click="$emit('forward')" :disabled="!hasSelectedEmail" class="p-2 rounded-md border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600" :class="hasSelectedEmail
           ? 'border-transparent text-gray-600 hover:text-gray-900'
           : 'border-transparent text-gray-300 cursor-not-allowed'" title="Forward">
           <ArrowUpOnSquareIcon class="w-5 h-5" />
         </button>
-        <button type="button" @click="$emit('set-reminder')" :disabled="!hasSelectedEmail" class="p-2 rounded-md border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500" :class="hasSelectedEmail
+        <button type="button" @click="$emit('set-reminder')" :disabled="!hasSelectedEmail" class="p-2 rounded-md border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600" :class="hasSelectedEmail
           ? 'border-transparent text-gray-600 hover:text-gray-900'
           : 'border-transparent text-gray-300 cursor-not-allowed'" title="Set reminder">
           <BellAlertIcon class="w-5 h-5" />

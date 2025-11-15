@@ -32,7 +32,7 @@
                     <div class="flex items-center space-x-2">
                       <button
                         @click="selectAccount(account)"
-                        class="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
+                        class="px-3 py-1 bg-primary-600 text-white text-sm rounded hover:bg-primary-700"
                       >
                         Select
                       </button>
@@ -53,7 +53,7 @@
                 </div>
                 <button
                   @click="showAddAccount = true"
-                  class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                  class="px-4 py-2 bg-primary-600 text-white rounded hover:bg-primary-700"
                 >
                   Add Account
                 </button>
@@ -73,7 +73,7 @@
                   <input
                     v-model="showActionLabels"
                     type="checkbox"
-                    class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                    class="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-600"
                   />
                 </label>
               </div>
@@ -99,7 +99,7 @@
                       v-model.number="autoLockMinutes"
                       type="number"
                       min="1"
-                      class="w-32 px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      class="w-32 px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary-600"
                       @change="updateAutoLock"
                     />
                   </div>

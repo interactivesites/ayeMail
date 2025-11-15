@@ -16,7 +16,7 @@
           <input
             v-model="form.name"
             type="text"
-            class="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+            class="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary-600"
             placeholder="My Email Account"
           />
         </div>
@@ -25,7 +25,7 @@
           <input
             v-model="form.email"
             type="email"
-            class="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+            class="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary-600"
             placeholder="user@example.com"
           />
         </div>
@@ -33,7 +33,7 @@
           <label class="block text-sm font-medium text-gray-700 mb-1">Account Type</label>
           <select
             v-model="form.type"
-            class="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+            class="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary-600"
           >
             <option value="imap">IMAP</option>
             <option value="pop3">POP3</option>
@@ -45,13 +45,13 @@
             <input
               v-model="form.imapHost"
               type="text"
-              class="flex-1 px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+              class="flex-1 px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary-600"
               placeholder="imap.example.com"
             />
             <input
               v-model.number="form.imapPort"
               type="number"
-              class="w-24 px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+              class="w-24 px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary-600"
               placeholder="993"
             />
             <label class="flex items-center px-2">
@@ -70,13 +70,13 @@
             <input
               v-model="form.pop3Host"
               type="text"
-              class="flex-1 px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+              class="flex-1 px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary-600"
               placeholder="pop3.example.com"
             />
             <input
               v-model.number="form.pop3Port"
               type="number"
-              class="w-24 px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+              class="w-24 px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary-600"
               placeholder="995"
             />
             <label class="flex items-center px-2">
@@ -95,13 +95,13 @@
             <input
               v-model="form.smtpHost"
               type="text"
-              class="flex-1 px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+              class="flex-1 px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary-600"
               placeholder="smtp.example.com"
             />
             <input
               v-model.number="form.smtpPort"
               type="number"
-              class="w-24 px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+              class="w-24 px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary-600"
               placeholder="587"
             />
             <label class="flex items-center px-2">
@@ -118,7 +118,7 @@
           <label class="block text-sm font-medium text-gray-700 mb-1">Authentication</label>
           <select
             v-model="form.authType"
-            class="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+            class="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary-600"
           >
             <option value="password">Password</option>
             <option value="oauth2">OAuth2</option>
@@ -131,7 +131,7 @@
           <input
             v-model="form.password"
             type="password"
-            class="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+            class="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary-600"
             :placeholder="editingAccount ? 'Leave blank to keep current password' : 'Password'"
           />
         </div>
@@ -146,7 +146,7 @@
         <button
           @click="saveAccount"
           :disabled="saving"
-          class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+          class="px-4 py-2 bg-primary-600 text-white rounded hover:bg-primary-700 disabled:opacity-50"
         >
           {{ saving ? 'Saving...' : 'Save' }}
         </button>

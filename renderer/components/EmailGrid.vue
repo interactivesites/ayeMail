@@ -20,14 +20,14 @@
           @click="$emit('select-email', email.id)"
           class="relative rounded-2xl border p-4 text-left transition-all bg-white hover:-translate-y-0.5 hover:shadow"
           :class="{
-            'border-blue-500 shadow-lg shadow-blue-100': selectedEmailId === email.id,
+            'border-primary-600 shadow-lg shadow-primary-100': selectedEmailId === email.id,
             'border-gray-200 hover:border-gray-300': selectedEmailId !== email.id
           }"
         >
           <div class="flex items-start justify-between">
             <div class="flex items-center space-x-3">
               <div
-                class="w-12 h-12 rounded-full bg-blue-100 text-blue-700 font-semibold uppercase flex items-center justify-center"
+                class="w-12 h-12 rounded-full bg-primary-100 text-primary-700 font-semibold uppercase flex items-center justify-center"
                 aria-hidden="true"
               >
                 {{ getSenderInitials(email) }}
@@ -42,7 +42,7 @@
               </div>
             </div>
             <div class="flex items-center space-x-2">
-              <span v-if="email.encrypted" class="text-blue-600" title="Encrypted">🔒</span>
+              <span v-if="email.encrypted" class="text-primary-600" title="Encrypted">🔒</span>
               <span
                 v-if="email.signed"
                 class="text-green-600"

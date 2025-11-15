@@ -61,7 +61,7 @@ const selectTab = (id: string) => {
 
 const tabClasses = (id: string) => {
   if (id === currentTab.value) {
-    return 'border-blue-600 text-blue-600'
+    return 'border-primary-600 text-primary-600'
   }
   return 'border-transparent text-gray-500 hover:text-gray-700'
 }

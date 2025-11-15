@@ -31,7 +31,7 @@
             </span>
           </div>
             <div class="w-full bg-white/10 rounded-full h-1.5">
-              <div class="bg-blue-400 h-1.5 rounded-full transition-all duration-300" :style="{
+              <div class="bg-primary-500 h-1.5 rounded-full transition-all duration-300" :style="{
               width: syncProgress.total > 0 ? `${Math.min(100, (syncProgress.current / syncProgress.total) * 100)}%` :
                 syncProgress.total === 0 ? '100%' :
                   '25%'
@@ -65,7 +65,7 @@
         <div class="flex-1 flex items-center justify-center">
         <div class="text-center">
           <p class="text-gray-500 mb-4">No account selected</p>
-          <button @click="showSettings = true" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+          <button @click="showSettings = true" class="px-4 py-2 bg-primary-600 text-white rounded hover:bg-primary-700">
             Add Account
           </button>
         </div>

@@ -5,7 +5,7 @@
       <div class="flex items-center space-x-2">
         <button
           @click="showImportKey = true"
-          class="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
+          class="px-3 py-1 bg-primary-600 text-white text-sm rounded hover:bg-primary-700"
         >
           Import Key
         </button>
@@ -31,7 +31,7 @@
             <div class="font-medium text-gray-900">{{ key.userIds.join(', ') }}</div>
             <div class="text-xs text-gray-500 font-mono">{{ key.fingerprint }}</div>
             <div class="text-xs text-gray-500 mt-1">
-              <span v-if="key.isPrivate" class="text-blue-600">Private Key</span>
+              <span v-if="key.isPrivate" class="text-primary-600">Private Key</span>
               <span v-else class="text-green-600">Public Key</span>
             </div>
           </div>

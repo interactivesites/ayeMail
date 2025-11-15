@@ -16,7 +16,7 @@
           <textarea
             v-model="keyData"
             rows="10"
-            class="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+            class="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary-600 font-mono text-sm"
             placeholder="-----BEGIN PGP PUBLIC KEY BLOCK-----..."
           ></textarea>
         </div>
@@ -41,7 +41,7 @@
         <button
           @click="importKey"
           :disabled="importing"
-          class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+          class="px-4 py-2 bg-primary-600 text-white rounded hover:bg-primary-700 disabled:opacity-50"
         >
           {{ importing ? 'Importing...' : 'Import' }}
         </button>

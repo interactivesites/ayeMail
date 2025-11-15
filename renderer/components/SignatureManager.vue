@@ -4,7 +4,7 @@
       <h3 class="text-md font-semibold text-gray-900">Signatures</h3>
       <button
         @click="showAddSignature = true"
-        class="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
+        class="px-3 py-1 bg-primary-600 text-white text-sm rounded hover:bg-primary-700"
       >
         Add Signature
       </button>
@@ -17,12 +17,12 @@
         v-for="signature in signatures"
         :key="signature.id"
         class="p-3 border border-gray-200 rounded"
-        :class="{ 'border-blue-500 bg-blue-50': signature.is_default }"
+        :class="{ 'border-primary-600 bg-primary-50': signature.is_default }"
       >
         <div class="flex items-center justify-between mb-2">
           <div>
             <span class="font-medium text-gray-900">{{ signature.name }}</span>
-            <span v-if="signature.is_default" class="ml-2 text-xs bg-blue-600 text-white px-2 py-1 rounded">
+            <span v-if="signature.is_default" class="ml-2 text-xs bg-primary-600 text-white px-2 py-1 rounded">
               Default
             </span>
           </div>
@@ -36,7 +36,7 @@
             </button>
             <button
               @click="editSignature(signature)"
-              class="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
+              class="px-2 py-1 text-xs bg-primary-600 text-white rounded hover:bg-primary-700"
             >
               Edit
             </button>
