@@ -249,6 +249,7 @@ import { ref, onMounted, onBeforeUnmount, onUnmounted } from 'vue'
 import { useEditor, EditorContent } from '@tiptap/vue-3'
 import { BubbleMenu } from '@tiptap/vue-3/menus'
 import StarterKit from '@tiptap/starter-kit'
+import Image from '@tiptap/extension-image'
 import { formatSize } from '../utils/formatters'
 import {
   ArrowsPointingOutIcon,
@@ -274,7 +275,13 @@ const form = ref({
 const MAX_FILE_SIZE = 15 * 1024 * 1024 // 15MB
 
 const editor = useEditor({
-  extensions: [StarterKit],
+  extensions: [
+    StarterKit,
+    Image.configure({
+      inline: true,
+      allowBase64: true
+    })
+  ],
   content: props.replyTo?.forward 
     ? `<p><br></p><p>---------- Forwarded message ----------</p><p>From: ${props.replyTo.from?.[0]?.address || ''}</p><p>Date: ${new Date(props.replyTo.date).toLocaleString()}</p><p>Subject: ${props.replyTo.subject || ''}</p><p><br></p>${props.replyTo.htmlBody || props.replyTo.body || ''}`
     : (props.replyTo ? `<p><br></p><p>--- Original Message ---</p>${props.replyTo.htmlBody || props.replyTo.body || ''}` : ''),
@@ -283,14 +290,33 @@ const editor = useEditor({
       class: 'prose prose-sm sm:prose lg:prose-lg xl:prose-2xl mx-auto focus:outline-none min-h-[300px] p-4',
       'data-placeholder': 'Start typing your email...'
     },
-    // Disable TipTap's default drag handling for files
+    // Handle file drops - insert images inline, add others as attachments
     handleDrop: (_view, event, _slice, _moved) => {
-      // If dropping files, don't let TipTap handle it
       if (event.dataTransfer?.files && event.dataTransfer.files.length > 0) {
-        return false // Let our handler process it
+        const files = Array.from(event.dataTransfer.files)
+        const imageFiles = files.filter(file => file.type.startsWith('image/'))
+        const otherFiles = files.filter(file => !file.type.startsWith('image/'))
+        
+        // Insert images inline into editor
+        if (imageFiles.length > 0 && editor.value) {
+          imageFiles.forEach(file => {
+            const reader = new FileReader()
+            reader.onload = () => {
+              const dataUrl = reader.result as string
+              editor.value?.chain().focus().setImage({ src: dataUrl }).run()
+            }
+            reader.readAsDataURL(file)
+          })
+        }
+        
+        // Add other files as attachments
+        if (otherFiles.length > 0) {
+          addFiles(otherFiles)
+        }
+        
+        return true // Handled
       }
-      // Otherwise, use default behavior for text/image drops
-      return false
+      return false // Use default behavior
     }
   }
 })
@@ -369,7 +395,35 @@ const sending = ref(false)
 const handleFileSelect = (event: Event) => {
   const target = event.target as HTMLInputElement
   if (target.files) {
-    addFiles(Array.from(target.files))
+    const fileArray = Array.from(target.files)
+    const imageFiles = fileArray.filter(file => file.type.startsWith('image/'))
+    const otherFiles = fileArray.filter(file => !file.type.startsWith('image/'))
+    
+    // Insert images inline into editor
+    if (imageFiles.length > 0 && editor.value) {
+      imageFiles.forEach(file => {
+        if (file.size > MAX_FILE_SIZE) {
+          alert(`Image ${file.name} exceeds 15MB limit and was not inserted.`)
+          return
+        }
+        const reader = new FileReader()
+        reader.onload = () => {
+          const dataUrl = reader.result as string
+          editor.value?.chain().focus().setImage({ src: dataUrl }).run()
+        }
+        reader.readAsDataURL(file)
+      })
+    }
+    
+    // Add non-image files as attachments
+    if (otherFiles.length > 0) {
+      addFiles(otherFiles)
+    }
+    
+    // If images were added as attachments (fallback), add them too
+    if (imageFiles.length > 0 && !editor.value) {
+      addFiles(imageFiles)
+    }
   }
   if (target) {
     target.value = ''
@@ -410,6 +464,16 @@ const handleDragLeave = (event: DragEvent) => {
 }
 
 const handleDrop = (event: DragEvent) => {
+  // Check if this was already handled by TipTap's handleDrop
+  const target = event.target as HTMLElement
+  const isEditorArea = target.closest('.ProseMirror') || target.closest('[contenteditable]')
+  
+  // If dropped on editor, TipTap's handleDrop will handle it, so don't process here
+  if (isEditorArea) {
+    isDragging.value = false
+    return false
+  }
+  
   event.preventDefault()
   event.stopPropagation()
   event.stopImmediatePropagation()
@@ -418,8 +482,19 @@ const handleDrop = (event: DragEvent) => {
   
   const files = event.dataTransfer?.files
   if (files && files.length > 0) {
-    console.log('Dropped files:', files.length)
-    addFiles(Array.from(files))
+    const fileArray = Array.from(files)
+    const imageFiles = fileArray.filter(file => file.type.startsWith('image/'))
+    const otherFiles = fileArray.filter(file => !file.type.startsWith('image/'))
+    
+    // If dropped outside editor, add images as attachments (not inline)
+    if (imageFiles.length > 0) {
+      addFiles(imageFiles)
+    }
+    
+    // Add non-image files as attachments
+    if (otherFiles.length > 0) {
+      addFiles(otherFiles)
+    }
   }
   
   if (event.dataTransfer) {
@@ -494,17 +569,61 @@ const sendEmail = async () => {
 
   sending.value = true
   try {
-    const htmlBody = editor.value.getHTML()
+    let htmlBody = editor.value.getHTML()
     const textBody = editor.value.getText()
 
+    // Extract inline images from HTML and convert to attachments
+    const imageAttachments: Array<{ filename: string; content: number[]; contentType: string; cid?: string }> = []
+    const imageRegex = /<img[^>]+src="data:image\/([^;]+);base64,([^"]+)"/g
+    let match
+    let imageIndex = 0
+    const replacements: Array<{ original: string; replacement: string }> = []
+    
+    while ((match = imageRegex.exec(htmlBody)) !== null) {
+      const contentType = `image/${match[1]}`
+      const base64Data = match[2]
+      
+      // Convert base64 to array
+      const binaryString = atob(base64Data)
+      const bytes = Array.from(binaryString, char => char.charCodeAt(0))
+      
+      const imageNum = ++imageIndex
+      const filename = `image-${imageNum}.${match[1]}`
+      const contentId = `image-${imageNum}`
+      
+      imageAttachments.push({
+        filename: filename,
+        content: bytes,
+        contentType: contentType,
+        cid: contentId // Add CID for inline attachment
+      })
+      
+      // Store replacement - replace only the src attribute, preserve other attributes
+      const srcMatch = match[0].match(/src="([^"]+)"/)
+      if (srcMatch) {
+        replacements.push({
+          original: srcMatch[0],
+          replacement: `src="cid:${contentId}"`
+        })
+      }
+    }
+    
+    // Apply replacements in reverse order to avoid index shifting
+    replacements.reverse().forEach(({ original, replacement }) => {
+      htmlBody = htmlBody.replace(original, replacement)
+    })
+
     // Convert File objects to ArrayBuffer format (will be converted to Buffer in main process)
-    const attachmentBuffers = await Promise.all(
+    const fileAttachments = await Promise.all(
       attachments.value.map(async (att) => ({
         filename: att.name,
         content: Array.from(new Uint8Array(await fileToArrayBuffer(att.file))),
         contentType: att.file.type || 'application/octet-stream'
       }))
     )
+    
+    // Combine inline images and file attachments
+    const attachmentBuffers = [...imageAttachments, ...fileAttachments]
 
     const result = await window.electronAPI.emails.send({
       accountId: props.accountId,

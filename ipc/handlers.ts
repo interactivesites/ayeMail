@@ -514,11 +514,20 @@ export function registerEmailHandlers() {
       }
 
       // Convert attachment content from Array to Buffer if needed
-      const processedAttachments = email.attachments?.map((att: any) => ({
-        filename: att.filename,
-        contentType: att.contentType,
-        content: Buffer.isBuffer(att.content) ? att.content : Buffer.from(att.content)
-      }))
+      const processedAttachments = email.attachments?.map((att: any) => {
+        const attachment: any = {
+          filename: att.filename,
+          contentType: att.contentType,
+          content: Buffer.isBuffer(att.content) ? att.content : Buffer.from(att.content)
+        }
+        // Use CID if provided (for inline images), otherwise generate from filename
+        if (att.cid) {
+          attachment.cid = att.cid
+        } else if (att.filename.startsWith('image-')) {
+          attachment.cid = att.filename.replace(/\.(jpg|jpeg|png|gif|webp)$/i, '')
+        }
+        return attachment
+      })
 
       const smtpClient = getSMTPClient(account)
       const result = await smtpClient.sendEmail({

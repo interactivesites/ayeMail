@@ -14,6 +14,7 @@ interface EmailToSend {
     filename: string
     content: Buffer
     contentType?: string
+    cid?: string
   }>
   encrypted?: boolean
   signed?: boolean
@@ -94,11 +95,26 @@ export class SMTPClient {
       }
 
       if (email.attachments && email.attachments.length > 0) {
-        mailOptions.attachments = email.attachments.map(att => ({
-          filename: att.filename,
-          content: att.content,
-          contentType: att.contentType
-        }))
+        mailOptions.attachments = email.attachments.map(att => {
+          const attachment: any = {
+            content: att.content,
+            contentType: att.contentType
+          }
+          // If CID is provided, it's an inline attachment
+          if (att.cid) {
+            // Nodemailer uses 'cid' for inline attachments
+            attachment.cid = att.cid
+            // Set as inline to prevent showing in attachment list
+            attachment.disposition = 'inline'
+            // Filename is optional for inline attachments, but include it for compatibility
+            attachment.filename = att.filename
+          } else {
+            // Regular attachment
+            attachment.filename = att.filename
+            attachment.disposition = 'attachment'
+          }
+          return attachment
+        })
       }
 
       const info = await this.transporter.sendMail(mailOptions)

@@ -16,9 +16,10 @@
 - does sqlite store folders? Use the cache first, then read inbox, when idle, rebuild folder struct (sync)
 
 ## UI
+- add loading anims for load / send / refresh
 - all checkboexs to toggles
 - add unread count badge to folders
-- make 3 columns (main) and give each its navigation (see apple mail)
+- make 3 columns (main) and give each its navigation (see apple mail) 
 
 ## Settings
 - Signature management (RTE) / auto-add to some inbox

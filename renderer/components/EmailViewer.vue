@@ -36,11 +36,29 @@
       <div class="flex-1 overflow-y-auto p-4">
         <div v-if="email.htmlBody" v-html="email.htmlBody" class="prose max-w-none"></div>
         <div v-else class="whitespace-pre-wrap text-gray-900">{{ email.textBody || email.body }}</div>
-        <div v-if="email.attachments && email.attachments.length > 0" class="mt-4 pt-4 border-t border-gray-200">
+        
+        <!-- Inline Images -->
+        <div v-if="imageAttachments.length > 0" class="mt-4 space-y-4">
+          <div
+            v-for="attachment in imageAttachments"
+            :key="attachment.id"
+            class="inline-block"
+          >
+            <img
+              :src="getImageDataUrl(attachment)"
+              :alt="attachment.filename"
+              class="max-w-full h-auto rounded-lg shadow-sm"
+              style="max-height: 400px;"
+            />
+          </div>
+        </div>
+        
+        <!-- Other Attachments -->
+        <div v-if="nonImageAttachments.length > 0" class="mt-4 pt-4 border-t border-gray-200">
           <h3 class="font-medium text-gray-900 mb-2">Attachments</h3>
           <div class="space-y-2">
             <button
-              v-for="attachment in email.attachments"
+              v-for="attachment in nonImageAttachments"
               :key="attachment.id"
               @click="downloadAttachment(attachment.id)"
               class="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors group"
@@ -66,7 +84,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
 import { formatDate, formatSize, formatAddresses } from '../utils/formatters'
 import { EmailAddress } from '../../shared/types'
 
@@ -100,6 +118,42 @@ const loadEmail = async () => {
   } finally {
     loading.value = false
   }
+}
+
+const isImage = (attachment: any): boolean => {
+  return attachment.contentType?.startsWith('image/') || false
+}
+
+const imageAttachments = computed(() => {
+  if (!email.value?.attachments) return []
+  return email.value.attachments.filter((att: any) => isImage(att))
+})
+
+const nonImageAttachments = computed(() => {
+  if (!email.value?.attachments) return []
+  return email.value.attachments.filter((att: any) => !isImage(att))
+})
+
+const getImageDataUrl = (attachment: any): string => {
+  if (!attachment.data) return ''
+  
+  // Convert Buffer/Uint8Array to base64
+  let base64: string
+  if (attachment.data instanceof Uint8Array) {
+    const binary = Array.from(attachment.data).map(byte => String.fromCharCode(byte)).join('')
+    base64 = btoa(binary)
+  } else if (Buffer.isBuffer && Buffer.isBuffer(attachment.data)) {
+    base64 = attachment.data.toString('base64')
+  } else if (typeof attachment.data === 'string') {
+    base64 = attachment.data
+  } else {
+    // Try to convert array to base64
+    const arr = Array.isArray(attachment.data) ? attachment.data : Array.from(new Uint8Array(attachment.data))
+    const binary = arr.map((byte: number) => String.fromCharCode(byte)).join('')
+    base64 = btoa(binary)
+  }
+  
+  return `data:${attachment.contentType || 'image/png'};base64,${base64}`
 }
 
 const downloadAttachment = async (attachmentId: string) => {
