@@ -56,12 +56,16 @@
               v-for="email in group.emails"
               :key="email.id"
               :data-email-id="email.id"
+              draggable="true"
               @click="$emit('select-email', email.id)"
-              class="w-full text-left px-4 py-3 my-2 transition-colors rounded-lg relative"
+              @dragstart="handleDragStart($event, email)"
+              @dragend="handleDragEnd"
+              class="w-full text-left px-4 py-3 my-2 transition-colors rounded-lg relative cursor-grab active:cursor-grabbing"
               :class="{
                 'bg-primary-900 text-white': selectedEmailId === email.id,
                 'hover:bg-primary-800/20': selectedEmailId !== email.id,
-                'border-l-2 border-primary-600': isEmailUnread(email)
+                'border-l-2 border-primary-600': isEmailUnread(email),
+                'opacity-50': isDragging === email.id
               }"
             >
               <!-- Archive Loading Overlay -->
@@ -252,12 +256,15 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   'select-email': [id: string]
+  'drag-start': [email: any]
+  'drag-end': []
 }>()
 
 const emails = ref<any[]>([])
 const loading = ref(false)
 const preferences = usePreferencesStore()
 const { previewLevel } = storeToRefs(preferences)
+const isDragging = ref<string | null>(null)
 
 // Grouping mode - can be extended later for other grouping options
 const groupingMode = ref<'bydate'>('bydate')
@@ -878,6 +885,22 @@ watch(() => emails.value.length, () => {
     })
   }
 })
+
+const handleDragStart = (event: DragEvent, email: any) => {
+  isDragging.value = email.id
+  emit('drag-start', email)
+  
+  // Set drag data
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData('text/plain', email.id)
+  }
+}
+
+const handleDragEnd = () => {
+  isDragging.value = null
+  emit('drag-end')
+}
 
 onUnmounted(() => {
   window.removeEventListener('refresh-emails', refreshEmails)

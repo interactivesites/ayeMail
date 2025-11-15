@@ -45,7 +45,16 @@
             'transition-all duration-200',
             isGridLayout ? 'flex-1 px-2' : 'border-r border-gray-200 flex-shrink-0'
           ]" :style="!isGridLayout ? { width: mailPaneWidth + 'px' } : undefined">
-            <component v-if="selectedFolderId" :is="isGridLayout ? EmailGrid : EmailList" :folder-id="selectedFolderId" :folder-name="selectedFolderName" :selected-email-id="selectedEmailId" @select-email="handleEmailSelect" />
+            <component
+              v-if="selectedFolderId"
+              :is="isGridLayout ? EmailGrid : EmailList"
+              :folder-id="selectedFolderId"
+              :folder-name="selectedFolderName"
+              :selected-email-id="selectedEmailId"
+              @select-email="handleEmailSelect"
+              @drag-start="handleDragStart"
+              @drag-end="handleDragEnd"
+            />
           </div>
           <div
             v-if="!isGridLayout"
@@ -57,8 +66,22 @@
           >
             <span class="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-gray-200 group-hover:bg-gray-400 transition-colors"></span>
           </div>
-          <div v-if="!isGridLayout" class="flex-1">
-            <EmailViewer :email-id="selectedEmailId" @reply="handleReply" @forward="handleForward" @set-reminder="handleSetReminder" @delete="handleDeleteEmail" />
+          <div v-if="!isGridLayout" class="flex-1 relative">
+            <EmailDropZone
+              v-if="isDraggingEmail && draggedEmail"
+              :dragged-email="draggedEmail"
+              :account-id="selectedAccount?.id || ''"
+              @action-complete="handleDragActionComplete"
+              @close="handleDragEnd"
+            />
+            <EmailViewer
+              v-else
+              :email-id="selectedEmailId"
+              @reply="handleReply"
+              @forward="handleForward"
+              @set-reminder="handleSetReminder"
+              @delete="handleDeleteEmail"
+            />
           </div>
         </div>
       </template>
@@ -92,6 +115,7 @@ import FolderList from './components/FolderList.vue'
 import EmailList from './components/EmailList.vue'
 import EmailGrid from './components/EmailGrid.vue'
 import EmailViewer from './components/EmailViewer.vue'
+import EmailDropZone from './components/EmailDropZone.vue'
 import ComposeWindow from './components/ComposeWindow.vue'
 import SettingsModal from './components/SettingsModal.vue'
 import ReminderModal from './components/ReminderModal.vue'
@@ -139,6 +163,8 @@ const mailResizeStartX = ref(0)
 const mailResizeStartWidth = ref(384)
 const MIN_MAIL_WIDTH = 280
 const MAX_MAIL_WIDTH = 640
+const isDraggingEmail = ref(false)
+const draggedEmail = ref<any>(null)
 
 const handleMailResizeMouseMove = (event: MouseEvent) => {
   if (!isResizingMailPane.value) return
@@ -504,6 +530,26 @@ onMounted(async () => {
     console.error('Error loading accounts:', error)
   }
 })
+
+const handleDragStart = (email: any) => {
+  isDraggingEmail.value = true
+  draggedEmail.value = email
+}
+
+const handleDragEnd = () => {
+  isDraggingEmail.value = false
+  draggedEmail.value = null
+}
+
+const handleDragActionComplete = () => {
+  // Action completed, close drop zone
+  handleDragEnd()
+  // Clear selected email if it was the dragged one
+  if (selectedEmailId.value === draggedEmail.value?.id) {
+    selectedEmailId.value = ''
+    selectedEmail.value = null
+  }
+}
 
 onBeforeUnmount(() => {
   stopMailResize()

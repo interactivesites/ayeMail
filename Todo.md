@@ -9,6 +9,7 @@
 
 
 #### MAIL
+- set mails as read after 3 sec
 - Add Folder list section (first section): Inboxes and make sections a tree (first level)
 - MULTI Account handling /ADD to Folders: 
 -- all accounts inboxes (first section)
