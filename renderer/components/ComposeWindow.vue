@@ -2,9 +2,18 @@
   <div class="h-screen flex flex-col bg-white">
     <!-- Custom Title Bar -->
     <div class="app-drag-region bg-white/70 backdrop-blur-xl border-b border-white/60 shadow-sm flex items-center justify-between px-4 py-2 h-12">
-      <div class="flex items-center space-x-2">
+      <div class="app-no-drag flex items-center space-x-3">
         <img src="../../assets/ilogo.png" alt="iMail" class="w-6 h-6 rounded-lg" />
         <h2 class="text-sm font-medium text-gray-900">Compose Email</h2>
+        <div class="border-l border-gray-300 h-4 mx-8"></div>
+        <button
+          @click="sendEmail"
+          :disabled="sending"
+          class="p-2 rounded-md hover:text-primary-700 hover:-rotate-90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors transition-transform"
+          :title="sending ? 'Sending...' : 'Send'"
+        >
+          <PaperAirplaneIcon class="w-5 h-5" />
+        </button>
       </div>
       <div class="app-no-drag flex items-center space-x-1">
         <button
@@ -174,21 +183,6 @@
           </label>
         </div>
       </div>
-      <div class="p-4 border-t border-gray-200 flex justify-end space-x-2 bg-white/50">
-        <button
-          @click="handleClose"
-          class="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors"
-        >
-          Cancel
-        </button>
-        <button
-          @click="sendEmail"
-          :disabled="sending"
-          class="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          {{ sending ? 'Sending...' : 'Send' }}
-        </button>
-      </div>
     </div>
   </div>
 </template>
@@ -201,7 +195,8 @@ import StarterKit from '@tiptap/starter-kit'
 import {
   ArrowsPointingOutIcon,
   XMarkIcon,
-  ListBulletIcon
+  ListBulletIcon,
+  PaperAirplaneIcon
 } from '@heroicons/vue/24/outline'
 
 const props = defineProps<{
