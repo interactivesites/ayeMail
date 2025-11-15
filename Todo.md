@@ -13,7 +13,7 @@
 -- custom folders of the app: reminders / lists of flagged items (if we have any)
 
 #### MAIL
-- does sqlite store folders? Use the cache first, then read inbox, when idle, rebuild folder struct (sync)
+- SPAM Logic?
 
 ## UI
 - add loading anims for load / send / refresh
@@ -30,8 +30,13 @@
 
 ## Bugs
 - html mails with formatting (e.g. font) change the global app fonts - sandbox!
-
+- EmailList.vue:65 Error archiving email: Error: Error invoking remote method 'emails:archive': SqliteError: UNIQUE constraint failed: emails.account_id, emails.folder_id, emails.uid
 
 ## Feat
 - threads?
 - ai to summarize, answer?
+
+
+
+
+

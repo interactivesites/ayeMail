@@ -258,7 +258,8 @@ export class IMAPClient {
 
           // Get the UIDs we want (most recent first)
           const sortedUids = uids.sort((a, b) => b - a) // Descending order
-          const uidsToFetch = sortedUids.slice(0, Math.min(end, sortedUids.length))
+          // If end is very large (>= 10000), fetch all emails, otherwise limit to end
+          const uidsToFetch = end >= 10000 ? sortedUids : sortedUids.slice(0, Math.min(end, sortedUids.length))
 
           const emails: Email[] = []
           let emailCount = 0

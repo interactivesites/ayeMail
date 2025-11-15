@@ -40,6 +40,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Folder operations
   folders: {
     list: (accountId: string) => ipcRenderer.invoke('folders:list', accountId),
+    syncOnly: (accountId: string) => ipcRenderer.invoke('folders:sync-only', accountId),
     create: (accountId: string, name: string) => 
       ipcRenderer.invoke('folders:create', accountId, name),
     delete: (accountId: string, name: string) => 

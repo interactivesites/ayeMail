@@ -123,6 +123,7 @@ const showReminderModal = ref(false)
 const reminderEmail = ref<any>(null)
 const syncing = ref(false)
 const syncProgress = ref({ show: false, current: 0, total: 0, folder: '' })
+const backgroundSyncing = ref(false)
 const preferences = usePreferencesStore()
 const isGridLayout = computed(() => preferences.mailLayout === 'grid')
 const mailPaneWidth = ref(384)
@@ -390,7 +391,31 @@ const handleAccountSelect = (account: any) => {
 
 const loadFolders = async (accountId: string) => {
   try {
-    const folders = await window.electronAPI.folders.list(accountId)
+    // Get account to check type (should be in selectedAccount, but fallback to list if needed)
+    let account = selectedAccount.value
+    if (!account || account.id !== accountId) {
+      const accounts = await window.electronAPI.accounts.list()
+      account = accounts.find((a: any) => a.id === accountId)
+    }
+    
+    // Load folders first
+    let folders = await window.electronAPI.folders.list(accountId)
+    
+    // Check if folders exist and account is IMAP
+    if (folders.length === 0 && account && account.type === 'imap') {
+      // No folders exist, sync them first
+      try {
+        const result = await window.electronAPI.folders.syncOnly(accountId)
+        if (result.success) {
+          // Reload folders after sync
+          folders = await window.electronAPI.folders.list(accountId)
+        }
+      } catch (error) {
+        console.error('Error syncing folders:', error)
+      }
+    }
+    
+    // Find INBOX folder (should always exist for both IMAP and POP3)
     const inbox = folders.find((f: any) => f.name.toLowerCase() === 'inbox')
     if (inbox) {
       selectedFolderId.value = inbox.id
@@ -400,6 +425,11 @@ const loadFolders = async (accountId: string) => {
       // Sync emails for the initially selected INBOX
       try {
         await syncEmailsForFolder(accountId, inbox.id)
+        
+        // After INBOX sync completes, trigger background sync of other folders (IMAP only)
+        if (account && account.type === 'imap') {
+          syncOtherFoldersInBackground(accountId, folders)
+        }
       } catch (error) {
         console.error('Error syncing INBOX:', error)
       }
@@ -407,6 +437,54 @@ const loadFolders = async (accountId: string) => {
   } catch (error) {
     console.error('Error loading folders:', error)
   }
+}
+
+const syncOtherFoldersInBackground = async (accountId: string, folders: any[]) => {
+  // Skip if already syncing in background
+  if (backgroundSyncing.value) {
+    return
+  }
+  
+  // Get all folders except INBOX
+  const otherFolders = folders.filter((f: any) => f.name.toLowerCase() !== 'inbox')
+  
+  if (otherFolders.length === 0) {
+    return
+  }
+  
+  backgroundSyncing.value = true
+  
+  // Use requestIdleCallback with fallback
+  const requestIdleCallback = (window as any).requestIdleCallback || ((callback: (deadline?: any) => void) => {
+    setTimeout(() => callback(), 2000)
+  })
+  
+  const syncNextFolder = async (index: number) => {
+    if (index >= otherFolders.length) {
+      backgroundSyncing.value = false
+      return
+    }
+    
+    const folder = otherFolders[index]
+    
+    // Wait for idle time before syncing next folder
+    requestIdleCallback(async () => {
+      try {
+        // Only sync if folder is not currently selected (to avoid conflicts)
+        if (selectedFolderId.value !== folder.id) {
+          await window.electronAPI.emails.syncFolder(accountId, folder.id)
+        }
+      } catch (error) {
+        console.error(`Error syncing folder ${folder.name} in background:`, error)
+      }
+      
+      // Sync next folder
+      await syncNextFolder(index + 1)
+    }, { timeout: 2000 })
+  }
+  
+  // Start syncing first folder
+  await syncNextFolder(0)
 }
 
 onMounted(async () => {

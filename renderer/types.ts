@@ -21,6 +21,7 @@ declare global {
       }
       folders: {
         list: (accountId: string) => Promise<any[]>
+        syncOnly: (accountId: string) => Promise<{ success: boolean; synced: number; message?: string }>
         create: (accountId: string, name: string) => Promise<any>
         delete: (accountId: string, name: string) => Promise<any>
         rename: (accountId: string, oldName: string, newName: string) => Promise<any>

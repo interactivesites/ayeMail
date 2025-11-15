@@ -6,6 +6,53 @@ import type { Email, Attachment, EmailAddress } from '../shared/types'
 export class EmailStorage {
   private db = getDatabase()
 
+  hasFolders(accountId: string): boolean {
+    const result = this.db.prepare('SELECT COUNT(*) as count FROM folders WHERE account_id = ?').get(accountId) as any
+    return (result?.count || 0) > 0
+  }
+
+  async syncFoldersOnly(accountId: string, progressCallback?: (data: { folder?: string; current: number; total?: number; emailUid?: number }) => void): Promise<{ synced: number }> {
+    const account = await accountManager.getAccount(accountId)
+    if (!account) {
+      throw new Error('Account not found')
+    }
+
+    // Only works for IMAP accounts
+    if (account.type !== 'imap') {
+      return { synced: 0 }
+    }
+
+    const imapClient = getIMAPClient(account)
+    await imapClient.connect()
+
+    try {
+      const serverFolders = await imapClient.listFolders()
+      const dbFolders = this.db.prepare('SELECT * FROM folders WHERE account_id = ?').all(accountId) as any[]
+      const now = Date.now()
+      let synced = 0
+
+      // Update/create folders in database
+      progressCallback?.({ folder: 'folders', current: 0, total: serverFolders.length })
+      for (let i = 0; i < serverFolders.length; i++) {
+        const serverFolder = serverFolders[i]
+        const existing = dbFolders.find(f => f.path === serverFolder.path)
+        if (!existing) {
+          const id = randomUUID()
+          this.db.prepare(`
+            INSERT INTO folders (id, account_id, name, path, subscribed, attributes, created_at, updated_at)
+            VALUES (?, ?, ?, ?, 1, ?, ?, ?)
+          `).run(id, accountId, serverFolder.name, serverFolder.path, JSON.stringify(serverFolder.attributes), now, now)
+          synced++
+        }
+        progressCallback?.({ folder: 'folders', current: i + 1, total: serverFolders.length })
+      }
+
+      return { synced }
+    } finally {
+      await imapClient.disconnect()
+    }
+  }
+
   async storeEmail(email: Email): Promise<string> {
     // Always generate ID from current folderId (database ID) to ensure consistency
     // Don't use pre-generated email.id which might have been created with folder name
@@ -348,8 +395,9 @@ export class EmailStorage {
       const imapFolderName = folder.name.toUpperCase() === 'INBOX' ? 'INBOX' : folder.path
       console.log(`Fetching emails for folder: ${folder.name}, path: ${folder.path}, using IMAP name: ${imapFolderName}, id: ${folder.id}`)
 
-      // Fetch recent emails (limit to 100 for performance)
-      const emails = await imapClient.fetchEmails(imapFolderName, 1, 100)
+      // Fetch all emails (use a large number to get all emails)
+      // For INBOX, we want to sync all emails, not just recent ones
+      const emails = await imapClient.fetchEmails(imapFolderName, 1, 10000)
 
       console.log(`Found ${emails.length} emails in ${folder.name}`)
       if (emails.length === 0) {
@@ -440,26 +488,31 @@ export class EmailStorage {
         const imapClient = getIMAPClient(account)
         await imapClient.connect()
 
-        // First, ensure folders are synced
-        const serverFolders = await imapClient.listFolders()
-        const dbFolders = this.db.prepare('SELECT * FROM folders WHERE account_id = ?').all(accountId) as any[]
-        const now = Date.now()
+        // Only sync folders if none exist (first time setup)
+        if (!this.hasFolders(accountId)) {
+          const serverFolders = await imapClient.listFolders()
+          const dbFolders = this.db.prepare('SELECT * FROM folders WHERE account_id = ?').all(accountId) as any[]
+          const now = Date.now()
 
-        // Update/create folders in database
-        progressCallback?.({ folder: 'folders', current: 0, total: serverFolders.length })
-        for (let i = 0; i < serverFolders.length; i++) {
-          const serverFolder = serverFolders[i]
-          const existing = dbFolders.find(f => f.path === serverFolder.path)
-          if (!existing) {
-            const id = randomUUID()
-            this.db.prepare(`
-              INSERT INTO folders (id, account_id, name, path, subscribed, attributes, created_at, updated_at)
-              VALUES (?, ?, ?, ?, 1, ?, ?, ?)
-            `).run(id, accountId, serverFolder.name, serverFolder.path, JSON.stringify(serverFolder.attributes), now, now)
-            dbFolders.push({ id, name: serverFolder.name, path: serverFolder.path })
+          // Update/create folders in database
+          progressCallback?.({ folder: 'folders', current: 0, total: serverFolders.length })
+          for (let i = 0; i < serverFolders.length; i++) {
+            const serverFolder = serverFolders[i]
+            const existing = dbFolders.find(f => f.path === serverFolder.path)
+            if (!existing) {
+              const id = randomUUID()
+              this.db.prepare(`
+                INSERT INTO folders (id, account_id, name, path, subscribed, attributes, created_at, updated_at)
+                VALUES (?, ?, ?, ?, 1, ?, ?, ?)
+              `).run(id, accountId, serverFolder.name, serverFolder.path, JSON.stringify(serverFolder.attributes), now, now)
+              dbFolders.push({ id, name: serverFolder.name, path: serverFolder.path })
+            }
+            progressCallback?.({ folder: 'folders', current: i + 1, total: serverFolders.length })
           }
-          progressCallback?.({ folder: 'folders', current: i + 1, total: serverFolders.length })
         }
+
+        // Get folders from database for email syncing
+        const dbFolders = this.db.prepare('SELECT * FROM folders WHERE account_id = ?').all(accountId) as any[]
 
         // Sync emails from subscribed folders (or all if none subscribed)
         const foldersToSync = dbFolders.filter(f => f.subscribed === 1)
@@ -480,8 +533,9 @@ export class EmailStorage {
             // Use folder name for IMAP operations, ensure INBOX is uppercase
             const imapFolderName = folder.name.toUpperCase() === 'INBOX' ? 'INBOX' : folder.path
 
-            // Fetch recent emails (limit to 100 for performance)
-            const emails = await imapClient.fetchEmails(imapFolderName, 1, 100)
+            // Fetch all emails (use a large number to get all emails)
+            // For INBOX, we want to sync all emails, not just recent ones
+            const emails = await imapClient.fetchEmails(imapFolderName, 1, 10000)
 
             progressCallback?.({ folder: folder.name, current: 0, total: emails.length })
 
