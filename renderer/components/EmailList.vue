@@ -65,20 +65,43 @@
             >
               <div class="flex items-start gap-3">
                 <!-- Rounded Checkbox -->
-                <div class="flex-shrink-0 self-center">
+                <div class="flex-shrink-0 self-center relative">
                   <button
-                    @click.stop="handleArchive(email.id)"
+                    @click.stop="showArchiveConfirm(email.id)"
                     class="w-5 h-5 rounded-full border-2 border-gray-300 flex items-center justify-center transition-colors hover:border-primary-600 focus:outline-none focus:ring-2 focus:ring-primary-600 focus:ring-offset-1"
                     :class="{
-                      'bg-primary-600 border-primary-600': false,
-                      'hover:bg-gray-50': true
+                      'bg-primary-600 border-primary-600': archiveConfirmId === email.id,
+                      'hover:bg-gray-50': archiveConfirmId !== email.id
                     }"
                     title="Archive email"
                   >
-                    <svg v-if="false" class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg v-if="archiveConfirmId === email.id" class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
                     </svg>
                   </button>
+                  
+                  <!-- Archive Confirmation Popover -->
+                  <div
+                    v-if="archiveConfirmId === email.id"
+                    class="absolute left-8 top-0 z-50 bg-white rounded-lg shadow-lg border border-gray-200 p-3 min-w-[200px]"
+                    @click.stop
+                  >
+                    <div class="flex items-center gap-2 mb-3">
+                      <button
+                        @click="cancelArchive"
+                        class="px-3 py-1.5 text-sm rounded bg-gray-200 text-gray-700 hover:bg-gray-300 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        @click="confirmArchive(email.id)"
+                        class="px-3 py-1.5 text-sm rounded bg-primary-600 text-white hover:bg-primary-700 transition-colors"
+                      >
+                        Complete
+                      </button>
+                    </div>
+                    <p class="text-xs text-gray-500">Disable confirmation messages in Preferences</p>
+                  </div>
                 </div>
                 
                 
@@ -113,7 +136,7 @@
                       <!-- Subject -->
                       <div class="mt-0.5">
                         <span 
-                          class="text-sm truncate"
+                          class="text-sm text-balance break-words whitespace-normal"
                           :class="selectedEmailId === email.id 
                             ? 'text-white' 
                             : (isEmailUnread(email) ? 'text-gray-900 font-medium' : 'text-gray-600')"
@@ -199,6 +222,9 @@ const { previewLevel } = storeToRefs(preferences)
 // Grouping mode - can be extended later for other grouping options
 const groupingMode = ref<'bydate'>('bydate')
 
+// Archive confirmation state
+const archiveConfirmId = ref<string | null>(null)
+
 const isEmailUnread = (email: any): boolean => {
   // Handle various formats: boolean, number (0/1), undefined, null
   if (email.isRead === undefined || email.isRead === null) return true
@@ -238,7 +264,17 @@ const handlePreviewLevelChange = (level: 1 | 2 | 3) => {
   preferences.setPreviewLevel(level)
 }
 
-const handleArchive = async (emailId: string) => {
+const showArchiveConfirm = (emailId: string) => {
+  archiveConfirmId.value = emailId
+}
+
+const cancelArchive = () => {
+  archiveConfirmId.value = null
+}
+
+const confirmArchive = async (emailId: string) => {
+  archiveConfirmId.value = null
+  
   try {
     const result = await window.electronAPI.emails.archive(emailId)
     if (result.success) {
@@ -400,17 +436,32 @@ const refreshEmails = () => {
   loadEmails()
 }
 
+// Close popover when clicking outside
+const handleClickOutside = (event: MouseEvent) => {
+  if (archiveConfirmId.value) {
+    const target = event.target as HTMLElement
+    // Close if click is outside the checkbox container and popover
+    if (!target.closest('.relative') && !target.closest('.absolute')) {
+      archiveConfirmId.value = null
+    }
+  }
+}
+
 onMounted(() => {
   loadEmails()
   // Listen for refresh event
   window.addEventListener('refresh-emails', refreshEmails)
+  // Listen for clicks outside to close popover
+  document.addEventListener('click', handleClickOutside)
 })
 
 watch(() => props.folderId, () => {
   loadEmails()
+  archiveConfirmId.value = null // Close popover when folder changes
 })
 
 onUnmounted(() => {
   window.removeEventListener('refresh-emails', refreshEmails)
+  document.removeEventListener('click', handleClickOutside)
 })
 </script>

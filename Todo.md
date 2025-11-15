@@ -1,13 +1,13 @@
 
 ## Functionality
 - Mail list: 
-    - grouping (days / weeks / months)
     - threads?
 - Mail editor / HTML reply
 - Attachments
 - Instead of selecting account, show all as accordion or like apple mail
 - CC/BCC
 - Search (nav)
+- click on sender mail opens a new composer window
 
 ## UI
 
