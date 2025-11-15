@@ -34,7 +34,16 @@
        
       </div>
       <div class="flex-1 overflow-y-auto p-4">
-        <div v-if="email.htmlBody" v-html="email.htmlBody" class="prose max-w-none"></div>
+        <div v-if="email.htmlBody" class="email-html-container">
+          <iframe
+            :srcdoc="sanitizedHtml"
+            class="w-full border-0 bg-white"
+            style="min-height: 400px; display: block;"
+            sandbox="allow-same-origin"
+            @load="onIframeLoad"
+            ref="emailIframe"
+          ></iframe>
+        </div>
         <div v-else class="whitespace-pre-wrap text-gray-900">{{ email.textBody || email.body }}</div>
         
         <!-- Inline Images -->
@@ -102,6 +111,49 @@ const emit = defineEmits<{
 const email = ref<any>(null)
 const loading = ref(false)
 const downloading = ref<string | null>(null)
+const emailIframe = ref<HTMLIFrameElement | null>(null)
+
+const sanitizedHtml = computed(() => {
+  if (!email.value?.htmlBody) return ''
+  
+  let html = email.value.htmlBody
+  
+  // Remove <style> tags that could affect the parent page
+  html = html.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+  
+  // Remove <script> tags for security
+  html = html.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+  
+  // Wrap in a container to ensure isolation
+  // Add base styles for better rendering
+  const baseStyles = `
+    <style>
+      body {
+        margin: 0;
+        padding: 16px;
+        font-family: 'Albert Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        font-weight: 200;
+        line-height: 1.6;
+        color: #1f2937;
+        background: #ffffff;
+      }
+      img {
+        max-width: 100%;
+        height: auto;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+      }
+      a {
+        color: #2563eb;
+        text-decoration: underline;
+      }
+    </style>
+  `
+  
+  return `<!DOCTYPE html><html><head>${baseStyles}</head><body>${html}</body></html>`
+})
 
 const loadEmail = async () => {
   if (!props.emailId) {
@@ -167,6 +219,26 @@ const downloadAttachment = async (attachmentId: string) => {
     alert(`Failed to download attachment: ${error.message || 'Unknown error'}`)
   } finally {
     downloading.value = null
+  }
+}
+
+const onIframeLoad = () => {
+  // Optionally adjust iframe height to content
+  if (emailIframe.value) {
+    try {
+      const iframe = emailIframe.value
+      const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document
+      if (iframeDoc) {
+        const height = Math.max(
+          iframeDoc.body?.scrollHeight || 400,
+          iframeDoc.documentElement?.scrollHeight || 400
+        )
+        iframe.style.height = `${height}px`
+      }
+    } catch (error) {
+      // Cross-origin or other security restrictions
+      // Keep default min-height
+    }
   }
 }
 

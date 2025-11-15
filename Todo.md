@@ -1,10 +1,7 @@
 
 ## Functionality
 - add del / space / T / S to email lsit (delete, archive, reminder, spam)
-- Mail editor / HTML reply
-- Attachments
 - Instead of selecting account, show all as accordion or like apple mail
-- CC/BCC
 - Search (nav)
 - click on sender mail opens a new composer window
 - autoomplete mails / recipients by name
@@ -35,6 +32,7 @@
 ## Feat
 - threads?
 - ai to summarize, answer?
+- Folder management: rename, order, delete, create?
 
 
 
