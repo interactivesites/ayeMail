@@ -1,5 +1,6 @@
-import { ipcMain, BrowserWindow } from 'electron'
+import { ipcMain, BrowserWindow, dialog } from 'electron'
 import { randomUUID } from 'crypto'
+import { writeFileSync } from 'fs'
 import { getDatabase, encryption } from '../database'
 import { accountManager, getIMAPClient, getSMTPClient } from '../email'
 import { emailStorage } from '../email/email-storage'
@@ -387,27 +388,47 @@ export function registerFolderHandlers() {
 // Email handlers
 export function registerEmailHandlers() {
   ipcMain.handle('emails:list', async (_, folderId: string, page: number = 0, limit: number = 50) => {
-    const emails = await emailStorage.listEmails(folderId, page, limit)
-    // Return list with body content for preview
-    return emails.map(email => ({
-      id: email.id,
-      accountId: email.accountId,
-      folderId: email.folderId,
-      uid: email.uid,
-      messageId: email.messageId,
-      subject: email.subject,
-      from: email.from,
-      to: email.to,
-      date: email.date,
-      body: email.body,
-      textBody: email.textBody,
-      htmlBody: email.htmlBody,
-      isRead: email.isRead,
-      isStarred: email.isStarred,
-      encrypted: email.encrypted,
-      signed: email.signed,
-      signatureVerified: email.signatureVerified
-    }))
+    const db = getDatabase()
+    const offset = page * limit
+    // Get emails with attachment count
+    const emails = db.prepare(`
+      SELECT emails.*,
+        (SELECT COUNT(*) FROM attachments WHERE email_id = emails.id) as attachmentCount
+      FROM emails
+      WHERE folder_id = ?
+      ORDER BY date DESC
+      LIMIT ? OFFSET ?
+    `).all(folderId, limit, offset) as any[]
+    
+    // Map to return format with decrypted body content
+    const mappedEmails = emails.map(e => {
+      const body = encryption.decrypt(e.body_encrypted)
+      const htmlBody = e.html_body_encrypted ? encryption.decrypt(e.html_body_encrypted) : undefined
+      const textBody = e.text_body_encrypted ? encryption.decrypt(e.text_body_encrypted) : undefined
+      
+      return {
+        id: e.id,
+        accountId: e.account_id,
+        folderId: e.folder_id,
+        uid: e.uid,
+        messageId: e.message_id,
+        subject: e.subject,
+        from: JSON.parse(e.from_addresses),
+        to: JSON.parse(e.to_addresses),
+        date: e.date,
+        body: body,
+        textBody: textBody,
+        htmlBody: htmlBody,
+        isRead: e.is_read === 1,
+        isStarred: e.is_starred === 1,
+        encrypted: e.encrypted === 1,
+        signed: e.signed === 1,
+        signatureVerified: e.signature_verified !== null ? e.signature_verified === 1 : undefined,
+        attachmentCount: e.attachmentCount || 0
+      }
+    })
+    
+    return mappedEmails
   })
 
   ipcMain.handle('emails:get', async (_, id: string) => {
@@ -492,6 +513,13 @@ export function registerEmailHandlers() {
         return { success: false, message: 'Account not found' }
       }
 
+      // Convert attachment content from Array to Buffer if needed
+      const processedAttachments = email.attachments?.map((att: any) => ({
+        filename: att.filename,
+        contentType: att.contentType,
+        content: Buffer.isBuffer(att.content) ? att.content : Buffer.from(att.content)
+      }))
+
       const smtpClient = getSMTPClient(account)
       const result = await smtpClient.sendEmail({
         to: email.to,
@@ -500,7 +528,7 @@ export function registerEmailHandlers() {
         subject: email.subject,
         body: email.body,
         htmlBody: email.htmlBody,
-        attachments: email.attachments,
+        attachments: processedAttachments,
         encrypted: email.encrypted,
         signed: email.signed
       })
@@ -515,6 +543,39 @@ export function registerEmailHandlers() {
     const db = getDatabase()
     db.prepare('DELETE FROM emails WHERE id = ?').run(id)
     return { success: true }
+  })
+
+  ipcMain.handle('emails:download-attachment', async (_, attachmentId: string) => {
+    try {
+      const db = getDatabase()
+      const attachment = db.prepare('SELECT * FROM attachments WHERE id = ?').get(attachmentId) as any
+      
+      if (!attachment) {
+        return { success: false, message: 'Attachment not found' }
+      }
+
+      // Decrypt attachment data
+      const decryptedData = encryption.decryptBuffer(attachment.data_encrypted)
+
+      // Show save dialog
+      const window = BrowserWindow.getFocusedWindow()
+      const result = await dialog.showSaveDialog(window || undefined, {
+        defaultPath: attachment.filename,
+        title: 'Save Attachment'
+      })
+
+      if (result.canceled) {
+        return { success: false, message: 'Save cancelled' }
+      }
+
+      // Write file to selected path
+      writeFileSync(result.filePath!, decryptedData)
+
+      return { success: true }
+    } catch (error: any) {
+      console.error('Error downloading attachment:', error)
+      return { success: false, message: error.message || 'Unknown error' }
+    }
   })
 
   ipcMain.handle('emails:archive', async (_, id: string) => {

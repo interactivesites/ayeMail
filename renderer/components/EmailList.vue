@@ -170,6 +170,12 @@
                       
                       <span v-if="email.isStarred" class="text-yellow-500 text-sm">★</span>
                       <span 
+                        v-if="email.attachmentCount && email.attachmentCount > 0" 
+                        class="text-xs"
+                        :class="selectedEmailId === email.id ? 'text-white/80' : 'text-gray-500'"
+                        title="Has attachments"
+                      >📎</span>
+                      <span 
                         v-if="email.threadCount && email.threadCount > 1" 
                         class="text-xs px-1.5 py-0.5 rounded"
                         :class="selectedEmailId === email.id ? 'text-white/80 bg-white/20' : 'text-gray-500 bg-gray-200'"

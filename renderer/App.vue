@@ -267,7 +267,7 @@ const syncEmails = async () => {
 
   // Listen for progress updates
   const removeProgressListener = window.electronAPI.emails.onSyncProgress((data: any) => {
-    console.info('Sync progress:', data)
+    // console.info('Sync progress:', data)
     if (data.folder === 'folders') {
       syncProgress.value = { show: true, current: data.current, total: data.total || 0, folder: data.folder }
     } else if (data.folder) {

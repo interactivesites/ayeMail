@@ -5,17 +5,43 @@
       <div class="app-no-drag flex items-center space-x-3">
         <img src="../../assets/ilogo.png" alt="iMail" class="w-6 h-6 rounded-lg" />
         <h2 class="text-sm font-medium text-gray-900">Compose Email</h2>
-        <div class="border-l border-gray-300 h-4 mx-8"></div>
+        <div class="border-l border-gray-300 h-4 mx-4"></div>
+        <label class="flex items-center space-x-1.5 cursor-pointer">
+          <input
+            v-model="form.encrypt"
+            type="checkbox"
+            class="w-3.5 h-3.5 rounded border-gray-300 text-primary-600 focus:ring-primary-600"
+          />
+          <span class="text-xs text-gray-700">Encrypt</span>
+        </label>
+        <label class="flex items-center space-x-1.5 cursor-pointer">
+          <input
+            v-model="form.sign"
+            type="checkbox"
+            class="w-3.5 h-3.5 rounded border-gray-300 text-primary-600 focus:ring-primary-600"
+          />
+          <span class="text-xs text-gray-700">Sign</span>
+        </label>
+        <div class="border-l border-gray-300 h-4 mx-4"></div>
         <button
           @click="sendEmail"
-          :disabled="sending"
+          :disabled="sending || !form.to?.trim()"
           class="p-2 rounded-md hover:text-primary-700 hover:-rotate-90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors transition-transform"
-          :title="sending ? 'Sending...' : 'Send'"
+          :title="sending ? 'Sending...' : (!form.to?.trim() ? 'Please enter a recipient' : 'Send')"
         >
           <PaperAirplaneIcon class="w-5 h-5" />
         </button>
       </div>
       <div class="app-no-drag flex items-center space-x-1">
+        <button
+          @click="fileInput?.click()"
+          class="p-1.5 rounded hover:bg-gray-200 transition-colors"
+          title="Attach Files"
+        >
+          <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+          </svg>
+        </button>
         <button
           @click="handleMinimize"
           class="p-1.5 rounded hover:bg-gray-200 transition-colors"
@@ -41,7 +67,14 @@
     </div>
 
     <!-- Compose Form -->
-    <div class="flex-1 flex flex-col overflow-hidden">
+    <div 
+      class="flex-1 flex flex-col overflow-hidden"
+      :class="{ 'border-2 border-dashed border-primary-400 bg-primary-50/30': isDragging }"
+      @dragover="handleDragOver"
+      @dragenter="handleDragEnter"
+      @dragleave="handleDragLeave"
+      @drop="handleDrop"
+    >
       <div class="flex-1 overflow-y-auto p-4 space-y-4">
         <div>
           <input
@@ -164,23 +197,47 @@
             </BubbleMenu>
           </div>
         </div>
-        <div class="flex items-center space-x-4">
-          <label class="flex items-center">
-            <input
-              v-model="form.encrypt"
-              type="checkbox"
-              class="mr-2 rounded border-gray-300 text-primary-600 focus:ring-primary-600"
-            />
-            <span class="text-sm text-gray-700">Encrypt</span>
-          </label>
-          <label class="flex items-center">
-            <input
-              v-model="form.sign"
-              type="checkbox"
-              class="mr-2 rounded border-gray-300 text-primary-600 focus:ring-primary-600"
-            />
-            <span class="text-sm text-gray-700">Sign</span>
-          </label>
+        <input
+          ref="fileInput"
+          type="file"
+          multiple
+          @change="handleFileSelect"
+          class="hidden"
+        />
+        <div v-if="attachments.length > 0" class="flex items-center border-t border-gray-200 pt-4 mt-4">
+          <span class="text-sm text-gray-600">
+            {{ attachments.length }} file{{ attachments.length > 1 ? 's' : '' }} attached ({{ formatTotalSize() }})
+          </span>
+        </div>
+        <div v-if="attachments.length > 0" class="space-y-2">
+          <div
+            v-for="(attachment, index) in attachments"
+            :key="index"
+            class="flex items-center justify-between p-2 bg-gray-50 rounded-lg"
+            :class="{ 'border-2 border-red-300 bg-red-50': attachment.size > MAX_FILE_SIZE }"
+          >
+            <div class="flex items-center space-x-2 flex-1 min-w-0">
+              <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+              </svg>
+              <div class="flex-1 min-w-0">
+                <span class="text-sm text-gray-700 block truncate">{{ attachment.name }}</span>
+                <span class="text-xs" :class="attachment.size > MAX_FILE_SIZE ? 'text-red-600 font-medium' : 'text-gray-500'">
+                  {{ formatSize(attachment.size) }}
+                  <span v-if="attachment.size > MAX_FILE_SIZE"> (exceeds 15MB limit)</span>
+                </span>
+              </div>
+            </div>
+            <button
+              @click="removeAttachment(index)"
+              class="ml-2 text-gray-400 hover:text-red-600 transition-colors"
+              title="Remove attachment"
+            >
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -188,15 +245,17 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { ref, onMounted, onBeforeUnmount, onUnmounted } from 'vue'
 import { useEditor, EditorContent } from '@tiptap/vue-3'
 import { BubbleMenu } from '@tiptap/vue-3/menus'
 import StarterKit from '@tiptap/starter-kit'
+import { formatSize } from '../utils/formatters'
 import {
   ArrowsPointingOutIcon,
   XMarkIcon,
   ListBulletIcon,
-  PaperAirplaneIcon
+  PaperAirplaneIcon,
+  MinusIcon
 } from '@heroicons/vue/24/outline'
 
 const props = defineProps<{
@@ -212,6 +271,8 @@ const form = ref({
   sign: false
 })
 
+const MAX_FILE_SIZE = 15 * 1024 * 1024 // 15MB
+
 const editor = useEditor({
   extensions: [StarterKit],
   content: props.replyTo?.forward 
@@ -221,14 +282,50 @@ const editor = useEditor({
     attributes: {
       class: 'prose prose-sm sm:prose lg:prose-lg xl:prose-2xl mx-auto focus:outline-none min-h-[300px] p-4',
       'data-placeholder': 'Start typing your email...'
+    },
+    // Disable TipTap's default drag handling for files
+    handleDrop: (_view, event, _slice, _moved) => {
+      // If dropping files, don't let TipTap handle it
+      if (event.dataTransfer?.files && event.dataTransfer.files.length > 0) {
+        return false // Let our handler process it
+      }
+      // Otherwise, use default behavior for text/image drops
+      return false
     }
   }
 })
 
+const fileInput = ref<HTMLInputElement | null>(null)
+const attachments = ref<Array<{ name: string; size: number; file: File }>>([])
+const isDragging = ref(false)
+
 const signatures = ref<any[]>([])
 const defaultSignature = ref<any>(null)
 
+// Prevent browser default file drag behavior at document level
+const preventDocumentDragOver = (e: DragEvent) => {
+  if (e.dataTransfer?.types.some(type => type === 'Files' || type === 'application/x-moz-file')) {
+    e.preventDefault()
+    e.stopPropagation()
+  }
+}
+
+const preventDocumentDrop = (e: DragEvent) => {
+  if (e.dataTransfer?.types.some(type => type === 'Files' || type === 'application/x-moz-file')) {
+    const target = e.target as HTMLElement
+    if (!target.closest('.flex-1.flex.flex-col')) {
+      e.preventDefault()
+      e.stopPropagation()
+      e.stopImmediatePropagation()
+    }
+  }
+}
+
 onMounted(async () => {
+  // Add document-level handlers to prevent browser/Electron from opening files
+  document.addEventListener('dragover', preventDocumentDragOver, true)
+  document.addEventListener('drop', preventDocumentDrop, true)
+  
   if (props.accountId) {
     try {
       signatures.value = await window.electronAPI.signatures.list(props.accountId)
@@ -242,6 +339,11 @@ onMounted(async () => {
       console.error('Error loading signatures:', error)
     }
   }
+})
+
+onUnmounted(() => {
+  document.removeEventListener('dragover', preventDocumentDragOver, true)
+  document.removeEventListener('drop', preventDocumentDrop, true)
 })
 
 onBeforeUnmount(() => {
@@ -264,6 +366,114 @@ const parseAddresses = (str: string): any[] => {
 
 const sending = ref(false)
 
+const handleFileSelect = (event: Event) => {
+  const target = event.target as HTMLInputElement
+  if (target.files) {
+    addFiles(Array.from(target.files))
+  }
+  if (target) {
+    target.value = ''
+  }
+}
+
+const handleDragEnter = (event: DragEvent) => {
+  const hasFiles = event.dataTransfer?.types.some(type => type === 'Files' || type === 'application/x-moz-file')
+  if (hasFiles) {
+    event.preventDefault()
+    event.stopPropagation()
+    isDragging.value = true
+  }
+}
+
+const handleDragOver = (event: DragEvent) => {
+  const hasFiles = event.dataTransfer?.types.some(type => type === 'Files' || type === 'application/x-moz-file')
+  if (hasFiles) {
+    event.preventDefault()
+    event.stopPropagation()
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = 'copy'
+    }
+    isDragging.value = true
+  }
+}
+
+const handleDragLeave = (event: DragEvent) => {
+  if (event.dataTransfer?.types.includes('Files')) {
+    event.preventDefault()
+    event.stopPropagation()
+    const currentTarget = event.currentTarget as HTMLElement
+    const relatedTarget = event.relatedTarget as Node | null
+    if (!relatedTarget || !currentTarget.contains(relatedTarget)) {
+      isDragging.value = false
+    }
+  }
+}
+
+const handleDrop = (event: DragEvent) => {
+  event.preventDefault()
+  event.stopPropagation()
+  event.stopImmediatePropagation()
+  
+  isDragging.value = false
+  
+  const files = event.dataTransfer?.files
+  if (files && files.length > 0) {
+    console.log('Dropped files:', files.length)
+    addFiles(Array.from(files))
+  }
+  
+  if (event.dataTransfer) {
+    event.dataTransfer.clearData()
+  }
+  
+  return false
+}
+
+const addFiles = (files: File[]) => {
+  const newFiles: Array<{ name: string; size: number; file: File }> = []
+  const oversizedFiles: string[] = []
+  
+  for (const file of files) {
+    if (file.size > MAX_FILE_SIZE) {
+      oversizedFiles.push(file.name)
+    } else {
+      newFiles.push({
+        name: file.name,
+        size: file.size,
+        file: file
+      })
+    }
+  }
+  
+  if (oversizedFiles.length > 0) {
+    alert(`The following files exceed the 15MB limit and were not added:\n${oversizedFiles.join('\n')}\n\nFiles larger than 15MB will use a dropbox implementation (not yet implemented).`)
+  }
+  
+  if (newFiles.length > 0) {
+    attachments.value.push(...newFiles)
+  }
+}
+
+const removeAttachment = (index: number) => {
+  attachments.value.splice(index, 1)
+}
+
+const formatTotalSize = (): string => {
+  const total = attachments.value.reduce((sum, att) => sum + att.size, 0)
+  return formatSize(total)
+}
+
+const fileToArrayBuffer = (file: File): Promise<ArrayBuffer> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      resolve(reader.result as ArrayBuffer)
+    }
+    reader.onerror = reject
+    reader.readAsArrayBuffer(file)
+  })
+}
+
 const sendEmail = async () => {
   if (!form.value.to) {
     alert('Please enter a recipient')
@@ -275,10 +485,26 @@ const sendEmail = async () => {
     return
   }
 
+  // Check for oversized attachments
+  const oversized = attachments.value.filter(att => att.size > MAX_FILE_SIZE)
+  if (oversized.length > 0) {
+    alert('Cannot send email with attachments exceeding 15MB. Please remove oversized files or use the dropbox implementation.')
+    return
+  }
+
   sending.value = true
   try {
     const htmlBody = editor.value.getHTML()
     const textBody = editor.value.getText()
+
+    // Convert File objects to ArrayBuffer format (will be converted to Buffer in main process)
+    const attachmentBuffers = await Promise.all(
+      attachments.value.map(async (att) => ({
+        filename: att.name,
+        content: Array.from(new Uint8Array(await fileToArrayBuffer(att.file))),
+        contentType: att.file.type || 'application/octet-stream'
+      }))
+    )
 
     const result = await window.electronAPI.emails.send({
       accountId: props.accountId,
@@ -287,6 +513,7 @@ const sendEmail = async () => {
       subject: form.value.subject,
       body: textBody,
       htmlBody: htmlBody,
+      attachments: attachmentBuffers.length > 0 ? attachmentBuffers : undefined,
       encrypt: form.value.encrypt,
       sign: form.value.sign
     })
@@ -304,15 +531,15 @@ const sendEmail = async () => {
 }
 
 const handleMinimize = () => {
-  window.electronAPI.window.minimize()
+  ;(window.electronAPI as any).window?.minimize()
 }
 
 const handleMaximize = () => {
-  window.electronAPI.window.maximize()
+  ;(window.electronAPI as any).window?.maximize()
 }
 
 const handleClose = () => {
-  window.electronAPI.window.close()
+  ;(window.electronAPI as any).window?.close()
 }
 </script>
 

@@ -1,7 +1,6 @@
 
 ## Functionality
-- Mail list: 
-    - threads?
+- add del / space / T / S to email lsit (delete, archive, reminder, spam)
 - Mail editor / HTML reply
 - Attachments
 - Instead of selecting account, show all as accordion or like apple mail
@@ -9,6 +8,9 @@
 - Search (nav)
 - click on sender mail opens a new composer window
 - autoomplete mails / recipients by name
+- ADD to Folders: 
+-- all accounts inboxes (first section)
+-- custom folders of the app: reminders / lists of flagged items (if we have any)
 
 #### MAIL
 - does sqlite store folders? Use the cache first, then read inbox, when idle, rebuild folder struct (sync)
@@ -27,3 +29,8 @@
 
 ## Bugs
 - html mails with formatting (e.g. font) change the global app fonts - sandbox!
+
+
+## Feat
+- threads?
+- ai to summarize, answer?

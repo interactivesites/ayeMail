@@ -104,6 +104,18 @@ function createComposeWindow(accountId: string, replyTo?: any) {
     composeWindow.setBackgroundColor('#00000000')
   }
 
+  // Prevent navigation to file:// URLs (prevents opening files when dragged)
+  composeWindow.webContents.on('will-navigate', (event, url) => {
+    if (url.startsWith('file://')) {
+      event.preventDefault()
+    }
+  })
+
+  // Prevent new window from opening files
+  composeWindow.webContents.setWindowOpenHandler(() => {
+    return { action: 'deny' }
+  })
+
   // Store compose data in window
   ;(composeWindow as any).composeData = { accountId, replyTo }
 

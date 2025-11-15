@@ -39,14 +39,25 @@
         <div v-if="email.attachments && email.attachments.length > 0" class="mt-4 pt-4 border-t border-gray-200">
           <h3 class="font-medium text-gray-900 mb-2">Attachments</h3>
           <div class="space-y-2">
-            <div
+            <button
               v-for="attachment in email.attachments"
               :key="attachment.id"
-              class="flex items-center space-x-2 p-2 bg-gray-50 rounded"
+              @click="downloadAttachment(attachment.id)"
+              class="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors group"
             >
-              <span class="text-sm text-gray-700">{{ attachment.filename }}</span>
-              <span class="text-xs text-gray-500">({{ formatSize(attachment.size) }})</span>
-            </div>
+              <div class="flex items-center space-x-3 flex-1 min-w-0">
+                <svg class="w-5 h-5 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                </svg>
+                <div class="flex-1 min-w-0">
+                  <span class="text-sm text-gray-700 block truncate">{{ attachment.filename }}</span>
+                  <span class="text-xs text-gray-500">{{ formatSize(attachment.size) }}</span>
+                </div>
+              </div>
+              <svg class="w-5 h-5 text-gray-400 group-hover:text-primary-600 flex-shrink-0 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+            </button>
           </div>
         </div>
       </div>
@@ -72,6 +83,7 @@ const emit = defineEmits<{
 
 const email = ref<any>(null)
 const loading = ref(false)
+const downloading = ref<string | null>(null)
 
 const loadEmail = async () => {
   if (!props.emailId) {
@@ -87,6 +99,20 @@ const loadEmail = async () => {
     email.value = null
   } finally {
     loading.value = false
+  }
+}
+
+const downloadAttachment = async (attachmentId: string) => {
+  if (downloading.value === attachmentId) return
+  
+  downloading.value = attachmentId
+  try {
+    await window.electronAPI.emails.downloadAttachment(attachmentId)
+  } catch (error: any) {
+    console.error('Error downloading attachment:', error)
+    alert(`Failed to download attachment: ${error.message || 'Unknown error'}`)
+  } finally {
+    downloading.value = null
   }
 }
 
