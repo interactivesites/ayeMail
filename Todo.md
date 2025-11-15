@@ -4,7 +4,6 @@
 - Instead of selecting account, show all as accordion or like apple mail
 - Search (nav)
 
-- multi-compose windows | set title as subject & recipient name
 - autoomplete mails / recipients by name
 
 - ADD to Folders: 

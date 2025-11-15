@@ -3,10 +3,10 @@
     <LoadingOverlay :show="props.loading === true" text="Loading email..." />
     <!-- Custom Title Bar -->
     <div class="app-drag-region bg-white/70 backdrop-blur-xl border-b border-white/60 shadow-sm flex items-center justify-between px-4 py-2 h-12">
-      <div class="app-no-drag flex items-center space-x-3">
-        <img src="../../assets/ilogo.png" alt="iMail" class="w-6 h-6 rounded-lg" />
-        <h2 class="text-sm font-medium text-gray-900">Compose Email</h2>
-        <div class="border-l border-gray-300 h-4 mx-4"></div>
+      <div class="app-no-drag flex items-center space-x-3 flex-1 min-w-0">
+        <img src="../../assets/ilogo.png" alt="iMail" class="w-6 h-6 rounded-lg flex-shrink-0" />
+        <h2 class="text-sm font-medium text-gray-900 truncate min-w-0 flex-1" :title="displayTitle">{{ displayTitle }}</h2>
+        <div class="border-l border-gray-300 h-4 mx-4 flex-shrink-0"></div>
         <label class="flex items-center space-x-1.5 cursor-pointer">
           <input
             v-model="form.encrypt"
@@ -246,7 +246,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, onUnmounted, watch } from 'vue'
 import { useEditor, EditorContent } from '@tiptap/vue-3'
 import { BubbleMenu } from '@tiptap/vue-3/menus'
 import StarterKit from '@tiptap/starter-kit'
@@ -419,24 +419,27 @@ const getRecipientName = (toField: string): string => {
   return firstRecipient
 }
 
-// Update window title based on recipient and subject
-const updateWindowTitle = () => {
-  if (!windowId.value) return
-  
+// Computed title for display in title bar
+const displayTitle = computed(() => {
   const recipient = getRecipientName(form.value.to)
   const subject = form.value.subject?.trim() || ''
   
-  let title = 'Compose Email'
   if (recipient) {
-    title = recipient
     if (subject) {
-      title += ` - ${subject}`
+      return `${recipient} - ${subject}`
     }
+    return recipient
   } else if (subject) {
-    title = `Compose Email - ${subject}`
+    return `Compose Email - ${subject}`
   }
   
-  ;(window.electronAPI as any).window?.setTitle?.(windowId.value, title)
+  return 'Compose Email'
+})
+
+// Update window title based on recipient and subject
+const updateWindowTitle = () => {
+  if (!windowId.value) return
+  ;(window.electronAPI as any).window?.setTitle?.(windowId.value, displayTitle.value)
 }
 
 // Watch form fields to update title
