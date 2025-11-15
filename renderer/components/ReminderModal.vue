@@ -75,6 +75,8 @@
       i18n="en"
       :shortcuts="false"
       :auto-apply="true"
+      :highlight-dates="highlightCurrentDay"
+      :disable-date="disablePastDates"
     />
     <div v-if="saving" class="absolute inset-0 bg-white/50 dark:bg-gray-900/50 backdrop-blur-xl z-50 flex items-center justify-center rounded-lg">
       <div class="flex flex-col items-center space-y-4">
@@ -110,6 +112,26 @@ const saving = ref(false)
 const clearing = ref(false)
 const existingReminder = ref<any>(null)
 
+// Function to highlight the current day
+const highlightCurrentDay = (date: Date) => {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const compareDate = new Date(date)
+  compareDate.setHours(0, 0, 0, 0)
+  return compareDate.getTime() === today.getTime()
+}
+
+// Function to disable dates before tomorrow
+const disablePastDates = (date: Date) => {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const tomorrow = new Date(today)
+  tomorrow.setDate(today.getDate() + 1)
+  const compareDate = new Date(date)
+  compareDate.setHours(0, 0, 0, 0)
+  return compareDate.getTime() < tomorrow.getTime()
+}
+
 // Track if component is mounted to prevent initial trigger
 let isMounted = false
 // Initialize lastSelectedValue to prevent watch from triggering on mount
@@ -127,16 +149,21 @@ onMounted(async () => {
         selectedDate.value = [reminderDate, reminderDate]
         lastSelectedValue = [reminderDate, reminderDate]
       } else {
-        // Initialize with current date for single date picker
-        const today = new Date()
-        selectedDate.value = [today, today]
-        lastSelectedValue = [today, today]
+        // Initialize with tomorrow (minimum selectable date)
+        const tomorrow = new Date()
+        tomorrow.setDate(tomorrow.getDate() + 1)
+        tomorrow.setHours(0, 0, 0, 0)
+        selectedDate.value = [tomorrow, tomorrow]
+        lastSelectedValue = [tomorrow, tomorrow]
       }
     } catch (error) {
       console.error('Error checking for existing reminder:', error)
-      const today = new Date()
-      selectedDate.value = [today, today]
-      lastSelectedValue = [today, today]
+      // Initialize with tomorrow (minimum selectable date)
+      const tomorrow = new Date()
+      tomorrow.setDate(tomorrow.getDate() + 1)
+      tomorrow.setHours(0, 0, 0, 0)
+      selectedDate.value = [tomorrow, tomorrow]
+      lastSelectedValue = [tomorrow, tomorrow]
     }
     // Set mounted flag after a short delay to allow initial value to settle
     setTimeout(() => {
@@ -225,6 +252,21 @@ const handleDateSelect = async (value: string | string[] | Date | Date[] | any) 
     }
     
     if (!selected || isNaN(selected.getTime())) {
+      isProcessing = false
+      return
+    }
+
+    // Validate that selected date is not before tomorrow
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const tomorrow = new Date(today)
+    tomorrow.setDate(today.getDate() + 1)
+    const selectedDateOnly = new Date(selected)
+    selectedDateOnly.setHours(0, 0, 0, 0)
+    
+    if (selectedDateOnly.getTime() < tomorrow.getTime()) {
+      alert('Please select a date from tomorrow onwards')
+      isProcessing = false
       return
     }
     
@@ -329,6 +371,37 @@ const saveReminder = async () => {
 
 /* Vue Tailwind Datepicker will automatically use dark mode via Tailwind's dark: classes
    based on the vtd-primary and vtd-secondary colors configured in tailwind.config.js */
+
+/* Highlight today with primary color circle */
+.reminder-calendar-popover :deep(.dp__today) {
+  @apply border-2 border-primary-600 dark:border-primary-500;
+  background-color: rgb(154 52 18 / 0.1) !important; /* primary-600 with opacity */
+}
+
+.dark .reminder-calendar-popover :deep(.dp__today) {
+  background-color: rgb(154 52 18 / 0.2) !important;
+}
+
+/* Ensure today has a circular highlight */
+.reminder-calendar-popover :deep(.dp__today .dp__cell_inner) {
+  @apply rounded-full;
+  background-color: rgb(154 52 18 / 0.15) !important;
+  border: 2px solid rgb(154 52 18) !important; /* primary-600 */
+}
+
+.dark .reminder-calendar-popover :deep(.dp__today .dp__cell_inner) {
+  background-color: rgb(154 52 18 / 0.25) !important;
+  border-color: rgb(124 45 18) !important; /* primary-700 */
+}
+
+/* Disable past dates styling */
+.reminder-calendar-popover :deep(.dp__cell_disabled) {
+  @apply opacity-40 cursor-not-allowed;
+}
+
+.reminder-calendar-popover :deep(.dp__cell_disabled .dp__cell_inner) {
+  @apply opacity-40 cursor-not-allowed;
+}
 
 </style>
 
