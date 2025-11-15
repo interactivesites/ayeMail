@@ -41,6 +41,8 @@ export interface Folder {
   attributes: string[]
 }
 
+export type EmailStatus = 'now' | 'later' | 'reference' | 'noise' | 'archived' | null
+
 export interface Email {
   id: string
   accountId: string
@@ -67,6 +69,7 @@ export interface Email {
   encrypted?: boolean
   signed?: boolean
   signatureVerified?: boolean
+  status?: EmailStatus
   createdAt: number
   updatedAt: number
 }

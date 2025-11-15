@@ -48,67 +48,78 @@
         </div>
       </aside>
         <div class="flex-1 flex overflow-hidden">
-          <div :class="[
-            isGridLayout ? 'flex-1 px-2' : 'border-r border-gray-200 dark:border-gray-700 flex-shrink-0',
-            !isResizingMailPane ? 'transition-all duration-200' : ''
-          ]" :style="!isGridLayout ? { width: mailPaneWidth + 'px' } : undefined">
-            <component
-              v-if="selectedFolderId || searchQuery"
-              :is="isGridLayout ? EmailGrid : EmailList"
-              :folder-id="searchQuery ? '' : selectedFolderId"
-              :folder-name="searchQuery ? 'Search Results' : selectedFolderName"
-              :selected-email-id="selectedEmailId"
-              :account-id="selectedAccount?.id"
-              :unified-folder-type="unifiedFolderType"
-              :unified-folder-account-ids="unifiedFolderAccountIds"
-              :search-query="searchQuery"
-              @select-email="handleEmailSelect"
-              @drag-start="handleDragStart"
-              @drag-end="handleDragEnd"
-            />
-          </div>
-          <div
-            v-if="!isGridLayout"
-            class="w-2 flex-shrink-0 cursor-col-resize relative group bg-transparent hover:bg-gray-100/50 dark:hover:bg-gray-700/50 transition-colors"
-            role="separator"
-            aria-orientation="vertical"
-            aria-label="Resize email list"
-            @mousedown.prevent="startMailResize"
-          >
-            <span class="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-gray-300 dark:bg-gray-600 group-hover:bg-gray-500 dark:group-hover:bg-gray-400 transition-colors"></span>
-          </div>
-          <div v-if="!isGridLayout" class="flex-1 relative">
-            <EmailDropZone
-              v-if="isDraggingEmail && draggedEmail"
-              :dragged-email="draggedEmail"
-              :account-id="selectedAccount?.id || ''"
-              @action-complete="handleDragActionComplete"
-              @close="handleDragEnd"
-              @drop-start="handleDropStart"
-              @drop-error="handleDropError"
-            />
-            <EmailViewer
-              v-else
-              :email-id="selectedEmailId"
-              @reply="handleReply"
-              @forward="handleForward"
-              @set-reminder="handleSetReminder"
-              @delete="handleDeleteEmail"
-              @select-thread-email="handleEmailSelect"
-            />
-          </div>
+          <!-- Grid/Calm Mode: Use CalmMode component -->
+          <template v-if="isGridLayout">
+            <CalmMode v-if="selectedAccount && !searchQuery" :account-id="selectedAccount.id" :selected-email-id="selectedEmailId" @select-email="handleEmailSelect" />
+            <!-- For search in grid mode, fall back to EmailList -->
+            <div v-else-if="searchQuery" class="flex-1 px-2">
+              <EmailList
+                :folder-id="''"
+                :folder-name="'Search Results'"
+                :selected-email-id="selectedEmailId"
+                :account-id="selectedAccount?.id"
+                :search-query="searchQuery"
+                @select-email="handleEmailSelect"
+                @drag-start="handleDragStart"
+                @drag-end="handleDragEnd"
+              />
+            </div>
+          </template>
+          <!-- List Mode: Standard list view with email viewer -->
+          <template v-else>
+            <div :class="[
+              'border-r border-gray-200 dark:border-gray-700 flex-shrink-0',
+              !isResizingMailPane ? 'transition-all duration-200' : ''
+            ]" :style="{ width: mailPaneWidth + 'px' }">
+              <component
+                v-if="selectedFolderId || searchQuery"
+                :is="EmailList"
+                :folder-id="searchQuery ? '' : selectedFolderId"
+                :folder-name="searchQuery ? 'Search Results' : selectedFolderName"
+                :selected-email-id="selectedEmailId"
+                :account-id="selectedAccount?.id"
+                :unified-folder-type="unifiedFolderType"
+                :unified-folder-account-ids="unifiedFolderAccountIds"
+                :search-query="searchQuery"
+                @select-email="handleEmailSelect"
+                @drag-start="handleDragStart"
+                @drag-end="handleDragEnd"
+              />
+            </div>
+            <div
+              class="w-2 flex-shrink-0 cursor-col-resize relative group bg-transparent hover:bg-gray-100/50 dark:hover:bg-gray-700/50 transition-colors"
+              role="separator"
+              aria-orientation="vertical"
+              aria-label="Resize email list"
+              @mousedown.prevent="startMailResize"
+            >
+              <span class="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-gray-300 dark:bg-gray-600 group-hover:bg-gray-500 dark:group-hover:bg-gray-400 transition-colors"></span>
+            </div>
+            <div class="flex-1 relative">
+              <EmailDropZone
+                v-if="isDraggingEmail && draggedEmail"
+                :dragged-email="draggedEmail"
+                :account-id="selectedAccount?.id || ''"
+                @action-complete="handleDragActionComplete"
+                @close="handleDragEnd"
+                @drop-start="handleDropStart"
+                @drop-error="handleDropError"
+              />
+              <EmailViewer
+                v-else
+                :email-id="selectedEmailId"
+                @reply="handleReply"
+                @forward="handleForward"
+                @set-reminder="handleSetReminder"
+                @delete="handleDeleteEmail"
+                @select-thread-email="handleEmailSelect"
+              />
+            </div>
+          </template>
         </div>
     </main>
     <SettingsModal v-if="showSettings" @close="showSettings = false" @account-selected="handleAccountSelect" />
     <ReminderModal v-if="showReminderModal && reminderEmail" :email-id="reminderEmail.id" :account-id="reminderEmail.accountId" @close="showReminderModal = false; reminderEmail = null" @saved="handleReminderSaved" />
-    <div v-if="isGridLayout && selectedEmailId" class="fixed inset-0 bg-black/60 dark:bg-black/80 z-40 flex items-center justify-center p-4" @click.self="clearSelectedEmail">
-      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-4xl h-[90vh] flex flex-col relative">
-        <button type="button" class="absolute top-4 right-4 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200" @click="clearSelectedEmail" title="Close">
-          ✕
-        </button>
-        <EmailViewer class="flex-1" :email-id="selectedEmailId" @reply="handleReply" @forward="handleForward" @set-reminder="handleSetReminder" @delete="handleDeleteEmail" @select-thread-email="handleEmailSelect" />
-      </div>
-    </div>
   </div>
 </template>
 
@@ -117,6 +128,7 @@ import { ref, onMounted, computed, onBeforeUnmount } from 'vue'
 import FolderList from './components/FolderList.vue'
 import EmailList from './components/EmailList.vue'
 import EmailGrid from './components/EmailGrid.vue'
+import CalmMode from './components/CalmMode.vue'
 import EmailViewer from './components/EmailViewer.vue'
 import EmailDropZone from './components/EmailDropZone.vue'
 import ComposeWindow from './components/ComposeWindow.vue'

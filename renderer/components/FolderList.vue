@@ -15,11 +15,11 @@
         </button>
         <button
           type="button"
-          @click="handleLayoutChange('grid')"
-          :aria-pressed="preferences.mailLayout === 'grid'"
+          @click="handleLayoutChange('calm')"
+          :aria-pressed="preferences.mailLayout === 'calm' || preferences.mailLayout === 'grid'"
           class="p-1.5 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
-          :class="preferences.mailLayout === 'grid' ? 'bg-white text-slate-900' : 'text-white/70 hover:text-white/90'"
-          title="Grid view"
+          :class="(preferences.mailLayout === 'calm' || preferences.mailLayout === 'grid') ? 'bg-white text-slate-900' : 'text-white/70 hover:text-white/90'"
+          title="Calm Mode"
         >
           <Squares2X2Icon class="w-4 h-4" />
         </button>
@@ -262,7 +262,11 @@ const refreshFolders = async () => {
   }
 }
 
-const handleLayoutChange = (layout: 'list' | 'grid') => {
+const handleLayoutChange = (layout: 'list' | 'calm' | 'grid') => {
+  // Map 'grid' to 'calm' for backward compatibility
+  if (layout === 'grid') {
+    layout = 'calm'
+  }
   preferences.setMailLayout(layout)
 }
 

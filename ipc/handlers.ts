@@ -546,6 +546,7 @@ export function registerEmailHandlers() {
         encrypted: e.encrypted === 1,
         signed: e.signed === 1,
         signatureVerified: e.signature_verified !== null ? e.signature_verified === 1 : undefined,
+        status: e.status || null,
         attachmentCount: e.attachmentCount || 0,
         threadId: threadId,
         threadCount: threadCount
@@ -690,6 +691,7 @@ export function registerEmailHandlers() {
         encrypted: e.encrypted === 1,
         signed: e.signed === 1,
         signatureVerified: e.signature_verified !== null ? e.signature_verified === 1 : undefined,
+        status: e.status || null,
         attachmentCount: e.attachmentCount || 0
       }
     })
@@ -850,6 +852,7 @@ export function registerEmailHandlers() {
         signatureVerified: e.signature_verified !== null && e.signature_verified !== undefined 
           ? Boolean(e.signature_verified === 1) 
           : undefined,
+        status: e.status || null,
         attachmentCount: Number(e.attachmentCount || 0),
         threadId: threadId,
         threadCount: Number(threadCount?.count || 1),
@@ -881,6 +884,7 @@ export function registerEmailHandlers() {
           encrypted: emailObj.encrypted,
           signed: emailObj.signed,
           signatureVerified: emailObj.signatureVerified,
+          status: emailObj.status,
           attachmentCount: emailObj.attachmentCount,
           threadId: emailObj.threadId,
           threadCount: emailObj.threadCount
@@ -1631,6 +1635,115 @@ export function registerEmailHandlers() {
     }
 
     return { success: true }
+  })
+
+  // Status management handlers
+  ipcMain.handle('emails:setStatus', async (_, emailId: string, status: 'now' | 'later' | 'reference' | 'noise' | 'archived' | null) => {
+    const db = getDatabase()
+    const now = Date.now()
+    
+    db.prepare(`
+      UPDATE emails 
+      SET status = ?, updated_at = ?
+      WHERE id = ?
+    `).run(status, now, emailId)
+    
+    return { success: true }
+  })
+
+  ipcMain.handle('emails:getByStatus', async (_, accountId: string, status: 'now' | 'later' | 'reference' | 'noise' | 'archived' | null, limit: number = 50) => {
+    const db = getDatabase()
+    
+    // Get emails with attachment count and thread count
+    const emails = db.prepare(`
+      SELECT emails.*,
+        (SELECT COUNT(*) FROM attachments WHERE email_id = emails.id) as attachmentCount,
+        (SELECT COUNT(*) FROM emails e2 WHERE e2.thread_id = emails.thread_id AND e2.thread_id IS NOT NULL) as threadCount
+      FROM emails
+      WHERE account_id = ? AND status = ?
+      ORDER BY date DESC
+      LIMIT ?
+    `).all(accountId, status, limit) as any[]
+    
+    // Map to return format with decrypted body content
+    const mappedEmails = emails.map(e => {
+      const body = encryption.decrypt(e.body_encrypted)
+      const htmlBody = e.html_body_encrypted ? encryption.decrypt(e.html_body_encrypted) : undefined
+      const textBody = e.text_body_encrypted ? encryption.decrypt(e.text_body_encrypted) : undefined
+      
+      return {
+        id: e.id,
+        accountId: e.account_id,
+        folderId: e.folder_id,
+        uid: e.uid,
+        messageId: e.message_id,
+        subject: e.subject,
+        from: JSON.parse(e.from_addresses),
+        to: JSON.parse(e.to_addresses),
+        date: e.date,
+        body: body,
+        textBody: textBody,
+        htmlBody: htmlBody,
+        isRead: e.is_read === 1,
+        isStarred: e.is_starred === 1,
+        encrypted: e.encrypted === 1,
+        signed: e.signed === 1,
+        signatureVerified: e.signature_verified !== null ? e.signature_verified === 1 : undefined,
+        status: e.status || null,
+        threadId: e.thread_id || null,
+        attachmentCount: e.attachmentCount || 0,
+        threadCount: e.threadCount || 1
+      }
+    })
+    
+    return mappedEmails
+  })
+
+  // Get uncategorized emails (status is NULL)
+  ipcMain.handle('emails:getUncategorized', async (_, accountId: string, limit: number = 50) => {
+    const db = getDatabase()
+    
+    const emails = db.prepare(`
+      SELECT emails.*,
+        (SELECT COUNT(*) FROM attachments WHERE email_id = emails.id) as attachmentCount,
+        (SELECT COUNT(*) FROM emails e2 WHERE e2.thread_id = emails.thread_id AND e2.thread_id IS NOT NULL) as threadCount
+      FROM emails
+      WHERE account_id = ? AND (status IS NULL OR status = '')
+      ORDER BY date DESC
+      LIMIT ?
+    `).all(accountId, limit) as any[]
+    
+    const mappedEmails = emails.map(e => {
+      const body = encryption.decrypt(e.body_encrypted)
+      const htmlBody = e.html_body_encrypted ? encryption.decrypt(e.html_body_encrypted) : undefined
+      const textBody = e.text_body_encrypted ? encryption.decrypt(e.text_body_encrypted) : undefined
+      
+      return {
+        id: e.id,
+        accountId: e.account_id,
+        folderId: e.folder_id,
+        uid: e.uid,
+        messageId: e.message_id,
+        subject: e.subject,
+        from: JSON.parse(e.from_addresses),
+        to: JSON.parse(e.to_addresses),
+        date: e.date,
+        body: body,
+        textBody: textBody,
+        htmlBody: htmlBody,
+        isRead: e.is_read === 1,
+        isStarred: e.is_starred === 1,
+        encrypted: e.encrypted === 1,
+        signed: e.signed === 1,
+        signatureVerified: e.signature_verified !== null ? e.signature_verified === 1 : undefined,
+        status: null,
+        threadId: e.thread_id || null,
+        attachmentCount: e.attachmentCount || 0,
+        threadCount: e.threadCount || 1
+      }
+    })
+    
+    return mappedEmails
   })
 }
 

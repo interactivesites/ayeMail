@@ -40,5 +40,29 @@ export const getSenderInitials = (source: EmailLike | MailSender | undefined) =>
   return word.slice(0, 2).toUpperCase()
 }
 
+export function groupEmailsByThread(emails: any[]): Map<string, any[]> {
+  const threadMap = new Map<string, any[]>()
+  
+  emails.forEach(email => {
+    const threadId = email.threadId || email.id
+    if (!threadMap.has(threadId)) {
+      threadMap.set(threadId, [])
+    }
+    threadMap.get(threadId)!.push(email)
+  })
+  
+  // Sort emails within each thread by date
+  threadMap.forEach((threadEmails) => {
+    threadEmails.sort((a, b) => a.date - b.date)
+  })
+  
+  return threadMap
+}
+
+export function getThreadCount(emails: any[], threadId: string | null | undefined): number {
+  if (!threadId) return 1
+  return emails.filter(e => e.threadId === threadId).length || 1
+}
+
 
 
