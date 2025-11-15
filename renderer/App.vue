@@ -94,6 +94,7 @@
               @forward="handleForward"
               @set-reminder="handleSetReminder"
               @delete="handleDeleteEmail"
+              @select-thread-email="handleEmailSelect"
             />
           </div>
         </div>
@@ -105,7 +106,7 @@
         <button type="button" class="absolute top-4 right-4 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200" @click="clearSelectedEmail" title="Close">
           ✕
         </button>
-        <EmailViewer class="flex-1" :email-id="selectedEmailId" @reply="handleReply" @forward="handleForward" @set-reminder="handleSetReminder" @delete="handleDeleteEmail" />
+        <EmailViewer class="flex-1" :email-id="selectedEmailId" @reply="handleReply" @forward="handleForward" @set-reminder="handleSetReminder" @delete="handleDeleteEmail" @select-thread-email="handleEmailSelect" />
       </div>
     </div>
   </div>

@@ -22,13 +22,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   // Email operations
   emails: {
-    list: (folderId: string, page: number, limit: number) =>
-      ipcRenderer.invoke('emails:list', folderId, page, limit),
+    list: (folderId: string, page: number, limit: number, threadView?: boolean) =>
+      ipcRenderer.invoke('emails:list', folderId, page, limit, threadView ?? true),
     listUnified: (type: string, accountIds: string[], page: number, limit: number) =>
       ipcRenderer.invoke('emails:listUnified', type, accountIds, page, limit),
     search: (query: string, limit: number) =>
       ipcRenderer.invoke('emails:search', query, limit),
     get: (id: string) => ipcRenderer.invoke('emails:get', id),
+    getThread: (emailId: string) => ipcRenderer.invoke('emails:getThread', emailId),
     sync: (accountId: string) => ipcRenderer.invoke('emails:sync', accountId),
     syncFolder: (accountId: string, folderId: string) => ipcRenderer.invoke('emails:sync-folder', accountId, folderId),
     send: (email: any) => ipcRenderer.invoke('emails:send', email),

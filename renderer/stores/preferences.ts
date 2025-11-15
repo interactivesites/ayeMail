@@ -8,6 +8,7 @@ const ACTION_LABELS_KEY = 'showActionLabels'
 const MAIL_LAYOUT_KEY = 'mailLayoutPreference'
 const PREVIEW_LEVEL_KEY = 'emailPreviewLevel'
 const DARK_MODE_KEY = 'darkMode'
+const THREAD_VIEW_KEY = 'threadView'
 
 const loadActionLabelsPreference = () => {
   if (typeof window === 'undefined') return true
@@ -35,11 +36,18 @@ const loadDarkMode = (): boolean => {
   return stored === 'true'
 }
 
+const loadThreadView = (): boolean => {
+  if (typeof window === 'undefined') return true
+  const stored = window.localStorage.getItem(THREAD_VIEW_KEY)
+  return stored === null ? true : stored !== 'false' // Default to true (threaded)
+}
+
 export const usePreferencesStore = defineStore('preferences', () => {
   const showActionLabels = ref(loadActionLabelsPreference())
   const mailLayout = ref<MailLayout>(loadMailLayout())
   const previewLevel = ref<PreviewLevel>(loadPreviewLevel())
   const darkMode = ref(loadDarkMode())
+  const threadView = ref(loadThreadView())
 
   const setShowActionLabels = (value: boolean) => {
     showActionLabels.value = value
@@ -75,6 +83,13 @@ export const usePreferencesStore = defineStore('preferences', () => {
     }
   }
 
+  const setThreadView = (value: boolean) => {
+    threadView.value = value
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(THREAD_VIEW_KEY, String(value))
+    }
+  }
+
   return {
     showActionLabels,
     setShowActionLabels,
@@ -84,6 +99,8 @@ export const usePreferencesStore = defineStore('preferences', () => {
     setPreviewLevel,
     darkMode,
     setDarkMode,
+    threadView,
+    setThreadView,
   }
 })
 

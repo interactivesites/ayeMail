@@ -464,7 +464,7 @@ export function registerFolderHandlers() {
 
 // Email handlers
 export function registerEmailHandlers() {
-  ipcMain.handle('emails:list', async (_, folderId: string, page: number = 0, limit: number = 50) => {
+  ipcMain.handle('emails:list', async (_, folderId: string, page: number = 0, limit: number = 50, threadView: boolean = true) => {
     const db = getDatabase()
     const offset = page * limit
     
@@ -474,25 +474,59 @@ export function registerEmailHandlers() {
       console.warn(`Folder not found: ${folderId}`)
       return []
     }
-    console.log(`Listing emails for folder: ${folder.name} (id: ${folderId}, account: ${folder.account_id})`)
+    console.log(`Listing emails for folder: ${folder.name} (id: ${folderId}, account: ${folder.account_id}, threadView: ${threadView})`)
     
-    // Get emails with attachment count
-    const emails = db.prepare(`
+    // Get emails from database
+    const allEmails = db.prepare(`
       SELECT emails.*,
         (SELECT COUNT(*) FROM attachments WHERE email_id = emails.id) as attachmentCount
       FROM emails
       WHERE folder_id = ?
       ORDER BY date DESC
       LIMIT ? OFFSET ?
-    `).all(folderId, limit, offset) as any[]
+    `).all(folderId, threadView ? limit * 3 : limit, offset) as any[]
     
-    console.log(`Found ${emails.length} emails in folder ${folder.name} (id: ${folderId})`)
+    let emailsToReturn: any[]
+    
+    if (threadView) {
+      // Group by threadId and keep only the latest email per thread
+      const threadMap = new Map<string, any>()
+      for (const email of allEmails) {
+        const threadId = email.thread_id || email.message_id // Fallback to messageId if no threadId
+        if (!threadMap.has(threadId) || email.date > threadMap.get(threadId).date) {
+          threadMap.set(threadId, email)
+        }
+      }
+      
+      // Get the latest email from each thread, sorted by date
+      emailsToReturn = Array.from(threadMap.values())
+        .sort((a, b) => b.date - a.date)
+        .slice(0, limit)
+    } else {
+      // Return all emails without grouping
+      emailsToReturn = allEmails
+    }
+    
+    // Calculate threadCount for each email (count emails with same threadId in folder)
+    const threadCounts = new Map<string, number>()
+    const allFolderEmails = db.prepare(`
+      SELECT thread_id, message_id FROM emails WHERE folder_id = ?
+    `).all(folderId) as any[]
+    
+    for (const e of allFolderEmails) {
+      const threadId = e.thread_id || e.message_id
+      threadCounts.set(threadId, (threadCounts.get(threadId) || 0) + 1)
+    }
+    
+    console.log(`Found ${emailsToReturn.length} emails ${threadView ? '(grouped by thread)' : '(ungrouped)'} in folder ${folder.name} (id: ${folderId})`)
     
     // Map to return format with decrypted body content
-    const mappedEmails = emails.map(e => {
+    const mappedEmails = emailsToReturn.map(e => {
       const body = encryption.decrypt(e.body_encrypted)
       const htmlBody = e.html_body_encrypted ? encryption.decrypt(e.html_body_encrypted) : undefined
       const textBody = e.text_body_encrypted ? encryption.decrypt(e.text_body_encrypted) : undefined
+      const threadId = e.thread_id || e.message_id
+      const threadCount = threadCounts.get(threadId) || 1
       
       return {
         id: e.id,
@@ -512,7 +546,9 @@ export function registerEmailHandlers() {
         encrypted: e.encrypted === 1,
         signed: e.signed === 1,
         signatureVerified: e.signature_verified !== null ? e.signature_verified === 1 : undefined,
-        attachmentCount: e.attachmentCount || 0
+        attachmentCount: e.attachmentCount || 0,
+        threadId: threadId,
+        threadCount: threadCount
       }
     })
     
@@ -799,6 +835,13 @@ export function registerEmailHandlers() {
         return str.length > MAX_BODY_LENGTH ? str.substring(0, MAX_BODY_LENGTH) + '...' : str
       }
       
+      const threadId = e.thread_id || e.message_id
+      // Calculate threadCount for unified folders (count emails with same threadId in the same folder)
+      const threadCount = db.prepare(`
+        SELECT COUNT(*) as count FROM emails 
+        WHERE thread_id = ? AND folder_id = ?
+      `).get(threadId, e.folder_id) as any
+      
       const emailObj = {
         id: String(e.id || ''),
         accountId: String(e.account_id || ''),
@@ -819,7 +862,9 @@ export function registerEmailHandlers() {
         signatureVerified: e.signature_verified !== null && e.signature_verified !== undefined 
           ? Boolean(e.signature_verified === 1) 
           : undefined,
-        attachmentCount: Number(e.attachmentCount || 0)
+        attachmentCount: Number(e.attachmentCount || 0),
+        threadId: threadId,
+        threadCount: Number(threadCount?.count || 1)
       }
       
       // Force serialization to ensure everything is cloneable
@@ -847,7 +892,9 @@ export function registerEmailHandlers() {
           encrypted: emailObj.encrypted,
           signed: emailObj.signed,
           signatureVerified: emailObj.signatureVerified,
-          attachmentCount: emailObj.attachmentCount
+          attachmentCount: emailObj.attachmentCount,
+          threadId: emailObj.threadId,
+          threadCount: emailObj.threadCount
         }
       }
     })
@@ -875,6 +922,64 @@ export function registerEmailHandlers() {
     }))
 
     return email
+  })
+
+  ipcMain.handle('emails:getThread', async (_, emailId: string) => {
+    const db = getDatabase()
+    
+    // Get the email to find its threadId
+    const email = await emailStorage.getEmail(emailId)
+    if (!email) {
+      return []
+    }
+    
+    const threadId = email.threadId || email.messageId
+    
+    // Get all emails in the thread (by threadId), ordered by date DESC (latest first)
+    // Also include emails where message_id matches (for root emails)
+    const threadEmails = db.prepare(`
+      SELECT emails.*,
+        (SELECT COUNT(*) FROM attachments WHERE email_id = emails.id) as attachmentCount
+      FROM emails
+      WHERE thread_id = ? OR message_id = ?
+      ORDER BY date DESC
+    `).all(threadId, threadId) as any[]
+    
+    // Map to return format with decrypted body content
+    const mappedEmails = threadEmails.map(e => {
+      const body = encryption.decrypt(e.body_encrypted)
+      const htmlBody = e.html_body_encrypted ? encryption.decrypt(e.html_body_encrypted) : undefined
+      const textBody = e.text_body_encrypted ? encryption.decrypt(e.text_body_encrypted) : undefined
+      
+      return {
+        id: e.id,
+        accountId: e.account_id,
+        folderId: e.folder_id,
+        uid: e.uid,
+        messageId: e.message_id,
+        subject: e.subject,
+        from: JSON.parse(e.from_addresses),
+        to: JSON.parse(e.to_addresses),
+        cc: e.cc_addresses ? JSON.parse(e.cc_addresses) : undefined,
+        bcc: e.bcc_addresses ? JSON.parse(e.bcc_addresses) : undefined,
+        replyTo: e.reply_to_addresses ? JSON.parse(e.reply_to_addresses) : undefined,
+        date: e.date,
+        body: body,
+        textBody: textBody,
+        htmlBody: htmlBody,
+        isRead: e.is_read === 1,
+        isStarred: e.is_starred === 1,
+        encrypted: e.encrypted === 1,
+        signed: e.signed === 1,
+        signatureVerified: e.signature_verified !== null ? e.signature_verified === 1 : undefined,
+        attachmentCount: e.attachmentCount || 0,
+        threadId: e.thread_id || e.message_id,
+        inReplyTo: e.in_reply_to || undefined,
+        references: e.email_references ? JSON.parse(e.email_references) : undefined
+      }
+    })
+    
+    return mappedEmails
   })
 
   ipcMain.handle('emails:sync-folder', async (event, accountId: string, folderId: string) => {

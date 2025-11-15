@@ -1,11 +1,9 @@
 
 ## Functionality
-- open links externally
-
+- reminders folder: group mails by reminder date!
+- aside folder same as reminders!!!! 
 
 #### MAIL
-
-
 
 - SPAM Logic?
 -- Select ALL in a folder (EmailList) and make deletion possible? OR: junk/spam -> add clear button (autoclean)

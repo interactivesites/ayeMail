@@ -2,36 +2,40 @@
   <div ref="containerRef" tabindex="0" class="flex flex-col h-full outline-none" @keydown="handleKeyDown" @focus="handleFocus" @click="handleContainerClick">
     <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
       <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ folderName }}</h2>
-      <div class="flex items-center space-x-1 bg-gray-100 dark:bg-gray-800 rounded-full p-0.5">
+      <div class="flex items-center space-x-2">
+        <div class="flex items-center space-x-1 bg-gray-100 dark:bg-gray-800 rounded-full p-0.5">
+          <button
+            type="button"
+            @click="handlePreviewLevelChange(1)"
+            :aria-pressed="previewLevel === 1"
+            class="p-1.5 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
+            :class="previewLevel === 1 ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'"
+            title="Title only"
+          >
+            <span class="text-xs font-medium w-4 h-4 flex items-center justify-center">1</span>
+          </button>
+          <button
+            type="button"
+            @click="handlePreviewLevelChange(2)"
+            :aria-pressed="previewLevel === 2"
+            class="p-1.5 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
+            :class="previewLevel === 2 ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'"
+            title="2 lines preview"
+          >
+            <span class="text-xs font-medium w-4 h-4 flex items-center justify-center">2</span>
+          </button>
+        </div>
         <button
           type="button"
-          @click="handlePreviewLevelChange(1)"
-          :aria-pressed="previewLevel === 1"
-          class="p-1.5 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
-          :class="previewLevel === 1 ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'"
-          title="Title only"
+          @click="toggleThreadView"
+          :aria-pressed="threadView"
+          class="p-1.5 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
+          :class="threadView ? 'bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'"
+          title="Thread view"
         >
-          <span class="text-xs font-medium w-4 h-4 flex items-center justify-center">1</span>
-        </button>
-        <button
-          type="button"
-          @click="handlePreviewLevelChange(2)"
-          :aria-pressed="previewLevel === 2"
-          class="p-1.5 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
-          :class="previewLevel === 2 ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'"
-          title="2 lines preview"
-        >
-          <span class="text-xs font-medium w-4 h-4 flex items-center justify-center">2</span>
-        </button>
-        <button
-          type="button"
-          @click="handlePreviewLevelChange(3)"
-          :aria-pressed="previewLevel === 3"
-          class="p-1.5 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
-          :class="previewLevel === 3 ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'"
-          title="4 lines preview"
-        >
-          <span class="text-xs font-medium w-4 h-4 flex items-center justify-center">3</span>
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+          </svg>
         </button>
       </div>
     </div>
@@ -349,7 +353,7 @@ const emit = defineEmits<{
 const emails = ref<any[]>([])
 const loading = ref(false)
 const preferences = usePreferencesStore()
-const { previewLevel } = storeToRefs(preferences)
+const { previewLevel, threadView } = storeToRefs(preferences)
 const isDragging = ref<string | null>(null)
 const removedEmails = ref<Map<string, any>>(new Map()) // Store removed emails for potential restoration
 
@@ -411,8 +415,14 @@ const getEmailPreview = (email: any): string => {
   return content
 }
 
-const handlePreviewLevelChange = (level: 1 | 2 | 3) => {
+const handlePreviewLevelChange = (level: 1 | 2) => {
   preferences.setPreviewLevel(level)
+}
+
+const toggleThreadView = () => {
+  preferences.setThreadView(!threadView.value)
+  // Refresh emails when toggling thread view
+  loadEmails()
 }
 
 const showArchiveConfirm = async (emailId: string) => {
@@ -929,8 +939,8 @@ const loadEmails = async () => {
         50
       )
     } else {
-      // Regular folder
-      emails.value = await window.electronAPI.emails.list(props.folderId, 0, 50)
+      // Regular folder - pass threadView preference
+      emails.value = await window.electronAPI.emails.list(props.folderId, 0, 50, threadView.value)
     }
   } catch (error) {
     console.error('Error loading emails:', error)
@@ -1166,7 +1176,7 @@ onMounted(() => {
   })
 })
 
-watch([() => props.folderId, () => props.unifiedFolderType, () => props.unifiedFolderAccountIds, () => props.searchQuery], () => {
+watch([() => props.folderId, () => props.unifiedFolderType, () => props.unifiedFolderAccountIds, () => props.searchQuery, () => threadView.value], () => {
   loadEmails()
   archiveConfirmId.value = null // Close popover when folder changes
   archivingEmailId.value = null // Clear archiving state when folder changes

@@ -11,10 +11,11 @@ declare global {
         test: (account: any) => Promise<{ success: boolean; message: string }>
       }
       emails: {
-        list: (folderId: string, page: number, limit: number) => Promise<any[]>
+        list: (folderId: string, page: number, limit: number, threadView?: boolean) => Promise<any[]>
         listUnified: (type: string, accountIds: string[], page: number, limit: number) => Promise<any[]>
         search: (query: string, limit: number) => Promise<any[]>
         get: (id: string) => Promise<any>
+        getThread: (emailId: string) => Promise<any[]>
         sync: (accountId: string) => Promise<any>
         syncFolder: (accountId: string, folderId: string) => Promise<any>
         send: (email: any) => Promise<any>

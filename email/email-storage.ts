@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto'
 import { getDatabase, encryption } from '../database'
 import { accountManager, getIMAPClient, getPOP3Client } from './index'
 import type { Email, Attachment, EmailAddress } from '../shared/types'
+import { calculateThreadId } from './thread-utils'
 
 export class EmailStorage {
   private db = getDatabase()
@@ -66,6 +67,9 @@ export class EmailStorage {
     // Don't use pre-generated email.id which might have been created with folder name
     const id = `${email.accountId}-${email.folderId}-${email.uid}`
     
+    // Calculate threadId if not already set or if we need to recalculate
+    const threadId = email.threadId || await calculateThreadId(email)
+    
     const existing = this.db.prepare(`
       SELECT id FROM emails WHERE account_id = ? AND folder_id = ? AND uid = ?
     `).get(email.accountId, email.folderId, email.uid) as any
@@ -117,7 +121,7 @@ export class EmailStorage {
         JSON.stringify(email.flags),
         email.isRead ? 1 : 0,
         email.isStarred ? 1 : 0,
-        email.threadId || null,
+        threadId || null,
         email.inReplyTo || null,
         email.references ? JSON.stringify(email.references) : null,
         email.encrypted ? 1 : 0,
@@ -166,7 +170,7 @@ export class EmailStorage {
         JSON.stringify(email.flags),
         email.isRead ? 1 : 0,
         email.isStarred ? 1 : 0,
-        email.threadId || null,
+        threadId || null,
         email.inReplyTo || null,
         email.references ? JSON.stringify(email.references) : null,
         email.encrypted ? 1 : 0,
@@ -219,7 +223,7 @@ export class EmailStorage {
           JSON.stringify(email.flags),
           email.isRead ? 1 : 0,
           email.isStarred ? 1 : 0,
-          email.threadId || null,
+          threadId || null,
           email.inReplyTo || null,
           email.references ? JSON.stringify(email.references) : null,
           email.encrypted ? 1 : 0,
