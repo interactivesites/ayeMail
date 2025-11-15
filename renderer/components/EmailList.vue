@@ -60,7 +60,7 @@
               @click="$emit('select-email', email.id)"
               @dragstart="handleDragStart($event, email)"
               @dragend="handleDragEnd"
-              class="w-full text-left px-4 py-3 pb-10 my-2 transition-colors rounded-lg relative cursor-grab active:cursor-grabbing group"
+              class="w-full text-left px-4 pt-3 pb-3 my-2 transition-all duration-200 rounded-lg relative cursor-grab active:cursor-grabbing group hover:pb-10"
               :class="{
                 'bg-primary-900 text-white': selectedEmailId === email.id,
                 'hover:bg-primary-800/20': selectedEmailId !== email.id,
@@ -187,7 +187,7 @@
                       </span>
                       
                       <!-- Status Icons - Show only on hover -->
-                      <div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                      <div class="hidden group-hover:flex items-center gap-2 transition-all duration-200">
                         <span v-if="email.isStarred" class="text-yellow-500 text-sm" title="Starred">★</span>
                         <span 
                           v-if="email.attachmentCount && email.attachmentCount > 0" 
@@ -221,7 +221,7 @@
                 
                 <!-- Bottom Action Icons - Right aligned, show only on hover, no circles -->
                 <div 
-                  class="absolute bottom-2 right-4 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                  class="hidden group-hover:flex absolute bottom-2 right-4 items-center gap-2 transition-all duration-200"
                   @click.stop
                 >
                   <button

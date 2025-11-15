@@ -1,7 +1,7 @@
 <template>
   <header class="app-drag-region bg-white/70 backdrop-blur-xl border-b border-white/60 shadow-sm">
 
-    <nav class="ml-48 px-4 py-2 border-t border-white/60 flex items-center justify-between">
+    <nav class="ml-20 px-4 py-2 border-t border-white/60 flex items-center justify-between">
       <img src="../../assets/ilogo.png" alt="iMail" class="w-8 h-8 rounded-xl mr-8" />
       
       <!-- Folder actions -->
@@ -14,6 +14,16 @@
           <EnvelopeIcon class="w-5 h-5" />
           <span v-if="preferences.showActionLabels">Compose</span>
         </button>
+      </div>
+
+      <div 
+        class="app-no-drag"
+        :style="{
+          width: emailListWidth && emailListWidth > 0 ? emailListWidth + 'px' : '0px',
+          transition: isResizing ? 'none' : 'width 0.15s ease-out'
+        }"
+      >
+        
       </div>
 
       <!-- Mail actions -->
@@ -69,6 +79,8 @@ import {
 const props = defineProps<{
   syncing: boolean
   hasSelectedEmail: boolean
+  emailListWidth?: number
+  isResizing?: boolean
 }>()
 
 const { syncing, hasSelectedEmail } = toRefs(props)

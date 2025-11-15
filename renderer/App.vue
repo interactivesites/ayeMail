@@ -4,6 +4,8 @@
     <MainNav
       :syncing="syncing"
       :has-selected-email="Boolean(selectedEmailId)"
+      :email-list-width="isGridLayout ? 0 : mailPaneWidth"
+      :is-resizing="isResizingMailPane"
       @open-settings="showSettings = true"
       @sync="syncEmails"
       @compose="handleCompose"
@@ -41,8 +43,8 @@
       </aside>
         <div class="flex-1 flex overflow-hidden">
           <div :class="[
-            'transition-all duration-200',
-            isGridLayout ? 'flex-1 px-2' : 'border-r border-gray-200 flex-shrink-0'
+            isGridLayout ? 'flex-1 px-2' : 'border-r border-gray-200 flex-shrink-0',
+            !isResizingMailPane ? 'transition-all duration-200' : ''
           ]" :style="!isGridLayout ? { width: mailPaneWidth + 'px' } : undefined">
             <component
               v-if="selectedFolderId"
@@ -60,13 +62,13 @@
           </div>
           <div
             v-if="!isGridLayout"
-            class="w-1.5 flex-shrink-0 cursor-col-resize relative group bg-transparent"
+            class="w-2 flex-shrink-0 cursor-col-resize relative group bg-transparent hover:bg-gray-100/50 transition-colors"
             role="separator"
             aria-orientation="vertical"
             aria-label="Resize email list"
             @mousedown.prevent="startMailResize"
           >
-            <span class="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-gray-200 group-hover:bg-gray-400 transition-colors"></span>
+            <span class="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-gray-300 group-hover:bg-gray-500 transition-colors"></span>
           </div>
           <div v-if="!isGridLayout" class="flex-1 relative">
             <EmailDropZone
@@ -163,6 +165,7 @@ const draggedEmail = ref<any>(null)
 
 const handleMailResizeMouseMove = (event: MouseEvent) => {
   if (!isResizingMailPane.value) return
+  event.preventDefault()
   const nextWidth = mailResizeStartWidth.value + (event.clientX - mailResizeStartX.value)
   mailPaneWidth.value = Math.min(Math.max(nextWidth, MIN_MAIL_WIDTH), MAX_MAIL_WIDTH)
 }
@@ -177,6 +180,8 @@ const stopMailResize = () => {
 }
 
 const startMailResize = (event: MouseEvent) => {
+  event.preventDefault()
+  event.stopPropagation()
   isResizingMailPane.value = true
   mailResizeStartX.value = event.clientX
   mailResizeStartWidth.value = mailPaneWidth.value
