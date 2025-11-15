@@ -61,10 +61,10 @@
       :shortcuts="false"
       :auto-apply="true"
     />
-    <div v-if="saving" class="absolute inset-0 bg-white/50 backdrop-blur-xl z-50 flex items-center justify-center rounded-lg">
+    <div v-if="saving" class="absolute inset-0 bg-white/50 dark:bg-gray-900/50 backdrop-blur-xl z-50 flex items-center justify-center rounded-lg">
       <div class="flex flex-col items-center space-y-4">
-        <div class="w-12 h-12 border-4 border-primary-600 border-t-transparent rounded-full animate-spin"></div>
-        <p class="text-gray-700 text-sm font-medium">Creating reminder...</p>
+        <div class="w-12 h-12 border-4 border-primary-600 dark:border-primary-500 border-t-transparent rounded-full animate-spin"></div>
+        <p class="text-gray-700 dark:text-gray-300 text-sm font-medium">Creating reminder...</p>
       </div>
     </div>
   </div>
@@ -250,6 +250,7 @@ const saveReminder = async () => {
   min-height: 300px;
 }
 
+/* Hide input elements for popover mode */
 .reminder-calendar-popover :deep(input) {
   display: none !important;
 }
@@ -262,6 +263,7 @@ const saveReminder = async () => {
   display: none !important;
 }
 
+/* Ensure calendar takes full width */
 .reminder-calendar-popover :deep(.dp__calendar) {
   width: 100%;
   display: block;
@@ -271,6 +273,9 @@ const saveReminder = async () => {
   width: 100%;
   display: block;
 }
+
+/* Vue Tailwind Datepicker will automatically use dark mode via Tailwind's dark: classes
+   based on the vtd-primary and vtd-secondary colors configured in tailwind.config.js */
 
 </style>
 

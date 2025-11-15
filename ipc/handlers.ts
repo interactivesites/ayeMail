@@ -726,9 +726,9 @@ export function registerEmailHandlers() {
         LIMIT ? OFFSET ?
       `
       params = [...folderIds, limit, offset]
-    } else if (type === 'reminders') {
+    } else if (type === 'aside') {
       // Get emails that have reminders (use subquery to prevent duplicates if multiple reminders exist)
-      // Get the earliest reminder for each email
+      // Get the earliest reminder for each email - grouped by reminder date
       query = `
         SELECT emails.*,
           (SELECT COUNT(*) FROM attachments WHERE email_id = emails.id) as attachmentCount,
@@ -744,18 +744,6 @@ export function registerEmailHandlers() {
         LIMIT ? OFFSET ?
       `
       params = [limit, offset]
-    } else if (type === 'aside') {
-      // Get starred emails from specified accounts
-      query = `
-        SELECT emails.*,
-          (SELECT COUNT(*) FROM attachments WHERE email_id = emails.id) as attachmentCount
-        FROM emails
-        WHERE account_id IN (${accountIds.map(() => '?').join(',')})
-        AND is_starred = 1
-        ORDER BY date DESC
-        LIMIT ? OFFSET ?
-      `
-      params = [...accountIds, limit, offset]
     } else {
       return []
     }
@@ -864,7 +852,8 @@ export function registerEmailHandlers() {
           : undefined,
         attachmentCount: Number(e.attachmentCount || 0),
         threadId: threadId,
-        threadCount: Number(threadCount?.count || 1)
+        threadCount: Number(threadCount?.count || 1),
+        reminder_due_date: e.reminder_due_date ? Number(e.reminder_due_date) : undefined
       }
       
       // Force serialization to ensure everything is cloneable

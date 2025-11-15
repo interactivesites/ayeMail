@@ -1,7 +1,6 @@
 
 ## Functionality
-- reminders folder: group mails by reminder date!
-- aside folder same as reminders!!!! 
+- Aside folder: shows reminder emails grouped by reminder date (reminders and aside are now unified) 
 
 #### MAIL
 

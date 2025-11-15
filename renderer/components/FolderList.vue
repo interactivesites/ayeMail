@@ -141,16 +141,7 @@ const unifiedFolders = computed(() => {
     })
   }
   
-  // Reminders folder (unified)
-  folders.push({
-    id: 'unified-reminders',
-    name: 'Reminders',
-    accountId: null,
-    isUnified: true,
-    unread_count: 0
-  })
-  
-  // Aside folder (unified) - for starred items
+  // Aside folder (unified) - for reminder emails grouped by reminder date
   folders.push({
     id: 'unified-aside',
     name: 'Aside',

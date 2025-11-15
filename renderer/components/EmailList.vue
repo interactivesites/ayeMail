@@ -927,8 +927,9 @@ const loadEmails = async () => {
   loading.value = true
   try {
     // Handle unified folders
-    if (props.unifiedFolderType && props.unifiedFolderAccountIds) {
+    if (props.unifiedFolderType) {
       // Ensure we pass a plain array, not a Vue ref
+      // For Aside folder, unifiedFolderAccountIds is empty array, which is valid
       const accountIds = Array.isArray(props.unifiedFolderAccountIds) 
         ? [...props.unifiedFolderAccountIds] 
         : []
@@ -956,16 +957,19 @@ const getDateKey = (timestamp: number): string => {
   const diff = now.getTime() - date.getTime()
   const days = Math.floor(diff / (1000 * 60 * 60 * 24))
 
+  // For future dates (reminders), use absolute value
+  const absDays = Math.abs(days)
+
   // Same day
-  if (days === 0) {
+  if (absDays === 0) {
     return `day-${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`
   }
   // Within 6 days - group by day
-  else if (days <= 6) {
+  else if (absDays <= 6) {
     return `day-${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`
   }
   // More than 6 days but less than ~4 weeks - group by week
-  else if (days <= 28) {
+  else if (absDays <= 28) {
     const weekStart = new Date(date)
     weekStart.setDate(date.getDate() - date.getDay()) // Start of week (Sunday)
     return `week-${weekStart.getFullYear()}-${weekStart.getMonth()}-${weekStart.getDate()}`
@@ -976,7 +980,7 @@ const getDateKey = (timestamp: number): string => {
   }
 }
 
-const getGroupHeader = (key: string, emails: any[]): { dayName: string; dateString: string } => {
+const getGroupHeader = (key: string, emails: any[], isFutureDate: boolean = false): { dayName: string; dateString: string } => {
   if (!emails || emails.length === 0) {
     return { dayName: '', dateString: '' }
   }
@@ -984,6 +988,8 @@ const getGroupHeader = (key: string, emails: any[]): { dayName: string; dateStri
   const firstEmail = emails[0]
   const date = new Date(firstEmail.date)
   const now = new Date()
+  const diff = date.getTime() - now.getTime()
+  const daysDiff = Math.floor(diff / (1000 * 60 * 60 * 24))
   
   // Compare date components (year, month, day) instead of time difference
   const isToday = date.getFullYear() === now.getFullYear() &&
@@ -996,6 +1002,104 @@ const getGroupHeader = (key: string, emails: any[]): { dayName: string; dateStri
                       date.getMonth() === yesterday.getMonth() &&
                       date.getDate() === yesterday.getDate()
 
+  const tomorrow = new Date(now)
+  tomorrow.setDate(now.getDate() + 1)
+  const isTomorrow = date.getFullYear() === tomorrow.getFullYear() &&
+                     date.getMonth() === tomorrow.getMonth() &&
+                     date.getDate() === tomorrow.getDate()
+
+  // Handle future dates (reminders) with relative labels
+  // For Aside folder, always use relative labels for reminders (even if overdue)
+  if (isFutureDate) {
+    if (key.startsWith('day-')) {
+      if (isToday) {
+        return {
+          dayName: 'Today',
+          dateString: date.toLocaleDateString([], { month: 'long', day: 'numeric', year: 'numeric' })
+        }
+      } else if (isTomorrow) {
+        return {
+          dayName: 'Tomorrow',
+          dateString: date.toLocaleDateString([], { month: 'long', day: 'numeric', year: 'numeric' })
+        }
+      } else if (daysDiff === 2) {
+        return {
+          dayName: 'In 2 Days',
+          dateString: date.toLocaleDateString([], { month: 'long', day: 'numeric', year: 'numeric' })
+        }
+      } else if (daysDiff === 3) {
+        return {
+          dayName: 'In 3 Days',
+          dateString: date.toLocaleDateString([], { month: 'long', day: 'numeric', year: 'numeric' })
+        }
+      } else if (daysDiff > 0 && daysDiff <= 6) {
+        return {
+          dayName: `In ${daysDiff} Days`,
+          dateString: date.toLocaleDateString([], { month: 'long', day: 'numeric', year: 'numeric' })
+        }
+      } else if (daysDiff < 0 && daysDiff >= -6) {
+        // Overdue reminders
+        const absDays = Math.abs(daysDiff)
+        if (absDays === 1) {
+          return {
+            dayName: 'Overdue (Yesterday)',
+            dateString: date.toLocaleDateString([], { month: 'long', day: 'numeric', year: 'numeric' })
+          }
+        } else {
+          return {
+            dayName: `Overdue (${absDays} Days Ago)`,
+            dateString: date.toLocaleDateString([], { month: 'long', day: 'numeric', year: 'numeric' })
+          }
+        }
+      } else {
+        return {
+          dayName: date.toLocaleDateString([], { weekday: 'long' }),
+          dateString: date.toLocaleDateString([], { month: 'long', day: 'numeric', year: 'numeric' })
+        }
+      }
+    } else if (key.startsWith('week-')) {
+      const weekStart = new Date(date)
+      weekStart.setDate(date.getDate() - date.getDay())
+      const weekEnd = new Date(weekStart)
+      weekEnd.setDate(weekStart.getDate() + 6)
+      
+      // Check if this is next week
+      const nextWeekStart = new Date(now)
+      nextWeekStart.setDate(now.getDate() + (7 - now.getDay())) // Next Sunday
+      const isNextWeek = weekStart.getTime() === nextWeekStart.getTime()
+      
+      if (isNextWeek) {
+        return {
+          dayName: 'Next Week',
+          dateString: `${weekStart.toLocaleDateString([], { month: 'long', day: 'numeric' })} - ${weekEnd.toLocaleDateString([], { day: 'numeric', year: 'numeric' })}`
+        }
+      } else {
+        return {
+          dayName: 'Week of',
+          dateString: `${weekStart.toLocaleDateString([], { month: 'long', day: 'numeric' })} - ${weekEnd.toLocaleDateString([], { day: 'numeric', year: 'numeric' })}`
+        }
+      }
+    } else if (key.startsWith('month-')) {
+      // Check if this is next month
+      const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1)
+      const isNextMonth = date.getFullYear() === nextMonth.getFullYear() &&
+                          date.getMonth() === nextMonth.getMonth()
+      
+      if (isNextMonth) {
+        return {
+          dayName: 'Next Month',
+          dateString: date.toLocaleDateString([], { month: 'long', year: 'numeric' })
+        }
+      } else {
+        return {
+          dayName: date.toLocaleDateString([], { month: 'long' }),
+          dateString: date.toLocaleDateString([], { year: 'numeric' })
+        }
+      }
+    }
+  }
+
+  // Handle past dates (regular email view)
   if (key.startsWith('day-')) {
     if (isToday) {
       return {
@@ -1046,34 +1150,66 @@ const groupedEmails = computed(() => {
     return []
   }
 
+  // Check if we're viewing Aside folder (reminder emails) - group by reminder date instead of email date
+  const isAsideFolder = props.unifiedFolderType === 'aside'
+
   // Group emails by date key
   const groups = new Map<string, any[]>()
   
   emails.value.forEach(email => {
-    const key = getDateKey(email.date)
+    // For Aside folder, use reminder_due_date if available, otherwise fall back to email date
+    const dateToUse = isAsideFolder && email.reminder_due_date ? email.reminder_due_date : email.date
+    const key = getDateKey(dateToUse)
     if (!groups.has(key)) {
       groups.set(key, [])
     }
     groups.get(key)!.push(email)
   })
 
-  // Convert to array and sort by date (newest first)
+  // Convert to array and sort by date
   const groupArray = Array.from(groups.entries()).map(([key, groupEmails]) => {
-    // Sort emails within group by date (newest first)
-    groupEmails.sort((a, b) => b.date - a.date)
+    // For Aside folder, sort by reminder date (earliest first), otherwise by email date (newest first)
+    if (isAsideFolder) {
+      groupEmails.sort((a, b) => {
+        const aDate = a.reminder_due_date || a.date
+        const bDate = b.reminder_due_date || b.date
+        return aDate - bDate // Earliest reminder first
+      })
+    } else {
+      groupEmails.sort((a, b) => b.date - a.date) // Newest first
+    }
     
-    const header = getGroupHeader(key, groupEmails)
+    // Use reminder date for header if available in Aside folder
+    const headerEmails = groupEmails.map(e => ({
+      ...e,
+      date: isAsideFolder && e.reminder_due_date ? e.reminder_due_date : e.date
+    }))
+    // Check if this group contains future dates (reminders)
+    // For Aside folder, always use relative labels for reminders (even if overdue)
+    const hasReminderDate = isAsideFolder && headerEmails[0]?.reminder_due_date
+    const isFutureDate = hasReminderDate ? true : false
+    const header = getGroupHeader(key, headerEmails, isFutureDate)
+    
+    // Use reminder date for sorting if available in Aside folder
+    const sortDate = isAsideFolder && groupEmails[0]?.reminder_due_date 
+      ? groupEmails[0].reminder_due_date 
+      : groupEmails[0]?.date || 0
+    
     return {
       key,
       emails: groupEmails,
       dayName: header.dayName,
       dateString: header.dateString,
-      sortDate: groupEmails[0]?.date || 0
+      sortDate
     }
   })
 
-  // Sort groups by date (newest first)
-  groupArray.sort((a, b) => b.sortDate - a.sortDate)
+  // Sort groups: for Aside folder, earliest reminder first; otherwise newest first
+  if (isAsideFolder) {
+    groupArray.sort((a, b) => a.sortDate - b.sortDate) // Earliest first
+  } else {
+    groupArray.sort((a, b) => b.sortDate - a.sortDate) // Newest first
+  }
 
   return groupArray
 })
