@@ -80,6 +80,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke('gpg:sign', data, keyId),
     verify: (data: string, signature: string) => 
       ipcRenderer.invoke('gpg:verify', data, signature)
+  },
+  
+  // Window operations
+  window: {
+    compose: {
+      create: (accountId: string, replyTo?: any) => 
+        ipcRenderer.invoke('window:compose:create', accountId, replyTo),
+      close: () => ipcRenderer.invoke('window:compose:close')
+    },
+    minimize: (windowId?: string) => ipcRenderer.invoke('window:minimize', windowId),
+    maximize: (windowId?: string) => ipcRenderer.invoke('window:maximize', windowId),
+    close: (windowId?: string) => ipcRenderer.invoke('window:close', windowId)
   }
 })
 

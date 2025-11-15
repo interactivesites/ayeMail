@@ -1,4 +1,4 @@
-import { ipcMain } from 'electron'
+import { ipcMain, BrowserWindow } from 'electron'
 import { randomUUID } from 'crypto'
 import { getDatabase, encryption } from '../database'
 import { accountManager, getIMAPClient, getSMTPClient } from '../email'
@@ -840,6 +840,52 @@ export function registerGPGHandlers() {
   })
 }
 
+// Window handlers
+export function registerWindowHandlers() {
+  ipcMain.handle('window:compose:create', async (_, accountId: string, replyTo?: any) => {
+    const { createComposeWindow } = await import('../electron/main')
+    createComposeWindow(accountId, replyTo)
+    return { success: true }
+  })
+
+  ipcMain.handle('window:compose:close', async () => {
+    const { getComposeWindow } = await import('../electron/main')
+    const composeWindow = getComposeWindow()
+    if (composeWindow) {
+      composeWindow.close()
+    }
+    return { success: true }
+  })
+
+  ipcMain.handle('window:minimize', async (_, windowId?: string) => {
+    const window = windowId ? BrowserWindow.fromId(parseInt(windowId)) : BrowserWindow.getFocusedWindow()
+    if (window) {
+      window.minimize()
+    }
+    return { success: true }
+  })
+
+  ipcMain.handle('window:maximize', async (_, windowId?: string) => {
+    const window = windowId ? BrowserWindow.fromId(parseInt(windowId)) : BrowserWindow.getFocusedWindow()
+    if (window) {
+      if (window.isMaximized()) {
+        window.unmaximize()
+      } else {
+        window.maximize()
+      }
+    }
+    return { success: true }
+  })
+
+  ipcMain.handle('window:close', async (_, windowId?: string) => {
+    const window = windowId ? BrowserWindow.fromId(parseInt(windowId)) : BrowserWindow.getFocusedWindow()
+    if (window) {
+      window.close()
+    }
+    return { success: true }
+  })
+}
+
 // Register all handlers
 export function registerAllHandlers() {
   registerAccountHandlers()
@@ -848,5 +894,6 @@ export function registerAllHandlers() {
   registerReminderHandlers()
   registerSignatureHandlers()
   registerGPGHandlers()
+  registerWindowHandlers()
 }
 

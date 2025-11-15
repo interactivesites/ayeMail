@@ -10,6 +10,7 @@ import { autoLockManager } from '../security/auto-lock'
 declare const __dirname: string
 
 let mainWindow: BrowserWindow | null = null
+let composeWindow: BrowserWindow | null = null
 const isMac = process.platform === 'darwin'
 
 function createWindow() {
@@ -66,6 +67,69 @@ function createWindow() {
     mainWindow = null
   })
 }
+
+function createComposeWindow(accountId: string, replyTo?: any) {
+  // Close existing compose window if open
+  if (composeWindow) {
+    composeWindow.close()
+  }
+
+  const windowOptions: BrowserWindowConstructorOptions = {
+    width: 900,
+    height: 700,
+    minWidth: 600,
+    minHeight: 500,
+    frame: false,
+    backgroundColor: isMac ? '#00000000' : '#ffffff',
+    transparent: isMac,
+    webPreferences: {
+      preload: join(__dirname, 'preload.js'),
+      nodeIntegration: false,
+      contextIsolation: true,
+      sandbox: false
+    }
+  }
+
+  if (isMac) {
+    Object.assign(windowOptions, {
+      vibrancy: 'under-window',
+      visualEffectState: 'active'
+    })
+  }
+
+  composeWindow = new BrowserWindow(windowOptions)
+
+  if (isMac) {
+    composeWindow.setVibrancy('under-window')
+    composeWindow.setBackgroundColor('#00000000')
+  }
+
+  // Store compose data in window
+  ;(composeWindow as any).composeData = { accountId, replyTo }
+
+  const isDev = !app.isPackaged || process.env.NODE_ENV === 'development'
+  
+  if (isDev) {
+    const params = new URLSearchParams({ compose: 'true', accountId })
+    if (replyTo) {
+      params.set('replyTo', JSON.stringify(replyTo))
+    }
+    composeWindow.loadURL(`http://localhost:5173?${params.toString()}`)
+  } else {
+    const indexPath = join(__dirname, '../dist/index.html')
+    composeWindow.loadFile(indexPath, { query: { compose: 'true', accountId, ...(replyTo ? { replyTo: JSON.stringify(replyTo) } : {}) } })
+  }
+
+  composeWindow.on('closed', () => {
+    composeWindow = null
+  })
+}
+
+export function getComposeWindow() {
+  return composeWindow
+}
+
+export { createComposeWindow }
 
 app.whenReady().then(() => {
   // Initialize database

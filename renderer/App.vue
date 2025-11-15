@@ -1,5 +1,6 @@
 <template>
-  <div class="h-screen flex flex-col bg-gray-50">
+  <ComposeWindow v-if="isComposeMode" :account-id="composeAccountId" :reply-to="composeReplyTo" />
+  <div v-else class="h-screen flex flex-col bg-gray-50">
     <MainNav
       :syncing="syncing"
       :has-selected-email="Boolean(selectedEmailId)"
@@ -72,7 +73,6 @@
       </div>
       </template>
     </main>
-    <ComposeEmail v-if="showCompose" :account-id="selectedAccount?.id || ''" :reply-to="replyToEmail" @close="showCompose = false; replyToEmail = undefined" @sent="handleEmailSent" />
     <SettingsModal v-if="showSettings" @close="showSettings = false" @account-selected="handleAccountSelect" />
     <ReminderModal v-if="showReminderModal && reminderEmail" :email-id="reminderEmail.id" :account-id="reminderEmail.accountId" @close="showReminderModal = false; reminderEmail = null" @saved="handleReminderSaved" />
     <div v-if="isGridLayout && selectedEmailId" class="fixed inset-0 bg-black/60 z-40 flex items-center justify-center p-4" @click.self="clearSelectedEmail">
@@ -92,21 +92,34 @@ import FolderList from './components/FolderList.vue'
 import EmailList from './components/EmailList.vue'
 import EmailGrid from './components/EmailGrid.vue'
 import EmailViewer from './components/EmailViewer.vue'
-import ComposeEmail from './components/ComposeEmail.vue'
+import ComposeWindow from './components/ComposeWindow.vue'
 import SettingsModal from './components/SettingsModal.vue'
 import ReminderModal from './components/ReminderModal.vue'
 import MainNav from './components/MainNav.vue'
 import { usePreferencesStore } from './stores/preferences'
+
+// Check if we're in compose mode
+const urlParams = new URLSearchParams(window.location.search)
+const isComposeMode = ref(urlParams.get('compose') === 'true')
+const composeAccountId = ref(urlParams.get('accountId') || '')
+const replyToParam = urlParams.get('replyTo')
+let composeReplyToValue: any = undefined
+if (replyToParam) {
+  try {
+    composeReplyToValue = JSON.parse(replyToParam)
+  } catch {
+    composeReplyToValue = undefined
+  }
+}
+const composeReplyTo = ref(composeReplyToValue)
 
 const selectedAccount = ref<any>(null)
 const selectedFolderId = ref<string>('')
 const selectedFolderName = ref<string>('')
 const selectedEmailId = ref<string>('')
 const selectedEmail = ref<any>(null)
-const showCompose = ref(false)
 const showSettings = ref(false)
 const showReminderModal = ref(false)
-const replyToEmail = ref<any>(undefined)
 const reminderEmail = ref<any>(null)
 const syncing = ref(false)
 const syncProgress = ref({ show: false, current: 0, total: 0, folder: '' })
@@ -197,21 +210,22 @@ const handleEmailSelect = async (emailId: string) => {
 }
 
 const handleCompose = () => {
-  replyToEmail.value = undefined
-  showCompose.value = true
+  if (!selectedAccount.value) return
+  window.electronAPI.window.compose.create(selectedAccount.value.id)
 }
 
 const handleReply = (email: any) => {
-  if (!email) return
-  replyToEmail.value = email
-  showCompose.value = true
+  if (!email || !selectedAccount.value) return
+  // Serialize the email object to ensure it can be passed through IPC
+  const serializedEmail = JSON.parse(JSON.stringify(email))
+  window.electronAPI.window.compose.create(selectedAccount.value.id, serializedEmail)
 }
 
 const handleForward = (email: any) => {
-  if (!email) return
-  // For forward, we'll use the same compose but with forward flag
-  replyToEmail.value = { ...email, forward: true }
-  showCompose.value = true
+  if (!email || !selectedAccount.value) return
+  // Serialize the email object and add forward flag
+  const serializedEmail = JSON.parse(JSON.stringify({ ...email, forward: true }))
+  window.electronAPI.window.compose.create(selectedAccount.value.id, serializedEmail)
 }
 
 const handleSetReminder = (email: any) => {

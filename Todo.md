@@ -15,7 +15,7 @@
 
 ## Settings
 - formatters (date, time, etc.) - try to get from system
-- language
+- language (i18n)
 
 
 ## Bugs
