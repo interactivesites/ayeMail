@@ -1,6 +1,5 @@
 <template>
   <div class="h-screen flex flex-col bg-white relative">
-    <LoadingOverlay :show="props.loading === true" text="Loading email..." />
     <!-- Custom Title Bar -->
     <div class="app-drag-region bg-white/70 backdrop-blur-xl border-b border-white/60 shadow-sm flex items-center justify-between px-4 py-2 h-12">
       <div class="app-no-drag flex items-center space-x-3 flex-1 min-w-0">
@@ -78,10 +77,8 @@
     >
       <div class="flex-1 overflow-y-auto p-4 space-y-4">
         <div>
-          <input
+          <RecipientAutocomplete
             v-model="form.to"
-            type="text"
-            class="w-full px-3 py-2 bg-transparent border-0 border-b border-gray-300 rounded-none focus:outline-none focus:ring-0 focus:border-primary-600 transition-colors"
             placeholder="To"
           />
         </div>
@@ -102,7 +99,7 @@
           />
         </div>
         <div>
-          <div class=" rounded-md overflow-hidden focus-within:ring-2 focus-within:ring-primary-600 relative">
+          <div class=" rounded-md overflow-hidden focus-within:ring-0 relative">
             <EditorContent :editor="editor" class="prose max-w-none" />
             <BubbleMenu
               v-if="editor"
@@ -252,7 +249,7 @@ import { BubbleMenu } from '@tiptap/vue-3/menus'
 import StarterKit from '@tiptap/starter-kit'
 import Image from '@tiptap/extension-image'
 import { formatSize } from '../utils/formatters'
-import LoadingOverlay from './LoadingOverlay.vue'
+import RecipientAutocomplete from './RecipientAutocomplete.vue'
 import {
   ArrowsPointingOutIcon,
   XMarkIcon,
@@ -264,7 +261,6 @@ import {
 const props = defineProps<{
   accountId: string
   replyTo?: any
-  loading?: boolean
 }>()
 
 // Format email address for display in To field
@@ -307,7 +303,7 @@ if (props.replyTo) {
   updateFormFromReplyTo(props.replyTo)
 }
 
-// Watch for changes in replyTo (for async loading)
+// Watch for changes in replyTo
 watch(() => props.replyTo, (newReplyTo) => {
   if (newReplyTo) {
     updateFormFromReplyTo(newReplyTo)

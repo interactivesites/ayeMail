@@ -84,6 +84,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke('gpg:verify', data, signature)
   },
   
+  // Contact operations
+  contacts: {
+    search: (query: string, limit?: number) => ipcRenderer.invoke('contacts:search', query, limit),
+    add: (email: string, name?: string) => ipcRenderer.invoke('contacts:add', email, name),
+    list: (limit?: number) => ipcRenderer.invoke('contacts:list', limit),
+    extractFromExisting: () => ipcRenderer.invoke('contacts:extract-from-existing')
+  },
+  
   // Window operations
   window: {
     compose: {

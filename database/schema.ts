@@ -156,6 +156,19 @@ export function createDatabase(): Database.Database {
     );
 
     CREATE INDEX IF NOT EXISTS idx_gpg_keys_fingerprint ON gpg_keys(fingerprint);
+
+    CREATE TABLE IF NOT EXISTS recipients (
+      email TEXT PRIMARY KEY,
+      name TEXT,
+      last_used INTEGER NOT NULL,
+      use_count INTEGER DEFAULT 1,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_recipients_email ON recipients(email);
+    CREATE INDEX IF NOT EXISTS idx_recipients_name ON recipients(name);
+    CREATE INDEX IF NOT EXISTS idx_recipients_last_used ON recipients(last_used DESC);
   `)
   
   return db

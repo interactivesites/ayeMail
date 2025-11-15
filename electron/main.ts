@@ -153,12 +153,29 @@ export function getAllComposeWindows(): BrowserWindow[] {
 
 export { createComposeWindow }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   // Initialize database
   getDatabase()
   
   // Register IPC handlers
   registerAllHandlers()
+  
+  // Extract contacts from existing emails (one-time, runs in background)
+  // Check if recipients table has any data, if not, extract from emails
+  const { contactManager } = await import('../email/contact-manager')
+  const db = getDatabase()
+  const recipientCount = db.prepare('SELECT COUNT(*) as count FROM recipients').get() as { count: number }
+  if (recipientCount.count === 0) {
+    // Run extraction in background
+    setTimeout(() => {
+      try {
+        const result = contactManager.extractContactsFromExistingEmails()
+        console.log(`Extracted ${result.extracted} contacts from existing emails`)
+      } catch (error) {
+        console.error('Error extracting contacts from existing emails:', error)
+      }
+    }, 2000) // Delay to not block app startup
+  }
   
   // Start reminder scheduler
   reminderScheduler.start()

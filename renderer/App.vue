@@ -1,5 +1,5 @@
 <template>
-  <ComposeWindow v-if="isComposeMode" :account-id="composeAccountId" :reply-to="composeReplyTo" :loading="composeLoading" />
+  <ComposeWindow v-if="isComposeMode" :account-id="composeAccountId" :reply-to="composeReplyTo" />
   <div v-else class="h-screen flex flex-col bg-gray-50">
     <MainNav
       :syncing="syncing"
@@ -103,15 +103,12 @@ const urlParams = new URLSearchParams(window.location.search)
 const isComposeMode = ref(urlParams.get('compose') === 'true')
 const composeAccountId = ref(urlParams.get('accountId') || '')
 const composeReplyTo = ref<any>(null)
-const composeLoading = ref(false)
 
 // Listen for reply data from main process via IPC
 onMounted(() => {
   if (isComposeMode.value) {
-    composeLoading.value = true
     const removeListener = (window.electronAPI as any).window?.onComposeReplyData?.((data: any) => {
       composeReplyTo.value = data
-      composeLoading.value = false
     })
     
     // Cleanup listener on unmount
@@ -120,13 +117,6 @@ onMounted(() => {
         removeListener()
       })
     }
-    
-    // Set a timeout to hide loading if no data arrives (fallback)
-    setTimeout(() => {
-      if (composeLoading.value) {
-        composeLoading.value = false
-      }
-    }, 5000)
   }
 })
 

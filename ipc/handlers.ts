@@ -4,6 +4,7 @@ import { writeFileSync } from 'fs'
 import { getDatabase, encryption } from '../database'
 import { accountManager, getIMAPClient, getSMTPClient } from '../email'
 import { emailStorage } from '../email/email-storage'
+import { contactManager } from '../email/contact-manager'
 import { gpgManager } from '../gpg/manager'
 import type { Account, Folder, Email, Reminder, Signature } from '../shared/types'
 
@@ -567,6 +568,23 @@ export function registerEmailHandlers() {
         signed: email.signed
       })
 
+      // Extract and store recipients after successful send
+      if (result.success) {
+        try {
+          if (email.to) {
+            contactManager.extractContactsFromAddresses(email.to)
+          }
+          if (email.cc) {
+            contactManager.extractContactsFromAddresses(email.cc)
+          }
+          if (email.bcc) {
+            contactManager.extractContactsFromAddresses(email.bcc)
+          }
+        } catch (error) {
+          console.error('Error extracting contacts from sent email:', error)
+        }
+      }
+
       return result
     } catch (error: any) {
       return { success: false, message: error.message }
@@ -1035,6 +1053,27 @@ export function registerWindowHandlers() {
   })
 }
 
+// Contact handlers
+export function registerContactHandlers() {
+  ipcMain.handle('contacts:search', async (_, query: string, limit?: number) => {
+    return contactManager.searchRecipients(query, limit || 20)
+  })
+
+  ipcMain.handle('contacts:add', async (_, email: string, name?: string) => {
+    contactManager.addOrUpdateRecipient(email, name)
+    return { success: true }
+  })
+
+  ipcMain.handle('contacts:list', async (_, limit?: number) => {
+    return contactManager.getRecipients(limit || 20)
+  })
+
+  ipcMain.handle('contacts:extract-from-existing', async () => {
+    const result = contactManager.extractContactsFromExistingEmails()
+    return result
+  })
+}
+
 // Register all handlers
 export function registerAllHandlers() {
   registerAccountHandlers()
@@ -1044,5 +1083,6 @@ export function registerAllHandlers() {
   registerSignatureHandlers()
   registerGPGHandlers()
   registerWindowHandlers()
+  registerContactHandlers()
 }
 
