@@ -1,7 +1,39 @@
 <template>
   <div class="flex flex-col h-full">
-    <div class="p-4 border-b border-gray-200">
+    <div class="p-4 border-b border-gray-200 flex items-center justify-between">
       <h2 class="text-lg font-semibold text-gray-900">{{ folderName }}</h2>
+      <div class="flex items-center space-x-1 bg-gray-100 rounded-full p-0.5">
+        <button
+          type="button"
+          @click="handlePreviewLevelChange(1)"
+          :aria-pressed="previewLevel === 1"
+          class="p-1.5 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+          :class="previewLevel === 1 ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'"
+          title="Title only"
+        >
+          <span class="text-xs font-medium w-4 h-4 flex items-center justify-center">1</span>
+        </button>
+        <button
+          type="button"
+          @click="handlePreviewLevelChange(2)"
+          :aria-pressed="previewLevel === 2"
+          class="p-1.5 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+          :class="previewLevel === 2 ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'"
+          title="2 lines preview"
+        >
+          <span class="text-xs font-medium w-4 h-4 flex items-center justify-center">2</span>
+        </button>
+        <button
+          type="button"
+          @click="handlePreviewLevelChange(3)"
+          :aria-pressed="previewLevel === 3"
+          class="p-1.5 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+          :class="previewLevel === 3 ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'"
+          title="4 lines preview"
+        >
+          <span class="text-xs font-medium w-4 h-4 flex items-center justify-center">3</span>
+        </button>
+      </div>
     </div>
     <div class="flex-1 overflow-y-auto">
       <div v-if="loading" class="p-4 text-center text-gray-500">
@@ -47,6 +79,9 @@
                   </span>
                   
                 </div>
+                <div v-if="previewLevel > 1 && getEmailPreview(email)" class="mt-1.5 text-xs text-gray-500" :class="previewLevel === 3 ? 'line-clamp-4' : 'line-clamp-2'">
+                  {{ getEmailPreview(email) }}
+                </div>
 
               </div>
             </div>
@@ -62,7 +97,9 @@
 
 <script setup lang="ts">
 import { ref, onMounted, watch, onUnmounted } from 'vue'
+import { storeToRefs } from 'pinia'
 import { getSenderInitials } from '../utils/email'
+import { usePreferencesStore } from '../stores/preferences'
 
 const props = defineProps<{
   folderId: string
@@ -76,12 +113,46 @@ const emit = defineEmits<{
 
 const emails = ref<any[]>([])
 const loading = ref(false)
+const preferences = usePreferencesStore()
+const { previewLevel } = storeToRefs(preferences)
 
 const isEmailUnread = (email: any): boolean => {
   // Handle various formats: boolean, number (0/1), undefined, null
   if (email.isRead === undefined || email.isRead === null) return true
   if (typeof email.isRead === 'number') return email.isRead === 0
   return !email.isRead
+}
+
+const sanitizeText = (text: string): string => {
+  // Remove HTML tags and decode entities
+  const div = document.createElement('div')
+  div.innerHTML = text
+  let cleanText = div.textContent || div.innerText || ''
+  
+  // Remove extra whitespace and normalize
+  cleanText = cleanText.replace(/\s+/g, ' ').trim()
+  
+  return cleanText
+}
+
+const getEmailPreview = (email: any): string => {
+  if (!email) return ''
+  
+  // Prefer textBody, fallback to body, then htmlBody
+  let content = email.textBody || email.body || email.htmlBody || ''
+  
+  if (!content) return ''
+  
+  // Sanitize HTML if present
+  if (email.htmlBody || (email.body && email.body.includes('<'))) {
+    content = sanitizeText(content)
+  }
+  
+  return content
+}
+
+const handlePreviewLevelChange = (level: 1 | 2 | 3) => {
+  preferences.setPreviewLevel(level)
 }
 
 const loadEmails = async () => {

@@ -388,7 +388,7 @@ export function registerFolderHandlers() {
 export function registerEmailHandlers() {
   ipcMain.handle('emails:list', async (_, folderId: string, page: number = 0, limit: number = 50) => {
     const emails = await emailStorage.listEmails(folderId, page, limit)
-    // Return simplified list without full body
+    // Return list with body content for preview
     return emails.map(email => ({
       id: email.id,
       accountId: email.accountId,
@@ -399,6 +399,9 @@ export function registerEmailHandlers() {
       from: email.from,
       to: email.to,
       date: email.date,
+      body: email.body,
+      textBody: email.textBody,
+      htmlBody: email.htmlBody,
       isRead: email.isRead,
       isStarred: email.isStarred,
       encrypted: email.encrypted,
