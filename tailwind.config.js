@@ -5,7 +5,11 @@ export default {
     "./renderer/**/*.{vue,js,ts,jsx,tsx}",
   ],
   theme: {
-    extend: {},
+    extend: {
+      fontFamily: {
+        sans: ['"Albert Sans"', 'system-ui', 'BlinkMacSystemFont', 'sans-serif'],
+      },
+    },
   },
   plugins: [],
 }

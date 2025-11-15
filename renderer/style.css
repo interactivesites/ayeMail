@@ -1,12 +1,15 @@
+@import url('https://fonts.googleapis.com/css2?family=Albert+Sans:wght@200;500&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+  font-family: 'Albert Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto',
+    'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
     sans-serif;
+  font-weight: 200;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -17,3 +20,15 @@ body {
   overflow: hidden;
 }
 
+/** Buttons, Links, Labels */
+button, a, label {
+  @apply text-sm font-medium text-gray-700;
+}
+
+button:hover, a:hover, label:hover {
+  @apply text-gray-900;
+}
+
+button:disabled, a:disabled, label:disabled {
+  @apply text-gray-500;
+}

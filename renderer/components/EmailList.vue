@@ -28,14 +28,20 @@
               </div>
               <div class="flex-1 min-w-0">
                 <div class="flex items-center space-x-2">
-                  <span class="font-medium text-gray-900 truncate">
+                  <span
+                    class="truncate text-gray-900"
+                    :class="email.isRead ? 'font-extralight' : 'font-medium'"
+                  >
                     {{ email.from[0]?.name || email.from[0]?.address }}
                   </span>
                   <span v-if="email.encrypted" class="text-blue-600" title="Encrypted">🔒</span>
                   <span v-if="email.signed" class="text-green-600" title="Signed">✓</span>
                 </div>
                 <div class="mt-1 flex items-center space-x-2">
-                  <span class="text-sm font-medium text-gray-900 truncate">
+                  <span
+                    class="text-sm text-gray-900 truncate"
+                    :class="email.isRead ? 'font-extralight' : 'font-medium'"
+                  >
                     {{ email.subject || '(No subject)' }}
                   </span>
                   <span v-if="!email.isRead" class="w-2 h-2 bg-blue-600 rounded-full"></span>
