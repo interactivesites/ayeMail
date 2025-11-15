@@ -1,5 +1,5 @@
 <template>
-  <div class="h-screen flex flex-col bg-white/70 backdrop-blur-xl">
+  <div class="h-screen flex flex-col bg-white">
     <!-- Custom Title Bar -->
     <div class="app-drag-region bg-white/70 backdrop-blur-xl border-b border-white/60 shadow-sm flex items-center justify-between px-4 py-2 h-12">
       <div class="flex items-center space-x-2">
@@ -35,35 +35,31 @@
     <div class="flex-1 flex flex-col overflow-hidden">
       <div class="flex-1 overflow-y-auto p-4 space-y-4">
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">To</label>
           <input
             v-model="form.to"
             type="text"
-            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-transparent"
-            placeholder="recipient@example.com"
+            class="w-full px-3 py-2 bg-transparent border-0 border-b border-gray-300 rounded-none focus:outline-none focus:ring-0 focus:border-primary-600 transition-colors"
+            placeholder="To"
           />
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">CC</label>
           <input
             v-model="form.cc"
             type="text"
-            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-transparent"
-            placeholder="cc@example.com"
+            class="w-full px-3 py-2 bg-transparent border-0 border-b border-gray-300 rounded-none focus:outline-none focus:ring-0 focus:border-primary-600 transition-colors"
+            placeholder="CC"
           />
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Subject</label>
           <input
             v-model="form.subject"
             type="text"
-            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-transparent"
+            class="w-full px-3 py-2 bg-transparent border-0 border-b border-gray-300 rounded-none focus:outline-none focus:ring-0 focus:border-primary-600 transition-colors"
             placeholder="Subject"
           />
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Body</label>
-          <div class="border border-gray-300 rounded-md overflow-hidden focus-within:ring-2 focus-within:ring-primary-600 relative">
+          <div class=" rounded-md overflow-hidden focus-within:ring-2 focus-within:ring-primary-600 relative">
             <EditorContent :editor="editor" class="prose max-w-none" />
             <BubbleMenu
               v-if="editor"
@@ -330,6 +326,7 @@ const handleClose = () => {
   outline: none;
   min-height: 300px;
   padding: 1rem;
+  
 }
 
 .ProseMirror p.is-editor-empty:first-child::before {
@@ -338,6 +335,7 @@ const handleClose = () => {
   float: left;
   height: 0;
   pointer-events: none;
+  
 }
 
 .ProseMirror p {

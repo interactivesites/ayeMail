@@ -1,5 +1,5 @@
 <template>
-  <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+  <div class="fixed inset-0 bg-black flex items-center justify-center z-50">
     <div class="bg-white rounded-lg shadow-xl w-full max-w-3xl h-[80vh] flex flex-col">
       <div class="p-4 border-b border-gray-200 flex items-center justify-between">
         <h2 class="text-lg font-semibold text-gray-900">Compose Email</h2>
@@ -12,38 +12,34 @@
       </div>
       <div class="flex-1 overflow-y-auto p-4 space-y-4">
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">To</label>
           <input
             v-model="form.to"
             type="text"
-            class="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary-600"
-            placeholder="recipient@example.com"
+            class="w-full px-3 py-2 bg-transparent border-0 border-b border-gray-300 rounded-none focus:outline-none focus:ring-0 focus:border-primary-600 transition-colors"
+            placeholder="To"
           />
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">CC</label>
           <input
             v-model="form.cc"
             type="text"
-            class="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary-600"
-            placeholder="cc@example.com"
+            class="w-full px-3 py-2 bg-transparent border-0 border-b border-gray-300 rounded-none focus:outline-none focus:ring-0 focus:border-primary-600 transition-colors"
+            placeholder="CC"
           />
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Subject</label>
           <input
             v-model="form.subject"
             type="text"
-            class="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary-600"
+            class="w-full px-3 py-2 bg-transparent border-0 border-b border-gray-300 rounded-none focus:outline-none focus:ring-0 focus:border-primary-600 transition-colors"
             placeholder="Subject"
           />
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Body</label>
           <textarea
             v-model="form.body"
             rows="10"
-            class="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary-600"
+            class="w-full px-3 py-2 bg-transparent border-0 rounded-none focus:outline-none focus:ring-0 focus:border-primary-600 transition-colors resize-none"
             placeholder="Email body"
           ></textarea>
         </div>
@@ -181,4 +177,3 @@ const sendEmail = async () => {
   }
 }
 </script>
-
