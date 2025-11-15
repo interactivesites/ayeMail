@@ -527,15 +527,34 @@ export function registerEmailHandlers() {
     const db = getDatabase()
     const searchTerm = `%${query.trim()}%`
     
-    // Get all emails - we'll filter in memory after decrypting
+    // Get folder IDs to exclude (trash/deleted and spam/junk folders)
+    const excludedFolders = db.prepare(`
+      SELECT id FROM folders 
+      WHERE LOWER(name) IN ('trash', 'deleted', 'deleted items', 'bin', 'spam', 'junk')
+         OR LOWER(path) LIKE '%trash%'
+         OR LOWER(path) LIKE '%deleted%'
+         OR LOWER(path) LIKE '%bin%'
+         OR LOWER(path) LIKE '%spam%'
+         OR LOWER(path) LIKE '%junk%'
+    `).all() as any[]
+    
+    const excludedFolderIds = excludedFolders.map(f => f.id)
+    
+    // If no folders to exclude, use a condition that's always false
+    const excludeCondition = excludedFolderIds.length > 0 
+      ? `AND folder_id NOT IN (${excludedFolderIds.map(() => '?').join(',')})`
+      : ''
+    
+    // Get all emails excluding trash and spam folders - we'll filter in memory after decrypting
     // This is necessary because body content is encrypted
     const allEmails = db.prepare(`
       SELECT emails.*,
         (SELECT COUNT(*) FROM attachments WHERE email_id = emails.id) as attachmentCount
       FROM emails
+      WHERE 1=1 ${excludeCondition}
       ORDER BY date DESC
       LIMIT ?
-    `).all(limit * 3) as any[] // Get more than needed to account for filtering
+    `).all(...(excludedFolderIds.length > 0 ? excludedFolderIds : []), limit * 3) as any[] // Get more than needed to account for filtering
     
     // Filter emails that match the search query
     const matchingEmails: any[] = []
