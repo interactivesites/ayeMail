@@ -60,7 +60,12 @@
             ref="emailIframe"
           ></iframe>
         </div>
-        <div v-else class="whitespace-pre-wrap text-gray-900">{{ email.textBody || email.body }}</div>
+        <div 
+          v-else 
+          class="whitespace-pre-wrap text-gray-900" 
+          v-html="formatTextWithLinks(email.textBody || email.body)"
+          @click="handleTextLinkClick"
+        ></div>
         
         <!-- Inline Images -->
         <div v-if="imageAttachments.length > 0" class="mt-4 space-y-4">
@@ -109,9 +114,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue'
+import { ref, watch, computed, nextTick } from 'vue'
 import { formatDate, formatSize, formatAddresses } from '../utils/formatters'
 import { EmailAddress } from '../../shared/types'
+import { checkUrlSecurity } from '../utils/url-security'
 
 const props = defineProps<{
   emailId?: string
@@ -163,6 +169,10 @@ const sanitizedHtml = computed(() => {
       }
       a {
         color: #2563eb;
+        text-decoration: underline;
+        cursor: pointer;
+      }
+      a:hover {
         text-decoration: underline;
       }
     </style>
@@ -250,11 +260,105 @@ const onIframeLoad = () => {
           iframeDoc.documentElement?.scrollHeight || 400
         )
         iframe.style.height = `${height}px`
+        
+        // Intercept link clicks to open externally with security checks
+        const links = iframeDoc.querySelectorAll('a[href]')
+        links.forEach((link: Element) => {
+          const anchor = link as HTMLAnchorElement
+          const originalHref = anchor.href
+          const displayText = anchor.textContent || anchor.innerText
+          
+          anchor.addEventListener('click', async (e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            
+            await handleLinkClick(originalHref, displayText)
+          })
+          
+          // Add visual indicator that link opens externally
+          anchor.style.cursor = 'pointer'
+          anchor.title = `Open ${originalHref} in browser`
+        })
       }
     } catch (error) {
       // Cross-origin or other security restrictions
       // Keep default min-height
     }
+  }
+}
+
+const handleLinkClick = async (url: string, displayText?: string) => {
+  // Check URL security
+  const securityCheck = checkUrlSecurity(url, displayText)
+  
+  // If high risk, show warning and require confirmation
+  if (securityCheck.riskLevel === 'high' || !securityCheck.isSafe) {
+    const warningMessage = [
+      `Warning: This link may be unsafe.`,
+      ...securityCheck.warnings,
+      '',
+      `URL: ${securityCheck.actualUrl}`,
+      '',
+      'Do you want to open it anyway?'
+    ].join('\n')
+    
+    if (!confirm(warningMessage)) {
+      return
+    }
+  } else if (securityCheck.warnings.length > 0) {
+    // Medium/low risk - show info but allow proceed
+    const infoMessage = [
+      `Security Notice:`,
+      ...securityCheck.warnings,
+      '',
+      `URL: ${securityCheck.actualUrl}`,
+      '',
+      'Do you want to continue?'
+    ].join('\n')
+    
+    if (!confirm(infoMessage)) {
+      return
+    }
+  }
+  
+  // Open the URL externally
+  try {
+    await window.electronAPI.shell.openExternal(securityCheck.actualUrl)
+  } catch (error: any) {
+    console.error('Error opening external URL:', error)
+    alert(`Failed to open URL: ${error.message || 'Unknown error'}`)
+  }
+}
+
+const formatTextWithLinks = (text: string): string => {
+  if (!text) return ''
+  
+  // Escape HTML to prevent XSS
+  const escapeHtml = (str: string) => {
+    const div = document.createElement('div')
+    div.textContent = str
+    return div.innerHTML
+  }
+  
+  // URL regex pattern
+  const urlRegex = /(https?:\/\/[^\s<>"']+|www\.[^\s<>"']+|[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}[^\s<>"']*)/g
+  
+  return escapeHtml(text).replace(urlRegex, (url) => {
+    // Ensure URL has protocol
+    const href = url.startsWith('http') ? url : `https://${url}`
+    return `<a href="${href}" class="text-primary-600 hover:text-primary-800 hover:underline cursor-pointer" data-external-link="${href}">${url}</a>`
+  })
+}
+
+const handleTextLinkClick = (event: MouseEvent) => {
+  const target = event.target as HTMLElement
+  const link = target.closest('a[data-external-link]') as HTMLAnchorElement
+  
+  if (link) {
+    event.preventDefault()
+    const url = link.getAttribute('data-external-link') || link.href
+    const displayText = link.textContent || ''
+    handleLinkClick(url, displayText)
   }
 }
 

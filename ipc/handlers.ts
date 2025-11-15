@@ -1,4 +1,4 @@
-import { ipcMain, BrowserWindow, dialog } from 'electron'
+import { ipcMain, BrowserWindow, dialog, shell } from 'electron'
 import { randomUUID } from 'crypto'
 import { writeFileSync } from 'fs'
 import { getDatabase, encryption } from '../database'
@@ -2070,6 +2070,18 @@ export function registerContactHandlers() {
   })
 }
 
+// Shell handlers
+export function registerShellHandlers() {
+  ipcMain.handle('shell:openExternal', async (_, url: string) => {
+    try {
+      await shell.openExternal(url)
+    } catch (error: any) {
+      console.error('Error opening external URL:', error)
+      throw new Error(`Failed to open URL: ${error.message || 'Unknown error'}`)
+    }
+  })
+}
+
 // Register all handlers
 export function registerAllHandlers() {
   registerAccountHandlers()
@@ -2080,5 +2092,6 @@ export function registerAllHandlers() {
   registerGPGHandlers()
   registerWindowHandlers()
   registerContactHandlers()
+  registerShellHandlers()
 }
 

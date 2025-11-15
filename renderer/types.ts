@@ -57,6 +57,27 @@ declare global {
         sign: (data: string, keyId: string) => Promise<any>
         verify: (data: string, signature: string) => Promise<any>
       }
+      contacts: {
+        search: (query: string, limit?: number) => Promise<any[]>
+        add: (email: string, name?: string) => Promise<any>
+        list: (limit?: number) => Promise<any[]>
+        extractFromExisting: () => Promise<any>
+      }
+      window: {
+        compose: {
+          create: (accountId: string, replyTo?: any) => Promise<any>
+          close: (windowId?: number) => Promise<any>
+        }
+        minimize: (windowId?: string) => Promise<any>
+        maximize: (windowId?: string) => Promise<any>
+        close: (windowId?: string) => Promise<any>
+        setTitle: (windowId: number, title: string) => Promise<any>
+        getId: () => Promise<number>
+        onComposeReplyData: (callback: (data: any) => void) => () => void
+      }
+      shell: {
+        openExternal: (url: string) => Promise<void>
+      }
     }
   }
 }

@@ -119,6 +119,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.on('compose:reply-data', (_, data) => callback(data))
       return () => ipcRenderer.removeAllListeners('compose:reply-data')
     }
+  },
+  
+  // System operations
+  shell: {
+    openExternal: (url: string) => ipcRenderer.invoke('shell:openExternal', url)
   }
 })
 

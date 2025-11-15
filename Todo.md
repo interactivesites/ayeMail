@@ -2,10 +2,6 @@
 ## Functionality
 - open links externally
 
-- Search (nav)
-
-- Notifications
-
 
 #### MAIL
 - set mails as read after 3 sec
