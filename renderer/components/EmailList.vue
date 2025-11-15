@@ -15,8 +15,13 @@
           v-for="email in emails"
           :key="email.id"
           @click="$emit('select-email', email.id)"
-          class="w-full text-left p-4 hover:bg-gray-50 transition-colors border-l-4"
-          :class="isEmailUnread(email) ? 'border-l-blue-600' : 'border-l-transparent'"
+          class="w-full text-left p-4 transition-colors border-l-4"
+          :class="{
+            'bg-blue-500/20': selectedEmailId === email.id,
+            'hover:bg-gray-50': selectedEmailId !== email.id,
+            'border-l-blue-600': isEmailUnread(email),
+            'border-l-transparent': !isEmailUnread(email)
+          }"
           :style="{ borderLeftColor: isEmailUnread(email) ? '#2563eb' : 'transparent' }"
         >
           <div class="flex items-start justify-between" >
