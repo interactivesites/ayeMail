@@ -176,7 +176,7 @@
                       </div>
                     </div>
                     
-                    <!-- Right Side: Time and Icons -->
+                    <!-- Right Side: Time and Status Icons -->
                     <div class="flex items-center gap-2 flex-shrink-0">
                       <!-- Time Display -->
                       <span 
@@ -186,45 +186,50 @@
                         {{ formatTime(email.date) }}
                       </span>
                       
-                      <span v-if="email.isStarred" class="text-yellow-500 text-sm">★</span>
-                      <span 
-                        v-if="email.attachmentCount && email.attachmentCount > 0" 
-                        class="text-xs"
-                        :class="selectedEmailId === email.id ? 'text-white/80' : 'text-gray-500'"
-                        title="Has attachments"
-                      >📎</span>
-                      <span 
-                        v-if="email.threadCount && email.threadCount > 1" 
-                        class="text-xs px-1.5 py-0.5 rounded"
-                        :class="selectedEmailId === email.id ? 'text-white/80 bg-white/20' : 'text-gray-500 bg-gray-200'"
-                      >
-                        {{ email.threadCount }}
-                      </span>
-                      <svg 
-                        v-if="email.isDraft" 
-                        class="w-4 h-4" 
-                        :class="selectedEmailId === email.id ? 'text-white/60' : 'text-gray-400'"
-                        fill="none" 
-                        stroke="currentColor" 
-                        viewBox="0 0 24 24"
-                      >
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                      </svg>
+                      <!-- Status Icons - Show only on hover -->
+                      <div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                        <span v-if="email.isStarred" class="text-yellow-500 text-sm" title="Starred">★</span>
+                        <span 
+                          v-if="email.attachmentCount && email.attachmentCount > 0" 
+                          class="text-xs"
+                          :class="selectedEmailId === email.id ? 'text-white/80' : 'text-gray-500'"
+                          title="Has attachments"
+                        >📎</span>
+                        <span 
+                          v-if="email.threadCount && email.threadCount > 1" 
+                          class="text-xs"
+                          :class="selectedEmailId === email.id ? 'text-white/80' : 'text-gray-500'"
+                          title="Thread"
+                        >
+                          {{ email.threadCount }}
+                        </span>
+                        <svg 
+                          v-if="email.isDraft" 
+                          class="w-4 h-4" 
+                          :class="selectedEmailId === email.id ? 'text-white/60' : 'text-gray-400'"
+                          fill="none" 
+                          stroke="currentColor" 
+                          viewBox="0 0 24 24"
+                          title="Draft"
+                        >
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                      </div>
                     </div>
                   </div>
                 </div>
                 
-                <!-- Hover Action Icons -->
+                <!-- Bottom Action Icons - Right aligned, show only on hover, no circles -->
                 <div 
-                  class="absolute bottom-2 left-4 right-4 flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                  class="absolute bottom-2 right-4 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
                   @click.stop
                 >
                   <button
                     @click.stop="showArchiveConfirm(email.id)"
-                    class="p-1.5 rounded-full transition-colors"
+                    class="p-1 transition-colors"
                     :class="selectedEmailId === email.id 
-                      ? 'bg-white/20 text-white hover:bg-white/30' 
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
+                      ? 'text-white/80 hover:text-white' 
+                      : 'text-gray-500 hover:text-gray-700'"
                     title="Archive"
                   >
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -233,10 +238,10 @@
                   </button>
                   <button
                     @click.stop="handleDeleteEmail(email.id)"
-                    class="p-1.5 rounded-full transition-colors"
+                    class="p-1 transition-colors"
                     :class="selectedEmailId === email.id 
-                      ? 'bg-white/20 text-white hover:bg-white/30' 
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
+                      ? 'text-white/80 hover:text-white' 
+                      : 'text-gray-500 hover:text-gray-700'"
                     title="Delete"
                   >
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -244,12 +249,12 @@
                     </svg>
                   </button>
                   <button
-                    v-if="props.accountId"
+                    v-if="email.accountId"
                     @click.stop="showReminderForEmail(email.id)"
-                    class="p-1.5 rounded-full transition-colors"
+                    class="p-1 transition-colors"
                     :class="selectedEmailId === email.id 
-                      ? 'bg-white/20 text-white hover:bg-white/30' 
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
+                      ? 'text-white/80 hover:text-white' 
+                      : 'text-gray-500 hover:text-gray-700'"
                     title="Set Reminder"
                   >
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -257,12 +262,12 @@
                     </svg>
                   </button>
                   <button
-                    v-if="props.accountId"
+                    v-if="email.accountId"
                     @click.stop="showFolderPickerForEmail(email.id)"
-                    class="p-1.5 rounded-full transition-colors"
+                    class="p-1 transition-colors"
                     :class="selectedEmailId === email.id 
-                      ? 'bg-white/20 text-white hover:bg-white/30' 
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
+                      ? 'text-white/80 hover:text-white' 
+                      : 'text-gray-500 hover:text-gray-700'"
                     title="Move to Folder (M)"
                   >
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

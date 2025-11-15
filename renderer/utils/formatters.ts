@@ -58,24 +58,22 @@ export const formatTime = (timestamp: number | string | Date) => {
   const date = timestamp instanceof Date ? timestamp : new Date(timestamp)
   if (Number.isNaN(date.getTime())) return ''
 
-  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  // return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 
   // Maybe we use this later
-  // const now = new Date()
-  // const diff = now.getTime() - date.getTime()
-  // const days = Math.floor(diff / (1000 * 60 * 60 * 24))
+  const now = new Date()
+  const diff = now.getTime() - date.getTime()
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24))
 
-  // if (days === 0) {
-  //   // Today - show time
-  //   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-  // } else if (days === 1) {
-  //   // Yesterday
-  //   return 'Yesterday'
-  // } else if (days < 7) {
-  //   // This week - show weekday
-  //   return date.toLocaleDateString([], { weekday: 'short' })
-  // } else {
-  //   // Older - show date
-  //   return date.toLocaleDateString([], { month: 'short', day: 'numeric' })
-  // }
+  // Return time of day description based on hour, regardless of "days" difference
+  const hour = date.getHours()
+  if (hour >= 5 && hour < 11) {
+    return 'morning'
+  } else if (hour >= 11 && hour < 15) {
+    return 'midday'
+  } else if (hour >= 15 && hour < 20) {
+    return 'evening'
+  } else {
+    return 'late'
+  }
 }
