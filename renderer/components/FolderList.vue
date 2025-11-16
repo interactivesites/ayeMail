@@ -43,7 +43,8 @@
         </div>
         
         <!-- Account Sections -->
-        <div v-for="accountSection in accountSections" :key="accountSection.account.id" class="mb-2">
+        
+        <div v-for="accountSection in accountSections" :key="accountSection.account.id" class="mb-2 border-t border-white/10">
           <button
             @click="toggleAccount(accountSection.account.id)"
             class="w-full text-left flex items-center justify-between px-4 py-2 rounded-lg transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30 text-white/80 hover:bg-white/5"
@@ -98,7 +99,6 @@ const emit = defineEmits<{
 
 const accounts = ref<any[]>([])
 const accountFolders = ref<Map<string, any[]>>(new Map())
-const expandedAccounts = ref<Set<string>>(new Set())
 const loading = ref(false)
 const preferences = usePreferencesStore()
 
@@ -165,7 +165,7 @@ const accountSections = computed((): AccountSection[] => {
     return {
       account,
       folders: filteredFolders,
-      expanded: expandedAccounts.value.has(account.id),
+      expanded: preferences.isAccountExpanded(account.id),
       unreadCount
     }
   })
@@ -182,14 +182,15 @@ const loadAllAccounts = async () => {
     
     // Auto-expand account if it has selected folder
     if (props.selectedFolderId) {
+      const selectedId = props.selectedFolderId
       for (const account of accounts.value) {
         const folders = accountFolders.value.get(account.id) || []
         const hasSelectedFolder = folders.some((f: any) => 
-          f.id === props.selectedFolderId || 
-          (f.children && findFolderInTree(f.children, props.selectedFolderId))
+          f.id === selectedId || 
+          (f.children && findFolderInTree(f.children, selectedId))
         )
-        if (hasSelectedFolder) {
-          expandedAccounts.value.add(account.id)
+        if (hasSelectedFolder && !preferences.isAccountExpanded(account.id)) {
+          preferences.toggleExpandedAccount(account.id)
         }
       }
     }
@@ -217,11 +218,7 @@ const loadAccountFolders = async (accountId: string) => {
 }
 
 const toggleAccount = (accountId: string) => {
-  if (expandedAccounts.value.has(accountId)) {
-    expandedAccounts.value.delete(accountId)
-  } else {
-    expandedAccounts.value.add(accountId)
-  }
+  preferences.toggleExpandedAccount(accountId)
 }
 
 const handleFolderSelect = (folder: any) => {
@@ -281,14 +278,15 @@ onMounted(() => {
 watch(() => props.selectedFolderId, () => {
   // Auto-expand accounts with selected folder
   if (props.selectedFolderId) {
+    const selectedId = props.selectedFolderId
     for (const account of accounts.value) {
       const folders = accountFolders.value.get(account.id) || []
       const hasSelectedFolder = folders.some((f: any) => 
-        f.id === props.selectedFolderId || 
-        (f.children && findFolderInTree(f.children, props.selectedFolderId))
+        f.id === selectedId || 
+        (f.children && findFolderInTree(f.children, selectedId))
       )
-      if (hasSelectedFolder) {
-        expandedAccounts.value.add(account.id)
+      if (hasSelectedFolder && !preferences.isAccountExpanded(account.id)) {
+        preferences.toggleExpandedAccount(account.id)
       }
     }
   }

@@ -904,15 +904,39 @@ export function registerEmailHandlers() {
     // Load attachments
     const db = getDatabase()
     const attachments = db.prepare('SELECT * FROM attachments WHERE email_id = ?').all(id) as any[]
-    email.attachments = attachments.map((att: any) => ({
-      id: att.id,
-      emailId: att.email_id,
-      filename: att.filename,
-      contentType: att.content_type,
-      size: att.size,
-      contentId: att.content_id,
-      data: encryption.decryptBuffer(att.data_encrypted)
-    }))
+    email.attachments = attachments.map((att: any) => {
+      let data: Buffer | null = null
+      
+      // Try to decrypt attachment data, handle errors gracefully
+      if (att.data_encrypted) {
+        try {
+          // Check if data_encrypted is a Buffer or needs to be converted
+          const encryptedBuffer = Buffer.isBuffer(att.data_encrypted) 
+            ? att.data_encrypted 
+            : Buffer.from(att.data_encrypted)
+          
+          // Verify buffer has minimum required size (IV + TAG = 32 bytes)
+          if (encryptedBuffer.length >= 32) {
+            data = encryption.decryptBuffer(encryptedBuffer)
+          } else {
+            console.warn(`Attachment ${att.id} has invalid encrypted data size: ${encryptedBuffer.length}`)
+          }
+        } catch (error) {
+          console.error(`Error decrypting attachment ${att.id} (${att.filename}):`, error)
+          // Continue without data - attachment will be unavailable but won't crash the app
+        }
+      }
+      
+      return {
+        id: att.id,
+        emailId: att.email_id,
+        filename: att.filename,
+        contentType: att.content_type,
+        size: att.size,
+        contentId: att.content_id,
+        data: data
+      }
+    })
 
     return email
   })

@@ -658,9 +658,38 @@ export class EmailStorage {
   }
 
   private mapDbEmailToEmail(dbEmail: any): Email {
-    const body = encryption.decrypt(dbEmail.body_encrypted)
-    const htmlBody = dbEmail.html_body_encrypted ? encryption.decrypt(dbEmail.html_body_encrypted) : undefined
-    const textBody = dbEmail.text_body_encrypted ? encryption.decrypt(dbEmail.text_body_encrypted) : undefined
+    // Decrypt body with error handling
+    let body = ''
+    if (dbEmail.body_encrypted) {
+      try {
+        body = encryption.decrypt(dbEmail.body_encrypted)
+      } catch (error) {
+        console.error(`Error decrypting body for email ${dbEmail.id}:`, error)
+        // Continue with empty body - email metadata will still be available
+      }
+    }
+    
+    // Decrypt HTML body with error handling
+    let htmlBody: string | undefined = undefined
+    if (dbEmail.html_body_encrypted) {
+      try {
+        htmlBody = encryption.decrypt(dbEmail.html_body_encrypted)
+      } catch (error) {
+        console.error(`Error decrypting HTML body for email ${dbEmail.id}:`, error)
+        // Continue without HTML body
+      }
+    }
+    
+    // Decrypt text body with error handling
+    let textBody: string | undefined = undefined
+    if (dbEmail.text_body_encrypted) {
+      try {
+        textBody = encryption.decrypt(dbEmail.text_body_encrypted)
+      } catch (error) {
+        console.error(`Error decrypting text body for email ${dbEmail.id}:`, error)
+        // Continue without text body
+      }
+    }
     
     return {
       id: dbEmail.id,

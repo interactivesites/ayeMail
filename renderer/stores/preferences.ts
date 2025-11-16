@@ -9,6 +9,8 @@ const MAIL_LAYOUT_KEY = 'mailLayoutPreference'
 const PREVIEW_LEVEL_KEY = 'emailPreviewLevel'
 const DARK_MODE_KEY = 'darkMode'
 const THREAD_VIEW_KEY = 'threadView'
+const EXPANDED_ACCOUNTS_KEY = 'expandedAccounts'
+const EXPANDED_FOLDERS_KEY = 'expandedFolders'
 
 const loadActionLabelsPreference = () => {
   if (typeof window === 'undefined') return true
@@ -43,12 +45,36 @@ const loadThreadView = (): boolean => {
   return stored === null ? true : stored !== 'false' // Default to true (threaded)
 }
 
+const loadExpandedAccounts = (): string[] => {
+  if (typeof window === 'undefined') return []
+  const stored = window.localStorage.getItem(EXPANDED_ACCOUNTS_KEY)
+  if (!stored) return []
+  try {
+    return JSON.parse(stored) as string[]
+  } catch {
+    return []
+  }
+}
+
+const loadExpandedFolders = (): string[] => {
+  if (typeof window === 'undefined') return []
+  const stored = window.localStorage.getItem(EXPANDED_FOLDERS_KEY)
+  if (!stored) return []
+  try {
+    return JSON.parse(stored) as string[]
+  } catch {
+    return []
+  }
+}
+
 export const usePreferencesStore = defineStore('preferences', () => {
   const showActionLabels = ref(loadActionLabelsPreference())
   const mailLayout = ref<MailLayout>(loadMailLayout())
   const previewLevel = ref<PreviewLevel>(loadPreviewLevel())
   const darkMode = ref(loadDarkMode())
   const threadView = ref(loadThreadView())
+  const expandedAccounts = ref<string[]>(loadExpandedAccounts())
+  const expandedFolders = ref<string[]>(loadExpandedFolders())
 
   const setShowActionLabels = (value: boolean) => {
     showActionLabels.value = value
@@ -91,6 +117,50 @@ export const usePreferencesStore = defineStore('preferences', () => {
     }
   }
 
+  const setExpandedAccounts = (accountIds: string[]) => {
+    expandedAccounts.value = accountIds
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(EXPANDED_ACCOUNTS_KEY, JSON.stringify(accountIds))
+    }
+  }
+
+  const toggleExpandedAccount = (accountId: string) => {
+    const current = expandedAccounts.value
+    const index = current.indexOf(accountId)
+    if (index > -1) {
+      const updated = current.filter(id => id !== accountId)
+      setExpandedAccounts(updated)
+    } else {
+      setExpandedAccounts([...current, accountId])
+    }
+  }
+
+  const setExpandedFolders = (folderIds: string[]) => {
+    expandedFolders.value = folderIds
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(EXPANDED_FOLDERS_KEY, JSON.stringify(folderIds))
+    }
+  }
+
+  const toggleExpandedFolder = (folderId: string) => {
+    const current = expandedFolders.value
+    const index = current.indexOf(folderId)
+    if (index > -1) {
+      const updated = current.filter(id => id !== folderId)
+      setExpandedFolders(updated)
+    } else {
+      setExpandedFolders([...current, folderId])
+    }
+  }
+
+  const isAccountExpanded = (accountId: string): boolean => {
+    return expandedAccounts.value.includes(accountId)
+  }
+
+  const isFolderExpanded = (folderId: string): boolean => {
+    return expandedFolders.value.includes(folderId)
+  }
+
   return {
     showActionLabels,
     setShowActionLabels,
@@ -102,6 +172,14 @@ export const usePreferencesStore = defineStore('preferences', () => {
     setDarkMode,
     threadView,
     setThreadView,
+    expandedAccounts,
+    setExpandedAccounts,
+    toggleExpandedAccount,
+    expandedFolders,
+    setExpandedFolders,
+    toggleExpandedFolder,
+    isAccountExpanded,
+    isFolderExpanded,
   }
 })
 

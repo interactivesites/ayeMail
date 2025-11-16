@@ -53,7 +53,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
+import { usePreferencesStore } from '../stores/preferences'
 
 const props = defineProps<{
   folder: any
@@ -65,14 +66,26 @@ const emit = defineEmits<{
   select: [folder: any]
 }>()
 
-// Start collapsed for unified folders, expanded for others
-const expanded = ref(!props.folder.isUnified)
+const preferences = usePreferencesStore()
+
+// Initialize expanded state from preferences, with defaults
+// Unified folders start collapsed, others start expanded
+const getInitialExpanded = (): boolean => {
+  if (preferences.isFolderExpanded(props.folder.id)) {
+    return true
+  }
+  // Default: collapsed for unified folders, expanded for others
+  return !props.folder.isUnified
+}
+
+const expanded = ref(getInitialExpanded())
 
 const handleClick = (event: MouseEvent) => {
   // If clicking on the expand/collapse area, toggle expansion
   const target = event.target as HTMLElement
   if (target.tagName === 'svg' || target.closest('svg')) {
     expanded.value = !expanded.value
+    preferences.toggleExpandedFolder(props.folder.id)
     return
   }
 
@@ -116,10 +129,13 @@ const shouldAutoExpand = computed(() => {
 })
 
 // Watch for changes and auto-expand when needed
-import { watch } from 'vue'
 watch(shouldAutoExpand, (newVal) => {
-  if (newVal) {
+  if (newVal && !expanded.value) {
     expanded.value = true
+    // Persist the expansion state
+    if (!preferences.isFolderExpanded(props.folder.id)) {
+      preferences.toggleExpandedFolder(props.folder.id)
+    }
   }
 }, { immediate: true })
 </script>

@@ -1,6 +1,6 @@
 {
   "name": "imail",
-  "version": "1.0.0",
+  "version": "1.0.0-alpha.1",
   "description": "Secure Electron-based email client",
   "main": "dist-electron/electron/main.js",
   "scripts": {
