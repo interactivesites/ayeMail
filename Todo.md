@@ -1,8 +1,8 @@
 
 ## Functionality
 + Add a nice about page (interactivesites) + buy me a coffee button.
-+ 
-
++ disable text selection across app (except rte / mail view)
+- bg image
 - language (i18n) / - formatters (date, time, etc.) - try to get from system
 - GPG: plan, check, implement.
 - Auto-Updater?
