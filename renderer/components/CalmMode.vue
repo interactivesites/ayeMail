@@ -231,7 +231,7 @@ import ReminderModal from './ReminderModal.vue'
 import { animateSectionExpand, animateSectionCollapse } from '../utils/animations'
 
 const props = defineProps<{
-  accountId: string
+  accountId?: string
   selectedEmailId?: string
 }>()
 
@@ -267,10 +267,17 @@ const draggedEmailId = ref<string | null>(null)
 const showReminderModal = ref(false)
 const reminderEmail = ref<{ id: string; accountId: string } | null>(null)
 
-const loadEmailsByStatus = async (status: 'now' | 'later' | 'reference' | 'noise', loadingRef: any, emailsRef: any) => {
+const loadEmailsByStatus = async (status: 'now' | 'later' | 'reference' | 'noise', loadingRef: any, emailsRef: any, accountIds: string[]) => {
   loadingRef.value = true
   try {
-    emailsRef.value = await window.electronAPI.emails.getByStatus(props.accountId, status, 50)
+    // Load emails from all accounts and merge them
+    const allEmails = await Promise.all(
+      accountIds.map(accountId => 
+        window.electronAPI.emails.getByStatus(accountId, status, 50).catch(() => [])
+      )
+    )
+    // Flatten and sort by date (newest first)
+    emailsRef.value = allEmails.flat().sort((a, b) => b.date - a.date).slice(0, 50)
   } catch (error) {
     console.error(`Error loading ${status} emails:`, error)
   } finally {
@@ -279,26 +286,55 @@ const loadEmailsByStatus = async (status: 'now' | 'later' | 'reference' | 'noise
 }
 
 const loadAllEmails = async () => {
-  // Load status-based emails
-  await Promise.all([
-    loadEmailsByStatus('later', loadingLater, laterEmails),
-    loadEmailsByStatus('reference', loadingReference, referenceEmails),
-    loadEmailsByStatus('noise', loadingNoise, noiseEmails)
-  ])
-  
-  // Load NOW emails (status = 'now') and uncategorized emails
-  loadingNow.value = true
   try {
-    const [nowStatusEmails, uncategorizedEmails] = await Promise.all([
-      window.electronAPI.emails.getByStatus(props.accountId, 'now', 50),
-      window.electronAPI.emails.getUncategorized(props.accountId, 50)
+    // Get all accounts
+    const accounts = await window.electronAPI.accounts.list()
+    const accountIds = accounts.map((a: any) => a.id)
+    
+    if (accountIds.length === 0) {
+      // No accounts, clear all emails
+      nowEmails.value = []
+      laterEmails.value = []
+      referenceEmails.value = []
+      noiseEmails.value = []
+      return
+    }
+
+    // Load status-based emails from all accounts
+    await Promise.all([
+      loadEmailsByStatus('later', loadingLater, laterEmails, accountIds),
+      loadEmailsByStatus('reference', loadingReference, referenceEmails, accountIds),
+      loadEmailsByStatus('noise', loadingNoise, noiseEmails, accountIds)
     ])
-    // Merge: show both 'now' status emails and uncategorized emails in NOW column
-    nowEmails.value = [...nowStatusEmails, ...uncategorizedEmails]
+    
+    // Load NOW emails (status = 'now') and uncategorized emails from all accounts
+    loadingNow.value = true
+    try {
+      const [nowStatusEmailsArrays, uncategorizedEmailsArrays] = await Promise.all([
+        Promise.all(accountIds.map(accountId => 
+          window.electronAPI.emails.getByStatus(accountId, 'now', 50).catch(() => [])
+        )),
+        Promise.all(accountIds.map(accountId => 
+          window.electronAPI.emails.getUncategorized(accountId, 50).catch(() => [])
+        ))
+      ])
+      
+      // Flatten and merge, then sort by date (newest first)
+      const nowStatusEmails = nowStatusEmailsArrays.flat()
+      const uncategorizedEmails = uncategorizedEmailsArrays.flat()
+      const merged = [...nowStatusEmails, ...uncategorizedEmails]
+      // Remove duplicates by email ID
+      const uniqueEmails = merged.filter((email, index, self) => 
+        index === self.findIndex(e => e.id === email.id)
+      )
+      nowEmails.value = uniqueEmails.sort((a, b) => b.date - a.date).slice(0, 50)
+    } catch (error) {
+      console.error('Error loading NOW emails:', error)
+    } finally {
+      loadingNow.value = false
+    }
   } catch (error) {
-    console.error('Error loading NOW emails:', error)
-  } finally {
-    loadingNow.value = false
+    console.error('Error loading accounts:', error)
   }
 }
 
@@ -482,6 +518,7 @@ watch(() => props.selectedEmailId, (newId) => {
 })
 
 watch(() => props.accountId, () => {
+  // AccountId change doesn't matter anymore since we load from all accounts
   loadAllEmails()
 })
 

@@ -43,7 +43,7 @@
       <div class="flex-1 flex flex-col overflow-hidden">
         <!-- Grid/Calm Mode: Use CalmMode component -->
         <template v-if="isGridLayout">
-          <CalmMode v-if="selectedAccount && !searchQuery" :account-id="selectedAccount.id" :selected-email-id="selectedEmailId" @select-email="handleEmailSelect" />
+          <CalmMode v-if="!searchQuery" :account-id="selectedAccount?.id" :selected-email-id="selectedEmailId" @select-email="handleEmailSelect" />
           <!-- For search in grid mode, fall back to EmailList -->
           <div v-else-if="searchQuery" class="flex-1 px-2">
             <EmailList :folder-id="''" :folder-name="'Search Results'" :selected-email-id="selectedEmailId" :account-id="selectedAccount?.id" :search-query="searchQuery" @select-email="handleEmailSelect" @drag-start="handleDragStart" @drag-end="handleDragEnd" />

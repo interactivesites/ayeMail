@@ -881,10 +881,12 @@ export class IMAPClient {
           let flags: string[] = []
           let envelope: any = null
           let body = ''
-          let bodyPromise: Promise<void> | null = null
+          let messageProcessingPromise: Promise<void> | null = null
 
           fetch.on('message', (msg, seqno) => {
             console.log(`[IMAPClient.fetchEmailByUid] Message event received for UID ${uid}, seqno ${seqno}`)
+            
+            let bodyPromise: Promise<void> | null = null
             
             msg.on('body', (stream, info) => {
               console.log(`[IMAPClient.fetchEmailByUid] Body stream started for UID ${uid}`)
@@ -907,21 +909,29 @@ export class IMAPClient {
               console.log(`[IMAPClient.fetchEmailByUid] Attributes received for UID ${uid}, actual UID from attrs: ${attrs.uid}`)
             })
 
-            msg.once('end', async () => {
-              console.log(`[IMAPClient.fetchEmailByUid] Message end event for UID ${uid}`)
+            messageProcessingPromise = new Promise<void>(async (resolveProcessing) => {
+              msg.once('end', async () => {
+              console.log(`[IMAPClient.fetchEmailByUid] Message end event for UID ${uid}, body length: ${body.length}, bodyPromise exists: ${!!bodyPromise}`)
               // Wait for body stream to complete if it exists
               if (bodyPromise) {
+                console.log(`[IMAPClient.fetchEmailByUid] Waiting for body promise to complete...`)
                 await bodyPromise
+                console.log(`[IMAPClient.fetchEmailByUid] Body promise completed, body length: ${body.length}`)
               }
 
               try {
                 // Parse the email body
+                console.log(`[IMAPClient.fetchEmailByUid] Starting to parse body for UID ${uid}, length: ${body.length}`)
                 let parsed: any = null
                 if (body && body.length > 0) {
                   parsed = await simpleParser(body)
+                  console.log(`[IMAPClient.fetchEmailByUid] Body parsed successfully for UID ${uid}`)
+                } else {
+                  console.warn(`[IMAPClient.fetchEmailByUid] No body content to parse for UID ${uid}`)
                 }
 
                 // Create email with parsed content
+                console.log(`[IMAPClient.fetchEmailByUid] Creating email object for UID ${uid}`)
                 email = {
                   id: `${this.account.id}-${folderName}-${uid}`,
                   accountId: this.account.id,
@@ -959,8 +969,9 @@ export class IMAPClient {
                   createdAt: Date.now(),
                   updatedAt: Date.now()
                 }
+                console.log(`[IMAPClient.fetchEmailByUid] Email object created successfully for UID ${uid}, body length: ${email.body?.length || 0}`)
               } catch (parseErr) {
-                console.error(`Error parsing message ${uid}:`, parseErr)
+                console.error(`[IMAPClient.fetchEmailByUid] Error parsing message ${uid}:`, parseErr, 'Stack:', (parseErr as any).stack)
                 // Still create email with envelope data if parsing fails
                 email = {
                   id: `${this.account.id}-${folderName}-${uid}`,
@@ -991,7 +1002,10 @@ export class IMAPClient {
                   createdAt: Date.now(),
                   updatedAt: Date.now()
                 }
-              }
+                console.log(`[IMAPClient.fetchEmailByUid] Email object created successfully for UID ${uid}, body length: ${email.body?.length || 0}`)
+                
+                resolveProcessing()
+              })
             })
           })
 
@@ -1001,10 +1015,17 @@ export class IMAPClient {
             reject(err)
           })
 
-          fetch.once('end', () => {
+          fetch.once('end', async () => {
+            console.log(`[IMAPClient.fetchEmailByUid] Fetch end event for UID ${uid}, waiting for message processing...`)
+            
+            // Wait for message processing to complete
+            if (messageProcessingPromise) {
+              await messageProcessingPromise
+            }
+            
             clearTimeout(timeout)
             this.connection!.removeListener('error', errorHandler)
-            console.log(`[IMAPClient.fetchEmailByUid] Fetch end event for UID ${uid}, email object: ${email ? 'created' : 'NULL'}`)
+            console.log(`[IMAPClient.fetchEmailByUid] Message processing complete for UID ${uid}, email object: ${email ? 'created' : 'NULL'}`)
             if (!email) {
               console.warn(`[IMAPClient.fetchEmailByUid] No message received for UID ${uid} in folder ${targetFolder}. This could mean the UID doesn't exist in this folder.`)
             }
