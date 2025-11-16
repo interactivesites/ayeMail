@@ -660,9 +660,15 @@ export class EmailStorage {
   private mapDbEmailToEmail(dbEmail: any): Email {
     // Decrypt body with error handling
     let body = ''
-    if (dbEmail.body_encrypted) {
+    if (dbEmail.body_encrypted && typeof dbEmail.body_encrypted === 'string' && dbEmail.body_encrypted.trim().length > 0) {
       try {
-        body = encryption.decrypt(dbEmail.body_encrypted)
+        // Validate encrypted data format (should have 3 parts separated by :)
+        const parts = dbEmail.body_encrypted.split(':')
+        if (parts.length === 3 && parts[0].length > 0 && parts[1].length > 0 && parts[2].length > 0) {
+          body = encryption.decrypt(dbEmail.body_encrypted)
+        } else {
+          console.warn(`Invalid encrypted body format for email ${dbEmail.id}`)
+        }
       } catch (error) {
         console.error(`Error decrypting body for email ${dbEmail.id}:`, error)
         // Continue with empty body - email metadata will still be available
@@ -671,9 +677,15 @@ export class EmailStorage {
     
     // Decrypt HTML body with error handling
     let htmlBody: string | undefined = undefined
-    if (dbEmail.html_body_encrypted) {
+    if (dbEmail.html_body_encrypted && typeof dbEmail.html_body_encrypted === 'string' && dbEmail.html_body_encrypted.trim().length > 0) {
       try {
-        htmlBody = encryption.decrypt(dbEmail.html_body_encrypted)
+        // Validate encrypted data format (should have 3 parts separated by :)
+        const parts = dbEmail.html_body_encrypted.split(':')
+        if (parts.length === 3 && parts[0].length > 0 && parts[1].length > 0 && parts[2].length > 0) {
+          htmlBody = encryption.decrypt(dbEmail.html_body_encrypted)
+        } else {
+          console.warn(`Invalid encrypted htmlBody format for email ${dbEmail.id}`)
+        }
       } catch (error) {
         console.error(`Error decrypting HTML body for email ${dbEmail.id}:`, error)
         // Continue without HTML body
@@ -682,9 +694,15 @@ export class EmailStorage {
     
     // Decrypt text body with error handling
     let textBody: string | undefined = undefined
-    if (dbEmail.text_body_encrypted) {
+    if (dbEmail.text_body_encrypted && typeof dbEmail.text_body_encrypted === 'string' && dbEmail.text_body_encrypted.trim().length > 0) {
       try {
-        textBody = encryption.decrypt(dbEmail.text_body_encrypted)
+        // Validate encrypted data format (should have 3 parts separated by :)
+        const parts = dbEmail.text_body_encrypted.split(':')
+        if (parts.length === 3 && parts[0].length > 0 && parts[1].length > 0 && parts[2].length > 0) {
+          textBody = encryption.decrypt(dbEmail.text_body_encrypted)
+        } else {
+          console.warn(`Invalid encrypted textBody format for email ${dbEmail.id}`)
+        }
       } catch (error) {
         console.error(`Error decrypting text body for email ${dbEmail.id}:`, error)
         // Continue without text body

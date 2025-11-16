@@ -11,6 +11,7 @@ const DARK_MODE_KEY = 'darkMode'
 const THREAD_VIEW_KEY = 'threadView'
 const EXPANDED_ACCOUNTS_KEY = 'expandedAccounts'
 const EXPANDED_FOLDERS_KEY = 'expandedFolders'
+const CONFIRM_ARCHIVE_KEY = 'confirmArchive'
 
 const loadActionLabelsPreference = () => {
   if (typeof window === 'undefined') return true
@@ -67,6 +68,12 @@ const loadExpandedFolders = (): string[] => {
   }
 }
 
+const loadConfirmArchive = (): boolean => {
+  if (typeof window === 'undefined') return true
+  const stored = window.localStorage.getItem(CONFIRM_ARCHIVE_KEY)
+  return stored === null ? true : stored !== 'false' // Default to true (enabled)
+}
+
 export const usePreferencesStore = defineStore('preferences', () => {
   const showActionLabels = ref(loadActionLabelsPreference())
   const mailLayout = ref<MailLayout>(loadMailLayout())
@@ -75,6 +82,7 @@ export const usePreferencesStore = defineStore('preferences', () => {
   const threadView = ref(loadThreadView())
   const expandedAccounts = ref<string[]>(loadExpandedAccounts())
   const expandedFolders = ref<string[]>(loadExpandedFolders())
+  const confirmArchive = ref(loadConfirmArchive())
 
   const setShowActionLabels = (value: boolean) => {
     showActionLabels.value = value
@@ -114,6 +122,13 @@ export const usePreferencesStore = defineStore('preferences', () => {
     threadView.value = value
     if (typeof window !== 'undefined') {
       window.localStorage.setItem(THREAD_VIEW_KEY, String(value))
+    }
+  }
+
+  const setConfirmArchive = (value: boolean) => {
+    confirmArchive.value = value
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(CONFIRM_ARCHIVE_KEY, String(value))
     }
   }
 
@@ -180,6 +195,8 @@ export const usePreferencesStore = defineStore('preferences', () => {
     toggleExpandedFolder,
     isAccountExpanded,
     isFolderExpanded,
+    confirmArchive,
+    setConfirmArchive,
   }
 })
 

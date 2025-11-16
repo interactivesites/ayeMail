@@ -116,6 +116,20 @@
                 </label>
               </div>
               <div>
+                <h3 class="text-md font-semibold text-gray-900 dark:text-gray-100 mb-2">Email Actions</h3>
+                <label class="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-700 rounded dark:bg-gray-800">
+                  <div>
+                    <p class="text-sm font-medium text-gray-900 dark:text-gray-100">Confirm archiving mails</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Show confirmation popover when archiving emails</p>
+                  </div>
+                  <input
+                    v-model="confirmArchive"
+                    type="checkbox"
+                    class="toggle"
+                  />
+                </label>
+              </div>
+              <div>
                 
                 <GPGKeyManager />
               </div>
@@ -196,6 +210,11 @@ const showActionLabels = computed({
 const darkMode = computed({
   get: () => preferences.darkMode,
   set: (value: boolean) => preferences.setDarkMode(value),
+})
+
+const confirmArchive = computed({
+  get: () => preferences.confirmArchive,
+  set: (value: boolean) => preferences.setConfirmArchive(value),
 })
 
 const loadAccounts = async () => {

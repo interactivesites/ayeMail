@@ -58,8 +58,9 @@ body {
 }
 
 /** Buttons, Links, Labels */
+
 button, a, label {
-  @apply text-sm font-medium text-gray-700 dark:text-gray-300;
+  @apply text-xs font-medium text-gray-700 dark:text-gray-300;
   -webkit-app-region: no-drag;
 }
 

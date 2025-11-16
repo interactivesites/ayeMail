@@ -1,19 +1,19 @@
 <template>
   <header class="app-drag-region bg-white/70 dark:bg-gray-800/70 backdrop-blur-xl border-b border-white/60 dark:border-gray-700 shadow-sm">
-    <nav class="ml-20 px-4 py-2 border-t border-white/60 dark:border-gray-700 flex items-center justify-between h-16">
+    <nav class="ml-2 px-4 py-2 border-t border-white/60 dark:border-gray-700 flex items-center justify-between h-16">
       <!-- Left mode: Show logo and folder actions (sync, compose) -->
-      <template v-if="mode === 'left'">
+      <template v-if="mode === 'left'" >
         <!-- <img src="../../assets/ilogo.png" alt="iMail" class="w-8 h-8 rounded-xl mr-8" /> -->
         
         <!-- Folder actions -->
-        <div class="app-no-drag flex items-center space-x-3">
-          <button @click="$emit('sync')" :disabled="syncing" class="flex items-center space-x-2 text-gray-700 dark:text-gray-200 hover:text-gray-900 dark:hover:text-gray-100 disabled:text-gray-400 dark:disabled:text-gray-600">
+        <div class="app-no-drag flex items-center space-x-3 ml-16 pl-2">
+          <button @click="$emit('sync')" :disabled="syncing" class="text-gray-700 dark:text-gray-200 hover:text-gray-900 dark:hover:text-gray-100 items-center flex flex-col">
             <ArrowPathIcon class="w-5 h-5" />
-            <span v-if="preferences.showActionLabels">{{ syncing ? 'Syncing...' : 'Get Mail' }}</span>
+            <span v-if="preferences.showActionLabels">{{ syncing ? 'Syncing...' : 'Sync' }}</span>
           </button>
-          <button @click="$emit('compose')" class="text-gray-700 dark:text-gray-200 hover:text-gray-900 dark:hover:text-gray-100">
+          <button @click="$emit('compose')" class="text-gray-700 dark:text-gray-200 hover:text-gray-900 dark:hover:text-gray-100 items-center flex flex-col">
             <EnvelopeIcon class="w-5 h-5" />
-            <span v-if="preferences.showActionLabels">Compose</span>
+            <span v-if="preferences.showActionLabels">New</span>
           </button>
         </div>
       </template>
@@ -25,21 +25,25 @@
             ? 'border-transparent text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100'
             : 'border-transparent text-gray-300 dark:text-gray-600 cursor-not-allowed'" title="Reply">
             <ArrowUturnLeftIcon class="w-5 h-5" />
+            <span v-if="preferences.showActionLabels">Reply</span>
           </button>
-          <button type="button" @click="$emit('forward')" :disabled="!hasSelectedEmail" class="p-2 rounded-md border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600" :class="hasSelectedEmail
+          <button type="button" @click="$emit('forward')" :disabled="!hasSelectedEmail" class="flex items-center flex-col p-2 rounded-md border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600" :class="hasSelectedEmail
             ? 'border-transparent text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100'
             : 'border-transparent text-gray-300 dark:text-gray-600 cursor-not-allowed'" title="Forward">
             <ArrowUpOnSquareIcon class="w-5 h-5" />
+            <span v-if="preferences.showActionLabels">Forward</span>
           </button>
-          <button type="button" @click="$emit('set-reminder')" :disabled="!hasSelectedEmail" class="p-2 rounded-md border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600" :class="hasSelectedEmail
+          <button type="button" @click="$emit('set-reminder')" :disabled="!hasSelectedEmail" class="flex items-center flex-col p-2 rounded-md border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600" :class="hasSelectedEmail
             ? 'border-transparent text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100'
             : 'border-transparent text-gray-300 dark:text-gray-600 cursor-not-allowed'" title="Set reminder">
             <BellAlertIcon class="w-5 h-5" />
+            <span v-if="preferences.showActionLabels">Set reminder</span>
           </button>
-          <button type="button" @click="$emit('delete')" :disabled="!hasSelectedEmail" class="p-2 rounded-md border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500" :class="hasSelectedEmail
+          <button type="button" @click="$emit('delete')" :disabled="!hasSelectedEmail" class="flex items-center flex-col p-2 rounded-md border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500" :class="hasSelectedEmail
             ? 'border-transparent text-red-500 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300'
             : 'border-transparent text-gray-300 dark:text-gray-600 cursor-not-allowed'" title="Delete">
             <TrashIcon class="w-5 h-5" />
+            <span v-if="preferences.showActionLabels">Delete</span>
           </button>
         </div>
 
@@ -48,6 +52,7 @@
           <div class="relative">
             <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
               <MagnifyingGlassIcon class="h-5 w-5 text-gray-400 dark:text-gray-500" />
+              <!-- <span v-if="preferences.showActionLabels">Search emails...</span> -->
             </div>
             <input
               ref="searchInputRef"
@@ -66,9 +71,10 @@
               <XMarkIcon class="h-4 w-4 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300" />
             </button>
           </div>
-          <button type="button" class="p-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" @click="$emit('open-settings')" title="Settings">
+          <button type="button" class="flex items-center flex-col p-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" @click="$emit('open-settings')" title="Settings">
             <CogIcon class="w-5 h-5" />
-          </button>
+            <span v-if="preferences.showActionLabels">Settings</span>
+            </button>
         </div>
       </template>
     </nav>

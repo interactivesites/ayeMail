@@ -426,6 +426,13 @@ const toggleThreadView = () => {
 }
 
 const showArchiveConfirm = async (emailId: string) => {
+  // Check if confirmation is enabled
+  if (!preferences.confirmArchive) {
+    // Skip confirmation and archive directly
+    await confirmArchive(emailId)
+    return
+  }
+  
   archiveConfirmId.value = emailId
   
   // Position archive popover using Floating UI
@@ -878,7 +885,7 @@ const handleKeyDown = (event: KeyboardEvent) => {
       if (props.selectedEmailId) {
         event.preventDefault()
         event.stopPropagation()
-        confirmArchive(props.selectedEmailId)
+        showArchiveConfirm(props.selectedEmailId)
       }
       break
     case 't':

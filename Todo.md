@@ -1,5 +1,8 @@
 
 ## Functionality
+- J = Junk marking / SPAM Logic?
+-- Select ALL in a trash/spam folder (EmailList) and make deletion possible? OR: junk/spam -> add clear button (autoclean)
+
 - language (i18n) / - formatters (date, time, etc.) - try to get from system
 - GPG: plan, check, implement.
 - Auto-Updater?
@@ -13,8 +16,7 @@
 
 
 ## Feat
-- SPAM Logic?
--- Select ALL in a folder (EmailList) and make deletion possible? OR: junk/spam -> add clear button (autoclean)
+
 
 - ai to summarize, answer?
 - Folder management: rename, order, delete, create?
