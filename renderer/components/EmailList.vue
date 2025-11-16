@@ -72,6 +72,10 @@
                 'opacity-50': isDragging === email.id
               }"
             >
+              <span
+                class="email-popover-anchor absolute top-1/2 right-3 w-0 h-0 transform -translate-y-1/2 pointer-events-none"
+                :data-email-anchor="email.id"
+              ></span>
               <!-- Archive Loading Overlay -->
               <div
                 v-if="archivingEmailId === email.id"
@@ -103,25 +107,29 @@
                   <Teleport to="body">
                     <div
                       v-if="archiveConfirmId === email.id" 
-                      :ref="(el: any) => { if (el) archivePopoverRefs.set(email.id, el as HTMLElement) }"
-                      class="fixed z-50 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 p-3 min-w-[200px]"
+                      :ref="(el: HTMLElement | null) => { if (el) { archivePopoverRefs.set(email.id, el) } else { archivePopoverRefs.delete(email.id) } }"
+                      class="popover-panel fixed z-50 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 p-3 min-w-[220px]"
                       @click.stop
                     >
-                    <div class="flex items-center gap-2 mb-3">
-                      <button
-                        @click="cancelArchive"
-                        class="px-3 py-1.5 text-sm rounded bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        @click="confirmArchive(email.id)"
-                        class="px-3 py-1.5 text-sm rounded bg-primary-600 dark:bg-primary-500 text-white hover:bg-primary-700 dark:hover:bg-primary-600 transition-colors"
-                      >
-                        Complete
-                      </button>
-                    </div>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">Disable confirmation messages in Preferences</p>
+                      <div
+                        class="popover-arrow bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700"
+                        :ref="(el: HTMLElement | null) => { if (el) { archiveArrowRefs.set(email.id, el) } else { archiveArrowRefs.delete(email.id) } }"
+                      ></div>
+                      <div class="flex items-center gap-2 mb-3">
+                        <button
+                          @click="cancelArchive"
+                          class="px-3 py-1.5 text-sm rounded bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          @click="confirmArchive(email.id)"
+                          class="px-3 py-1.5 text-sm rounded bg-primary-600 dark:bg-primary-500 text-white hover:bg-primary-700 dark:hover:bg-primary-600 transition-colors"
+                        >
+                          Complete
+                        </button>
+                      </div>
+                      <p class="text-xs text-gray-500 dark:text-gray-400">Disable confirmation messages in Preferences</p>
                     </div>
                   </Teleport>
                 </div>
@@ -290,15 +298,19 @@
       <div
         v-if="showReminderModal && reminderEmail"
         ref="reminderModalRef"
-        class="fixed z-[9999]"
+        class="popover-panel fixed z-[9999]"
         :style="reminderModalStyle"
         style="pointer-events: auto;"
       >
+        <div
+          class="popover-arrow bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700"
+          ref="reminderArrowRef"
+        ></div>
         <ReminderModal
           :email-id="reminderEmail.id"
           :account-id="reminderEmail.accountId"
           :is-popover="true"
-          @close="showReminderModal = false; reminderEmail = null"
+          @close="closeReminderPopover()"
           @saved="handleReminderSaved"
         />
       </div>
@@ -309,16 +321,20 @@
       <div
         v-if="showFolderPicker && folderPickerEmail"
         ref="folderPickerRef"
-        class="fixed z-[9999]"
+        class="popover-panel fixed z-[9999]"
         :style="folderPickerStyle"
         style="pointer-events: auto;"
       >
+        <div
+          class="popover-arrow bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700"
+          ref="folderPickerArrowRef"
+        ></div>
         <FolderPickerModal
           :account-id="folderPickerEmail.accountId"
           :current-folder-id="folderId"
           :is-popover="true"
           @folder-selected="handleFolderSelected"
-          @close="showFolderPicker = false; folderPickerEmail = null"
+          @close="closeFolderPickerPopover()"
         />
       </div>
     </Teleport>
@@ -327,12 +343,14 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, onUnmounted, nextTick } from 'vue'
+import type { Ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { usePreferencesStore } from '../stores/preferences'
 import { formatTime } from '../utils/formatters'
 import ReminderModal from './ReminderModal.vue'
 import FolderPickerModal from './FolderPickerModal.vue'
-import { computePosition, offset, flip, shift } from '@floating-ui/dom'
+import { computePosition, offset, shift, arrow as floatingArrow } from '@floating-ui/dom'
+import type { Placement, MiddlewareData } from '@floating-ui/dom'
 
 const props = defineProps<{
   folderId: string
@@ -363,6 +381,7 @@ const groupingMode = ref<'bydate'>('bydate')
 // Archive confirmation state
 const archiveConfirmId = ref<string | null>(null)
 const archivePopoverRefs = new Map<string, HTMLElement>()
+const archiveArrowRefs = new Map<string, HTMLElement>()
 const archivingEmailId = ref<string | null>(null)
 
 // Reminder modal state
@@ -370,12 +389,14 @@ const showReminderModal = ref(false)
 const reminderEmail = ref<{ id: string; accountId: string } | null>(null)
 const reminderModalStyle = ref<{ top?: string; left?: string; right?: string; transform?: string }>({})
 const reminderModalRef = ref<HTMLElement | null>(null)
+const reminderArrowRef = ref<HTMLElement | null>(null)
 
 // Folder picker modal state
 const showFolderPicker = ref(false)
 const folderPickerEmail = ref<{ id: string; accountId: string } | null>(null)
 const folderPickerStyle = ref<{ top?: string; left?: string; right?: string; transform?: string }>({})
 const folderPickerRef = ref<HTMLElement | null>(null)
+const folderPickerArrowRef = ref<HTMLElement | null>(null)
 
 // Container ref for focus management
 const containerRef = ref<HTMLElement | null>(null)
@@ -415,6 +436,119 @@ const getEmailPreview = (email: any): string => {
   return content
 }
 
+type StyleRef = Ref<{ top?: string; left?: string; right?: string; transform?: string }>
+
+const getEmailElement = (emailId: string): HTMLElement | null => {
+  return document.querySelector(`[data-email-id="${emailId}"]`) as HTMLElement | null
+}
+
+const getEmailAnchorElement = (emailId: string): HTMLElement | null => {
+  return document.querySelector(`[data-email-anchor="${emailId}"]`) as HTMLElement | null
+}
+
+const updateArrowStyles = (arrowElement: HTMLElement | null | undefined, placement: Placement, middlewareData: MiddlewareData) => {
+  if (!arrowElement || !middlewareData?.arrow) {
+    return
+  }
+
+  const { x: arrowX, y: arrowY } = middlewareData.arrow as { x?: number | null; y?: number | null }
+  const basePlacement = placement.split('-')[0] as 'top' | 'right' | 'bottom' | 'left'
+  const staticSideMap: Record<'top' | 'right' | 'bottom' | 'left', 'top' | 'right' | 'bottom' | 'left'> = {
+    top: 'bottom',
+    right: 'left',
+    bottom: 'top',
+    left: 'right'
+  }
+
+  arrowElement.style.left = ''
+  arrowElement.style.top = ''
+  arrowElement.style.right = ''
+  arrowElement.style.bottom = ''
+
+  if (arrowX != null) {
+    arrowElement.style.left = `${arrowX}px`
+  }
+  if (arrowY != null) {
+    arrowElement.style.top = `${arrowY}px`
+  }
+
+  const staticSide = staticSideMap[basePlacement]
+  if (staticSide) {
+    arrowElement.style[staticSide] = '-6px'
+  }
+}
+
+const positionFloatingElement = async ({
+  referenceElement,
+  floatingElement,
+  placement = 'right-end',
+  arrowElement,
+  styleRef
+}: {
+  referenceElement: HTMLElement
+  floatingElement: HTMLElement
+  placement?: Placement
+  arrowElement?: HTMLElement | null
+  styleRef?: StyleRef
+}) => {
+  const middleware = [
+    offset(12),
+    shift({ padding: 12 })
+  ]
+
+  if (arrowElement) {
+    middleware.push(floatingArrow({ element: arrowElement, padding: 6 }))
+  }
+
+  const { x, y, placement: finalPlacement, middlewareData } = await computePosition(referenceElement, floatingElement, {
+    placement,
+    middleware,
+    strategy: 'fixed'
+  })
+
+  const style = {
+    top: `${y}px`,
+    left: `${x}px`,
+    transform: 'none'
+  }
+
+  if (styleRef) {
+    styleRef.value = style
+  } else {
+    floatingElement.style.top = style.top
+    floatingElement.style.left = style.left
+    floatingElement.style.transform = style.transform
+  }
+
+  updateArrowStyles(arrowElement, finalPlacement, middlewareData)
+}
+
+const closeArchivePopover = () => {
+  archiveConfirmId.value = null
+}
+
+const closeReminderPopover = () => {
+  showReminderModal.value = false
+  reminderEmail.value = null
+}
+
+const closeFolderPickerPopover = () => {
+  showFolderPicker.value = false
+  folderPickerEmail.value = null
+}
+
+const closeOtherPopovers = (except?: 'archive' | 'reminder' | 'folder') => {
+  if (except !== 'archive') {
+    closeArchivePopover()
+  }
+  if (except !== 'reminder') {
+    closeReminderPopover()
+  }
+  if (except !== 'folder') {
+    closeFolderPickerPopover()
+  }
+}
+
 const handlePreviewLevelChange = (level: 1 | 2) => {
   preferences.setPreviewLevel(level)
 }
@@ -426,6 +560,7 @@ const toggleThreadView = () => {
 }
 
 const showArchiveConfirm = async (emailId: string) => {
+  closeOtherPopovers('archive')
   // Check if confirmation is enabled
   if (!preferences.confirmArchive) {
     // Skip confirmation and archive directly
@@ -442,35 +577,38 @@ const showArchiveConfirm = async (emailId: string) => {
   // Small delay to ensure popover is fully rendered
   await new Promise(resolve => setTimeout(resolve, 10))
   
-  const emailElement = document.querySelector(`[data-email-id="${emailId}"]`) as HTMLElement
+  const emailElement = getEmailElement(emailId)
+  const anchorElement = getEmailAnchorElement(emailId)
   const archiveButton = emailElement?.querySelector('button[title="Archive email"]') as HTMLElement
   const popoverElement = archivePopoverRefs.get(emailId)
   
-  if (archiveButton && popoverElement) {
+  const referenceElement = anchorElement || emailElement || archiveButton
+  const arrowElement = archiveArrowRefs.get(emailId) || null
+  
+  if (referenceElement && popoverElement) {
     try {
-      const { x, y } = await computePosition(archiveButton, popoverElement, {
-        placement: 'right',
-        middleware: [
-          offset(10),
-          flip(),
-          shift({ padding: 10 })
-        ]
+      await positionFloatingElement({
+        referenceElement,
+        floatingElement: popoverElement,
+        arrowElement,
+        placement: 'right-end'
       })
-      
-      popoverElement.style.top = `${y}px`
-      popoverElement.style.left = `${x}px`
     } catch (error) {
       console.error('Error positioning archive popover:', error)
+      const rect = referenceElement.getBoundingClientRect()
+      popoverElement.style.top = `${rect.top}px`
+      popoverElement.style.left = `${rect.right + 12}px`
+      popoverElement.style.transform = 'none'
     }
   }
 }
 
 const cancelArchive = () => {
-  archiveConfirmId.value = null
+  closeArchivePopover()
 }
 
 const confirmArchive = async (emailId: string) => {
-  archiveConfirmId.value = null
+  closeArchivePopover()
   archivingEmailId.value = emailId
   
   try {
@@ -563,8 +701,7 @@ const handleSpamEmail = async (emailId: string) => {
 }
 
 const handleReminderSaved = async () => {
-  showReminderModal.value = false
-  reminderEmail.value = null
+  closeReminderPopover()
   
   // Refresh the email list to reflect the move to Aside folder
   await loadEmails()
@@ -577,7 +714,7 @@ const showReminderForEmail = async (emailId: string) => {
     return
   }
   
-  console.log('Setting reminder modal state')
+  closeOtherPopovers('reminder')
   reminderEmail.value = { id: emailId, accountId: email.accountId }
   
   // Set initial position first (centered) so modal is visible immediately
@@ -589,7 +726,6 @@ const showReminderForEmail = async (emailId: string) => {
   
   // Show modal first, then position it
   showReminderModal.value = true
-  console.log('showReminderModal set to true', showReminderModal.value)
   
   // Wait for modal to render - need multiple ticks for Teleport + component mount
   await nextTick()
@@ -599,54 +735,34 @@ const showReminderForEmail = async (emailId: string) => {
   // Additional small delay to ensure calendar component has rendered
   await new Promise(resolve => setTimeout(resolve, 50))
   
-  const emailElement = document.querySelector(`[data-email-id="${emailId}"]`) as HTMLElement
+  const emailElement = getEmailElement(emailId)
+  const anchorElement = getEmailAnchorElement(emailId)
   const modalElement = reminderModalRef.value
   
-  console.log('Positioning modal', { 
-    emailElement: !!emailElement, 
-    modalElement: !!modalElement,
-    emailElementRect: emailElement?.getBoundingClientRect(),
-    modalElementRect: modalElement?.getBoundingClientRect(),
-    modalElementChildren: modalElement?.children.length,
-    modalElementInnerHTML: modalElement?.innerHTML.substring(0, 100)
-  })
+  const referenceElement = anchorElement || emailElement
   
-  if (emailElement && modalElement) {
+  if (referenceElement && modalElement) {
     try {
-      const { x, y } = await computePosition(emailElement, modalElement, {
-        placement: 'bottom-start',
-        middleware: [
-          offset(10),
-          flip(),
-          shift({ padding: 10 })
-        ]
+      await positionFloatingElement({
+        referenceElement,
+        floatingElement: modalElement,
+        arrowElement: reminderArrowRef.value,
+        styleRef: reminderModalStyle,
+        placement: 'right-end'
       })
-      
-      console.log('Computed position', { x, y })
-      reminderModalStyle.value = {
-        top: `${y}px`,
-        left: `${x}px`,
-        transform: 'none'
-      }
     } catch (error) {
       console.error('Error positioning reminder modal:', error)
       // Fallback positioning
-      const rect = emailElement.getBoundingClientRect()
+      const rect = referenceElement.getBoundingClientRect()
       reminderModalStyle.value = {
-        top: `${rect.bottom + 10}px`,
-        left: `${rect.left}px`,
+        top: `${rect.top}px`,
+        left: `${rect.right + 12}px`,
         transform: 'none'
       }
     }
   } else {
     console.warn('Email or modal element not found, keeping centered position')
   }
-  
-  console.log('Final modal state', {
-    showReminderModal: showReminderModal.value,
-    reminderEmail: reminderEmail.value,
-    style: reminderModalStyle.value
-  })
 }
 
 const showFolderPickerForEmail = async (emailId: string) => {
@@ -671,6 +787,7 @@ const showFolderPickerForEmail = async (emailId: string) => {
   }
   
   folderPickerEmail.value = { id: emailId, accountId: emailAccountId }
+  closeOtherPopovers('folder')
   
   // Set initial position (centered)
   folderPickerStyle.value = {
@@ -688,31 +805,27 @@ const showFolderPickerForEmail = async (emailId: string) => {
   
   await new Promise(resolve => setTimeout(resolve, 50))
   
-  const emailElement = document.querySelector(`[data-email-id="${emailId}"]`) as HTMLElement
+  const emailElement = getEmailElement(emailId)
+  const anchorElement = getEmailAnchorElement(emailId)
   const modalElement = folderPickerRef.value
   
-  if (emailElement && modalElement) {
+  const referenceElement = anchorElement || emailElement
+  
+  if (referenceElement && modalElement) {
     try {
-      const { x, y } = await computePosition(emailElement, modalElement, {
-        placement: 'bottom-start',
-        middleware: [
-          offset(10),
-          flip(),
-          shift({ padding: 10 })
-        ]
+      await positionFloatingElement({
+        referenceElement,
+        floatingElement: modalElement,
+        arrowElement: folderPickerArrowRef.value,
+        styleRef: folderPickerStyle,
+        placement: 'right-end'
       })
-      
-      folderPickerStyle.value = {
-        top: `${y}px`,
-        left: `${x}px`,
-        transform: 'none'
-      }
     } catch (error) {
       console.error('Error positioning folder picker:', error)
-      const rect = emailElement.getBoundingClientRect()
+      const rect = referenceElement.getBoundingClientRect()
       folderPickerStyle.value = {
-        top: `${rect.bottom + 10}px`,
-        left: `${rect.left}px`,
+        top: `${rect.top}px`,
+        left: `${rect.right + 12}px`,
         transform: 'none'
       }
     }
@@ -751,8 +864,7 @@ const handleFolderSelected = async (folderId: string) => {
     alert(`Failed to move email: ${error.message || 'Unknown error'}`)
   }
   
-  showFolderPicker.value = false
-  folderPickerEmail.value = null
+  closeFolderPickerPopover()
 }
 
 // Get all emails as a flat array (for navigation)
@@ -820,18 +932,22 @@ const handleKeyDown = (event: KeyboardEvent) => {
   
   // Handle Escape to close modals
   if (event.key === 'Escape') {
+    let closed = false
+    if (archiveConfirmId.value) {
+      closeArchivePopover()
+      closed = true
+    }
     if (showReminderModal.value) {
-      event.preventDefault()
-      event.stopPropagation()
-      showReminderModal.value = false
-      reminderEmail.value = null
-      return
+      closeReminderPopover()
+      closed = true
     }
     if (showFolderPicker.value) {
+      closeFolderPickerPopover()
+      closed = true
+    }
+    if (closed) {
       event.preventDefault()
       event.stopPropagation()
-      showFolderPicker.value = false
-      folderPickerEmail.value = null
       return
     }
   }
@@ -853,14 +969,12 @@ const handleKeyDown = (event: KeyboardEvent) => {
   // (they will close the modal and execute the action)
   if (showReminderModal.value && event.key !== 'Escape' && !isInCalendar) {
     // Close modal first, then continue to handle the key
-    showReminderModal.value = false
-    reminderEmail.value = null
+    closeReminderPopover()
   }
   
   // If folder picker is open but user is NOT interacting with it, allow shortcuts
   if (showFolderPicker.value && event.key !== 'Escape' && !isInFolderPicker) {
-    showFolderPicker.value = false
-    folderPickerEmail.value = null
+    closeFolderPickerPopover()
   }
   
   switch (event.key) {
@@ -1265,7 +1379,7 @@ const handleClickOutside = (event: MouseEvent) => {
   if (archiveConfirmId.value) {
     // Close if click is outside the checkbox container and popover
     if (!target.closest('.relative') && !target.closest('.absolute')) {
-      archiveConfirmId.value = null
+      closeArchivePopover()
     }
   }
   
@@ -1273,8 +1387,7 @@ const handleClickOutside = (event: MouseEvent) => {
     // Close reminder modal if clicking outside
     const reminderModalElement = target.closest('.bg-white.rounded-lg.shadow-xl')
     if (!reminderModalElement) {
-      showReminderModal.value = false
-      reminderEmail.value = null
+      closeReminderPopover()
     }
   }
   
@@ -1282,8 +1395,7 @@ const handleClickOutside = (event: MouseEvent) => {
     // Close folder picker if clicking outside
     const folderPickerElement = target.closest('.folder-picker-popover')
     if (!folderPickerElement) {
-      showFolderPicker.value = false
-      folderPickerEmail.value = null
+      closeFolderPickerPopover()
     }
   }
 }
@@ -1321,10 +1433,10 @@ onMounted(() => {
 
 watch([() => props.folderId, () => props.unifiedFolderType, () => props.unifiedFolderAccountIds, () => props.searchQuery, () => threadView.value], () => {
   loadEmails()
-  archiveConfirmId.value = null // Close popover when folder changes
+  closeArchivePopover() // Close popover when folder changes
   archivingEmailId.value = null // Clear archiving state when folder changes
-  showReminderModal.value = false // Close reminder modal when folder changes
-  reminderEmail.value = null
+  closeReminderPopover()
+  closeFolderPickerPopover()
   // Re-focus container when folder changes, but not when search query changes
   // (to avoid stealing focus from search input)
   if (!props.searchQuery) {
@@ -1380,3 +1492,18 @@ onUnmounted(() => {
   window.removeEventListener('keydown', handleKeyDown)
 })
 </script>
+
+<style scoped>
+.popover-panel {
+  pointer-events: auto;
+}
+
+.popover-arrow {
+  width: 12px;
+  height: 12px;
+  position: absolute;
+  transform: rotate(45deg);
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+</style>

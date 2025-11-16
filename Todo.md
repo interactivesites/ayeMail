@@ -11,7 +11,7 @@
 
 
 ## UI
-- Better top-bar
+- Threads: visualise with connections
 - add loading anims for load / send / refresh
 
 
