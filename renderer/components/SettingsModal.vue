@@ -130,8 +130,32 @@
                 </label>
               </div>
               <div>
-                
-                <GPGKeyManager />
+                <h3 class="text-md font-semibold text-gray-900 dark:text-gray-100 mb-2">GPG Encryption</h3>
+                <div class="p-3 border border-gray-200 dark:border-gray-700 rounded dark:bg-gray-800 opacity-60 pointer-events-none">
+                  <div class="flex items-center justify-between mb-2">
+                    <div>
+                      <p class="text-sm font-medium text-gray-900 dark:text-gray-100">GPG Key Management</p>
+                      <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Not yet implemented (NYI)</p>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                      <button
+                        disabled
+                        class="px-3 py-1 bg-gray-400 text-white text-sm rounded cursor-not-allowed"
+                      >
+                        Import Key
+                      </button>
+                      <button
+                        disabled
+                        class="px-3 py-1 bg-gray-400 text-white text-sm rounded cursor-not-allowed"
+                      >
+                        Generate Key
+                      </button>
+                    </div>
+                  </div>
+                  <div class="text-gray-500 dark:text-gray-400 text-sm">
+                    No GPG keys configured
+                  </div>
+                </div>
               </div>
               <div>
                 <h3 class="text-md font-semibold text-gray-900 dark:text-gray-100 mb-2">Security</h3>
@@ -180,7 +204,6 @@
 import { ref, onMounted, computed } from 'vue'
 import AddAccountForm from './AddAccountForm.vue'
 import SignatureManager from './SignatureManager.vue'
-import GPGKeyManager from './GPGKeyManager.vue'
 import UiTabs from './UiTabs.vue'
 import { usePreferencesStore } from '../stores/preferences'
 
