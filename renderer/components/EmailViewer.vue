@@ -1,9 +1,15 @@
 <template>
   <div class="flex flex-col h-full">
-    <div v-if="!email" class="flex-1 flex items-center justify-center text-gray-500 dark:text-gray-400">
+    <div v-if="!props.emailId && !email" class="flex-1 flex items-center justify-center text-gray-500 dark:text-gray-400">
       Select an email to view
     </div>
-    <div v-else class="flex flex-col h-full">
+    <div v-else-if="loading && !email" class="flex-1 flex items-center justify-center">
+      <div class="flex flex-col items-center space-y-4">
+        <div class="w-8 h-8 border-4 border-primary-600 dark:border-primary-500 border-t-transparent rounded-full animate-spin"></div>
+        <p class="text-gray-600 dark:text-gray-400">Loading email...</p>
+      </div>
+    </div>
+    <div v-else-if="email" class="flex flex-col h-full">
       <div class="p-4 border-b border-gray-200 dark:border-gray-700">
         <div class="flex items-start justify-between mb-2">
           <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ email.subject || '(No subject)' }}</h2>
@@ -111,40 +117,11 @@
         
         <!-- Thread Emails -->
         <div v-if="threadEmails.length > 1" class="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
-          <h3 class="font-medium text-gray-900 dark:text-gray-100 mb-4">Thread ({{ threadEmails.length }} emails)</h3>
-          <div class="space-y-3">
-            <button
-              v-for="threadEmail in threadEmails"
-              :key="threadEmail.id"
-              @click="handleThreadEmailClick(threadEmail.id)"
-              class="w-full text-left p-3 rounded-lg border transition-colors"
-              :class="threadEmail.id === email?.id 
-                ? 'bg-primary-50 dark:bg-primary-900/20 border-primary-300 dark:border-primary-700 cursor-default' 
-                : 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer'"
-            >
-              <div class="flex items-start justify-between gap-2">
-                <div class="flex-1 min-w-0">
-                  <div class="flex items-center gap-2 mb-1">
-                    <span class="text-sm font-medium text-gray-900 dark:text-gray-100">
-                      {{ threadEmail.from[0]?.name || threadEmail.from[0]?.address }}
-                    </span>
-                    <span class="text-xs text-gray-500 dark:text-gray-400">
-                      {{ formatDate(threadEmail.date) }}
-                    </span>
-                    <span v-if="threadEmail.id === email?.id" class="text-xs px-2 py-0.5 rounded bg-primary-600 dark:bg-primary-500 text-white">
-                      Current
-                    </span>
-                  </div>
-                  <div class="text-sm text-gray-700 dark:text-gray-300">
-                    {{ threadEmail.subject || '(No subject)' }}
-                  </div>
-                  <div v-if="threadEmail.textBody || threadEmail.body" class="mt-1 text-xs text-gray-500 dark:text-gray-400 line-clamp-2">
-                    {{ (threadEmail.textBody || threadEmail.body || '').substring(0, 150) }}{{ (threadEmail.textBody || threadEmail.body || '').length > 150 ? '...' : '' }}
-                  </div>
-                </div>
-              </div>
-            </button>
-          </div>
+          <ThreadView
+            :emails="threadEmails"
+            :current-email-id="email?.id"
+            @select-email="handleThreadEmailClick"
+          />
         </div>
       </div>
     </div>
@@ -156,6 +133,7 @@ import { ref, watch, computed, nextTick } from 'vue'
 import { formatDate, formatSize, formatAddresses } from '../utils/formatters'
 import { EmailAddress } from '../../shared/types'
 import { checkUrlSecurity } from '../utils/url-security'
+import ThreadView from './ThreadView.vue'
 
 const props = defineProps<{
   emailId?: string
@@ -226,14 +204,31 @@ const loadEmail = async () => {
   if (!props.emailId) {
     email.value = null
     threadEmails.value = []
+    loading.value = false
     return
   }
 
+  // Set loading state immediately to show loading indicator
   loading.value = true
+  email.value = null // Clear previous email immediately
+  
   try {
-    email.value = await window.electronAPI.emails.get(props.emailId)
-    // Load thread emails after loading the main email
-    await loadThreadEmails()
+    // Add timeout to prevent hanging (30 seconds)
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Email loading timeout')), 30000)
+    )
+    
+    // Race between email loading and timeout
+    email.value = await Promise.race([
+      window.electronAPI.emails.get(props.emailId),
+      timeoutPromise
+    ]) as any
+    
+    // Load thread emails after loading the main email (don't block on this)
+    loadThreadEmails().catch(error => {
+      console.error('Error loading thread emails:', error)
+      // Don't fail the whole email load if thread loading fails
+    })
   } catch (error) {
     console.error('Error loading email:', error)
     email.value = null
@@ -448,8 +443,11 @@ const handleComposeToAddress = (address: string) => {
   window.electronAPI.window.compose.create(email.value.accountId, composeData)
 }
 
-watch(() => props.emailId, () => {
-  loadEmail()
+watch(() => props.emailId, (newId, oldId) => {
+  // Only load if email ID actually changed
+  if (newId !== oldId) {
+    loadEmail()
+  }
 }, { immediate: true })
 
 

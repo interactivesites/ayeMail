@@ -518,41 +518,60 @@ export class EmailStorage {
         // Only fetch from IMAP (POP3 doesn't support fetching by UID)
         if (account.type === 'imap') {
           const imapClient = getIMAPClient(account)
-          await imapClient.connect()
+          
+          // Add timeout to prevent hanging when sync is running (10 seconds)
+          const fetchWithTimeout = async () => {
+            await imapClient.connect()
+            
+            try {
+              // Use folder name for IMAP operations, ensure INBOX is uppercase
+              const imapFolderName = folder.name.toUpperCase() === 'INBOX' ? 'INBOX' : folder.path
+              
+              const fetchedEmail = await imapClient.fetchEmailByUid(imapFolderName, email.uid)
+              
+              if (fetchedEmail && (fetchedEmail.body || fetchedEmail.htmlBody || fetchedEmail.textBody)) {
+                // Update the email in database with the fetched body
+                const bodyEncrypted = encryption.encrypt(fetchedEmail.body || '')
+                const htmlBodyEncrypted = fetchedEmail.htmlBody ? encryption.encrypt(fetchedEmail.htmlBody) : null
+                const textBodyEncrypted = fetchedEmail.textBody ? encryption.encrypt(fetchedEmail.textBody) : null
+                
+                this.db.prepare(`
+                  UPDATE emails SET
+                    body_encrypted = ?,
+                    html_body_encrypted = ?,
+                    text_body_encrypted = ?,
+                    updated_at = ?
+                  WHERE id = ?
+                `).run(bodyEncrypted, htmlBodyEncrypted, textBodyEncrypted, Date.now(), id)
+                
+                // Update the mapped email with the fetched body
+                mappedEmail.body = fetchedEmail.body || ''
+                mappedEmail.htmlBody = fetchedEmail.htmlBody
+                mappedEmail.textBody = fetchedEmail.textBody
+                
+                console.log(`Successfully fetched and updated body for email ${id}`)
+              }
+            } finally {
+              await imapClient.disconnect()
+            }
+          }
           
           try {
-            // Use folder name for IMAP operations, ensure INBOX is uppercase
-            const imapFolderName = folder.name.toUpperCase() === 'INBOX' ? 'INBOX' : folder.path
-            
-            const fetchedEmail = await imapClient.fetchEmailByUid(imapFolderName, email.uid)
-            
-            if (fetchedEmail && (fetchedEmail.body || fetchedEmail.htmlBody || fetchedEmail.textBody)) {
-              // Update the email in database with the fetched body
-              const bodyEncrypted = encryption.encrypt(fetchedEmail.body || '')
-              const htmlBodyEncrypted = fetchedEmail.htmlBody ? encryption.encrypt(fetchedEmail.htmlBody) : null
-              const textBodyEncrypted = fetchedEmail.textBody ? encryption.encrypt(fetchedEmail.textBody) : null
-              
-              this.db.prepare(`
-                UPDATE emails SET
-                  body_encrypted = ?,
-                  html_body_encrypted = ?,
-                  text_body_encrypted = ?,
-                  updated_at = ?
-                WHERE id = ?
-              `).run(bodyEncrypted, htmlBodyEncrypted, textBodyEncrypted, Date.now(), id)
-              
-              // Update the mapped email with the fetched body
-              mappedEmail.body = fetchedEmail.body || ''
-              mappedEmail.htmlBody = fetchedEmail.htmlBody
-              mappedEmail.textBody = fetchedEmail.textBody
-              
-              console.log(`Successfully fetched and updated body for email ${id}`)
+            // Race between fetch and timeout (10 seconds)
+            await Promise.race([
+              fetchWithTimeout(),
+              new Promise((_, reject) => 
+                setTimeout(() => reject(new Error('Server fetch timeout')), 10000)
+              )
+            ])
+          } catch (fetchError: any) {
+            // Log timeout or other errors, but don't fail the whole operation
+            if (fetchError.message === 'Server fetch timeout') {
+              console.warn(`Timeout fetching email body from server for ${id} (sync may be running)`)
+            } else {
+              console.error(`Error fetching email body from server for ${id}:`, fetchError)
             }
-          } catch (fetchError) {
-            console.error(`Error fetching email body from server for ${id}:`, fetchError)
             // Return the email without body rather than failing completely
-          } finally {
-            await imapClient.disconnect()
           }
         }
       } catch (error) {
