@@ -88,6 +88,8 @@
               @click="$emit('select-email', email.id)"
               @dragstart="handleDragStart($event, email)"
               @dragend="handleDragEnd"
+              @mouseenter="handleEmailMouseEnter(email.id)"
+              @mouseleave="handleEmailMouseLeave"
               class="w-full text-left px-4 pt-3 pb-3 my-2 transition-all duration-200 rounded-lg relative cursor-grab active:cursor-grabbing group hover:pb-10"
               :class="{
                 'bg-primary-900 dark:bg-primary-800 text-white': selectedEmailId === email.id,
@@ -383,6 +385,51 @@
         />
       </div>
     </Teleport>
+    
+    <!-- Keyboard Shortcuts Popover -->
+    <Teleport to="body">
+      <div
+        v-if="hoveredEmailId"
+        ref="shortcutsPopoverRef"
+        class="keyboard-shortcuts-popover fixed z-[9998] bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 p-3 min-w-[200px]"
+        :style="shortcutsPopoverStyle"
+        @mouseenter="handleEmailMouseEnter(hoveredEmailId)"
+        @mouseleave="handleEmailMouseLeave"
+      >
+        <div class="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2 uppercase tracking-wide">Keyboard Shortcuts</div>
+        <div class="space-y-1.5 mb-3">
+          <div
+            v-for="shortcut in getEmailShortcutsSync(getAllEmailsFlat().find(e => e.id === hoveredEmailId) || {})"
+            :key="shortcut.key"
+            class="flex items-center justify-between gap-3"
+          >
+            <span class="text-xs text-gray-600 dark:text-gray-300">{{ shortcut.action }}</span>
+            <div class="flex items-center gap-1">
+              <kbd
+                :class="[
+                  'keyboard-key',
+                  { 
+                    'keyboard-key-arrow': shortcut.key === '↑' || shortcut.key === '↓',
+                    'keyboard-key-space': shortcut.key === 'Space',
+                    'keyboard-key-delete': shortcut.key === 'Delete'
+                  }
+                ]"
+              >
+                {{ shortcut.label }}
+              </kbd>
+            </div>
+          </div>
+        </div>
+        <div class="pt-2 border-t border-gray-200 dark:border-gray-700">
+          <div class="flex items-center gap-2">
+            <svg class="w-4 h-4 text-gray-400 dark:text-gray-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+            </svg>
+            <span class="text-xs text-gray-500 dark:text-gray-400">Drag item to the right for more actions</span>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -471,6 +518,12 @@ const folderPickerArrowRef = ref<HTMLElement | null>(null)
 
 // Container ref for focus management
 const containerRef = ref<HTMLElement | null>(null)
+
+// Keyboard shortcuts popover state
+const hoveredEmailId = ref<string | null>(null)
+const shortcutsPopoverRef = ref<HTMLElement | null>(null)
+const shortcutsPopoverStyle = ref<{ top?: string; left?: string; right?: string; transform?: string }>({})
+let hoverTimeout: ReturnType<typeof setTimeout> | null = null
 
 const isEmailUnread = (email: any): boolean => {
   // Handle various formats: boolean, number (0/1), undefined, null
@@ -1610,6 +1663,7 @@ const refreshEmails = () => {
   // Clear removed emails cache on refresh since we're getting fresh data
   removedEmails.value.clear()
   pendingSyncedEmails.value = []
+  shortcutsCache.clear() // Clear shortcuts cache
   loadEmails()
 }
 
@@ -1760,12 +1814,131 @@ const handleDragEnd = () => {
   emit('drag-end')
 }
 
+// Get keyboard shortcuts for an email
+const getEmailShortcuts = async (email: any): Promise<Array<{ key: string; label: string; action: string }>> => {
+  const shortcuts: Array<{ key: string; label: string; action: string }> = []
+  
+  // Always available
+  shortcuts.push({ key: '↑', label: '↑', action: 'Previous email' })
+  shortcuts.push({ key: '↓', label: '↓', action: 'Next email' })
+  
+  // Only if email has accountId
+  if (email?.accountId) {
+    if (!isSpamFolder.value) {
+      shortcuts.push({ key: 'Space', label: 'Space', action: 'Archive' })
+      shortcuts.push({ key: 'S', label: 'S', action: 'Mark spam' })
+    }
+    
+    shortcuts.push({ key: 'T', label: 'T', action: 'Set reminder' })
+    
+    // Check if account is IMAP for move to folder
+    try {
+      const account = await window.electronAPI.accounts.get(email.accountId)
+      if (account && account.type === 'imap') {
+        shortcuts.push({ key: 'M', label: 'M', action: 'Move to folder' })
+      }
+    } catch (error) {
+      // If we can't check, don't show the shortcut
+    }
+  }
+  
+  shortcuts.push({ key: 'Delete', label: 'Delete', action: 'Delete' })
+  
+  return shortcuts
+}
+
+// Cached shortcuts to avoid repeated async calls
+const shortcutsCache = new Map<string, Array<{ key: string; label: string; action: string }>>()
+const getEmailShortcutsSync = (email: any): Array<{ key: string; label: string; action: string }> => {
+  if (!email?.id) return []
+  
+  // Return cached shortcuts if available
+  if (shortcutsCache.has(email.id)) {
+    return shortcutsCache.get(email.id)!
+  }
+  
+  // Return basic shortcuts synchronously, will be updated async
+  const shortcuts: Array<{ key: string; label: string; action: string }> = []
+  shortcuts.push({ key: '↑', label: '↑', action: 'Previous email' })
+  shortcuts.push({ key: '↓', label: '↓', action: 'Next email' })
+  
+  if (email.accountId) {
+    if (!isSpamFolder.value) {
+      shortcuts.push({ key: 'Space', label: 'Space', action: 'Archive' })
+      shortcuts.push({ key: 'S', label: 'S', action: 'Mark spam' })
+    }
+    shortcuts.push({ key: 'T', label: 'T', action: 'Set reminder' })
+    shortcuts.push({ key: 'M', label: 'M', action: 'Move to folder' })
+  }
+  
+  shortcuts.push({ key: 'Delete', label: 'Delete', action: 'Delete' })
+  
+  // Cache and update async
+  shortcutsCache.set(email.id, shortcuts)
+  getEmailShortcuts(email).then(updated => {
+    shortcutsCache.set(email.id, updated)
+  })
+  
+  return shortcuts
+}
+
+// Handle email hover
+const handleEmailMouseEnter = async (emailId: string) => {
+  // Clear any existing timeout
+  if (hoverTimeout) {
+    clearTimeout(hoverTimeout)
+    hoverTimeout = null
+  }
+  
+  // Small delay before showing popover to avoid flickering
+  hoverTimeout = setTimeout(async () => {
+    hoveredEmailId.value = emailId
+    
+    await nextTick()
+    await nextTick()
+    
+    const emailElement = getEmailElement(emailId)
+    const popoverElement = shortcutsPopoverRef.value
+    
+    if (emailElement && popoverElement) {
+      try {
+        await positionFloatingElement({
+          referenceElement: emailElement,
+          floatingElement: popoverElement,
+          styleRef: shortcutsPopoverStyle,
+          placement: 'right-start'
+        })
+      } catch (error) {
+        console.error('Error positioning shortcuts popover:', error)
+        const rect = emailElement.getBoundingClientRect()
+        shortcutsPopoverStyle.value = {
+          top: `${rect.top}px`,
+          left: `${rect.right + 12}px`,
+          transform: 'none'
+        }
+      }
+    }
+  }, 300) // 300ms delay
+}
+
+const handleEmailMouseLeave = () => {
+  if (hoverTimeout) {
+    clearTimeout(hoverTimeout)
+    hoverTimeout = null
+  }
+  hoveredEmailId.value = null
+}
+
 onUnmounted(() => {
   window.removeEventListener('refresh-emails', refreshEmails)
   window.removeEventListener('remove-email-optimistic', handleRemoveEmailOptimistic as EventListener)
   window.removeEventListener('restore-email', handleRestoreEmail as EventListener)
   document.removeEventListener('click', handleClickOutside)
   window.removeEventListener('keydown', handleKeyDown)
+  if (hoverTimeout) {
+    clearTimeout(hoverTimeout)
+    hoverTimeout = null
+  }
   if (syncProgressUnsubscribe.value) {
     syncProgressUnsubscribe.value()
     syncProgressUnsubscribe.value = null
@@ -1785,5 +1958,68 @@ onUnmounted(() => {
   transform: rotate(45deg);
   pointer-events: none;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.keyboard-key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  color: #374151;
+  background: linear-gradient(to bottom, #ffffff, #f3f4f6);
+  border: 1px solid #d1d5db;
+  border-bottom-color: #9ca3af;
+  border-radius: 4px;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.1), inset 0 0 0 1px rgba(255, 255, 255, 0.5);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.dark .keyboard-key {
+  color: #e5e7eb;
+  background: linear-gradient(to bottom, #374151, #1f2937);
+  border-color: #4b5563;
+  border-bottom-color: #6b7280;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.3), inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+
+/* Special styling for arrow keys */
+.keyboard-key-arrow {
+  font-size: 14px;
+  padding: 0 4px;
+  text-transform: none;
+}
+
+/* Special styling for Space key */
+.keyboard-key-space {
+  min-width: 50px;
+  padding: 0 8px;
+}
+
+/* Special styling for Delete key */
+.keyboard-key-delete {
+  min-width: 45px;
+  padding: 0 8px;
+}
+
+.keyboard-shortcuts-popover {
+  animation: fadeIn 0.15s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 </style>

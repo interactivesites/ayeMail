@@ -1234,7 +1234,7 @@ export function registerEmailHandlers() {
       }
       
       // Permanently delete from database
-      db.prepare('DELETE FROM emails WHERE id = ?').run(id)
+    db.prepare('DELETE FROM emails WHERE id = ?').run(id)
       return { success: true }
     }
 
