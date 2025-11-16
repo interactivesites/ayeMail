@@ -1777,6 +1777,87 @@ export function registerEmailHandlers() {
     return { success: true }
   })
 
+  // Spam detection handlers
+  ipcMain.handle('emails:check-spam', async (_, id: string) => {
+    const db = getDatabase()
+    const email = db.prepare('SELECT * FROM emails WHERE id = ?').get(id) as any
+    if (!email) {
+      return { success: false, message: 'Email not found' }
+    }
+
+    try {
+      // Decrypt headers if available
+      let headers: Record<string, string | string[]> | undefined = undefined
+      if (email.headers_encrypted) {
+        try {
+          const headersJson = encryption.decrypt(email.headers_encrypted)
+          headers = JSON.parse(headersJson)
+        } catch (error) {
+          console.error('Error decrypting headers:', error)
+        }
+      }
+
+      // Reconstruct email object for spam detection
+      const emailObj: any = {
+        id: email.id,
+        accountId: email.account_id,
+        folderId: email.folder_id,
+        uid: email.uid,
+        messageId: email.message_id,
+        subject: email.subject,
+        from: JSON.parse(email.from_addresses),
+        to: JSON.parse(email.to_addresses),
+        cc: email.cc_addresses ? JSON.parse(email.cc_addresses) : undefined,
+        bcc: email.bcc_addresses ? JSON.parse(email.bcc_addresses) : undefined,
+        replyTo: email.reply_to_addresses ? JSON.parse(email.reply_to_addresses) : undefined,
+        date: email.date,
+        body: email.body_encrypted ? encryption.decrypt(email.body_encrypted) : '',
+        textBody: email.text_body_encrypted ? encryption.decrypt(email.text_body_encrypted) : undefined,
+        htmlBody: email.html_body_encrypted ? encryption.decrypt(email.html_body_encrypted) : undefined,
+        headers: headers,
+        flags: email.flags ? JSON.parse(email.flags) : [],
+        isRead: email.is_read === 1,
+        isStarred: email.is_starred === 1,
+        encrypted: email.encrypted === 1,
+        signed: email.signed === 1,
+        signatureVerified: email.signature_verified !== null ? email.signature_verified === 1 : undefined,
+        createdAt: email.created_at,
+        updatedAt: email.updated_at
+      }
+
+      const { spamDetector } = await import('../email/spam-detector')
+      const spamScore = await spamDetector.calculateSpamScore(emailObj)
+      spamDetector.updateSpamScore(id, spamScore)
+
+      return { success: true, spamScore }
+    } catch (error: any) {
+      console.error('Error checking spam:', error)
+      return { success: false, message: error.message || 'Unknown error' }
+    }
+  })
+
+  ipcMain.handle('emails:add-to-blacklist', async (_, accountId: string | null, emailAddress: string, domain: string | null, reason?: string) => {
+    try {
+      const { spamDetector } = await import('../email/spam-detector')
+      spamDetector.addToBlacklist(accountId, emailAddress, domain, reason)
+      return { success: true }
+    } catch (error: any) {
+      console.error('Error adding to blacklist:', error)
+      return { success: false, message: error.message || 'Unknown error' }
+    }
+  })
+
+  ipcMain.handle('emails:remove-from-blacklist', async (_, emailAddress: string, accountId?: string) => {
+    try {
+      const { spamDetector } = await import('../email/spam-detector')
+      spamDetector.removeFromBlacklist(emailAddress, accountId)
+      return { success: true }
+    } catch (error: any) {
+      console.error('Error removing from blacklist:', error)
+      return { success: false, message: error.message || 'Unknown error' }
+    }
+  })
+
   // Status management handlers
   ipcMain.handle('emails:setStatus', async (_, emailId: string, status: 'now' | 'later' | 'reference' | 'noise' | 'archived' | null) => {
     const db = getDatabase()

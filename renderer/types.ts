@@ -22,6 +22,9 @@ declare global {
         delete: (id: string) => Promise<any>
         archive: (id: string) => Promise<{ success: boolean; message?: string }>
         spam: (id: string) => Promise<{ success: boolean; message?: string }>
+        checkSpam: (id: string) => Promise<{ success: boolean; spamScore?: number; message?: string }>
+        addToBlacklist: (accountId: string | null, emailAddress: string, domain: string | null, reason?: string) => Promise<{ success: boolean; message?: string }>
+        removeFromBlacklist: (emailAddress: string, accountId?: string) => Promise<{ success: boolean; message?: string }>
         markRead: (id: string, read?: boolean) => Promise<{ success: boolean; message?: string }>
         moveToFolder: (emailId: string, folderId: string) => Promise<{ success: boolean; message?: string }>
         downloadAttachment: (attachmentId: string) => Promise<any>

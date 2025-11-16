@@ -233,6 +233,7 @@
                 
                 <!-- Bottom Action Icons - Right aligned, show only on hover, no circles -->
                 <div 
+                  v-if="!isSpamFolder"
                   class="hidden group-hover:flex absolute bottom-2 right-4 items-center gap-2 transition-all duration-200"
                   @click.stop
                 >
@@ -284,6 +285,26 @@
                   >
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                    </svg>
+                  </button>
+                </div>
+                <!-- Un-spam button - Show only in spam/junk folder -->
+                <div 
+                  v-if="isSpamFolder"
+                  class="hidden group-hover:flex absolute bottom-2 right-4 items-center gap-2 transition-all duration-200"
+                  @click.stop
+                >
+                  <button
+                    v-if="email.accountId"
+                    @click.stop="handleUnspamEmail(email.id)"
+                    class="p-1 transition-colors"
+                    :class="selectedEmailId === email.id 
+                      ? 'text-white/80 hover:text-white' 
+                      : 'text-gray-500 hover:text-gray-700'"
+                    title="Move to Inbox (Un-spam)"
+                  >
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                     </svg>
                   </button>
                 </div>
@@ -374,6 +395,14 @@ const preferences = usePreferencesStore()
 const { previewLevel, threadView } = storeToRefs(preferences)
 const isDragging = ref<string | null>(null)
 const removedEmails = ref<Map<string, any>>(new Map()) // Store removed emails for potential restoration
+
+// Check if we're in spam/junk folder
+const isSpamFolder = computed(() => {
+  const folderNameLower = props.folderName.toLowerCase()
+  return folderNameLower === 'spam' || folderNameLower === 'junk' || 
+         props.folderId.toLowerCase().includes('spam') || 
+         props.folderId.toLowerCase().includes('junk')
+})
 
 // Grouping mode - can be extended later for other grouping options
 const groupingMode = ref<'bydate'>('bydate')
@@ -700,6 +729,56 @@ const handleSpamEmail = async (emailId: string) => {
   }
 }
 
+const handleUnspamEmail = async (emailId: string) => {
+  if (!emailId) return
+  
+  const email = getAllEmailsFlat().find(e => e.id === emailId)
+  if (!email || !email.accountId) {
+    console.error('Email not found or missing accountId', { emailId, email })
+    return
+  }
+  
+  try {
+    // Get inbox folder for the account
+    const folders = await window.electronAPI.folders.list(email.accountId)
+    const inboxFolder = folders.find((f: any) => f.name.toLowerCase() === 'inbox')
+    
+    if (!inboxFolder) {
+      console.error('Inbox folder not found for account:', email.accountId)
+      return
+    }
+    
+    // Move email back to inbox
+    const result = await window.electronAPI.emails.moveToFolder(emailId, inboxFolder.id)
+    if (result.success) {
+      // Get flat list before filtering to find next email
+      const flatEmails = getAllEmailsFlat()
+      const currentIndex = flatEmails.findIndex(e => e.id === emailId)
+      
+      // Remove email from list
+      emails.value = emails.value.filter(e => e.id !== emailId)
+      // Refresh email list
+      window.dispatchEvent(new CustomEvent('refresh-emails'))
+      
+      // Update selection if un-spammed email was selected
+      if (props.selectedEmailId === emailId) {
+        const remainingEmails = getAllEmailsFlat()
+        if (remainingEmails.length > 0) {
+          // Select next email, or previous if at end, or first if we were at first
+          const nextIndex = currentIndex < remainingEmails.length ? currentIndex : remainingEmails.length - 1
+          emit('select-email', remainingEmails[nextIndex].id)
+        } else {
+          emit('select-email', '')
+        }
+      }
+    } else {
+      console.error('Failed to un-spam email:', result.message)
+    }
+  } catch (error) {
+    console.error('Error un-spamming email:', error)
+  }
+}
+
 const handleReminderSaved = async () => {
   closeReminderPopover()
   
@@ -1012,6 +1091,8 @@ const handleKeyDown = (event: KeyboardEvent) => {
       break
     case 's':
     case 'S':
+    case 'j':
+    case 'J':
       if (props.selectedEmailId) {
         event.preventDefault()
         event.stopPropagation()

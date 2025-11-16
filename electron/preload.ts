@@ -36,6 +36,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     delete: (id: string) => ipcRenderer.invoke('emails:delete', id),
     archive: (id: string) => ipcRenderer.invoke('emails:archive', id),
     spam: (id: string) => ipcRenderer.invoke('emails:spam', id),
+    checkSpam: (id: string) => ipcRenderer.invoke('emails:check-spam', id),
+    addToBlacklist: (accountId: string | null, emailAddress: string, domain: string | null, reason?: string) =>
+      ipcRenderer.invoke('emails:add-to-blacklist', accountId, emailAddress, domain, reason),
+    removeFromBlacklist: (emailAddress: string, accountId?: string) =>
+      ipcRenderer.invoke('emails:remove-from-blacklist', emailAddress, accountId),
     markRead: (id: string, read?: boolean) => ipcRenderer.invoke('emails:mark-read', id, read),
     moveToFolder: (emailId: string, folderId: string) => ipcRenderer.invoke('emails:move-to-folder', emailId, folderId),
     downloadAttachment: (attachmentId: string) => ipcRenderer.invoke('emails:download-attachment', attachmentId),

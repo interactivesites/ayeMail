@@ -3,6 +3,7 @@ import { getDatabase, encryption } from '../database'
 import { accountManager, getIMAPClient, getPOP3Client } from './index'
 import type { Email, Attachment, EmailAddress } from '../shared/types'
 import { calculateThreadId } from './thread-utils'
+import { spamDetector } from './spam-detector'
 
 export class EmailStorage {
   private db = getDatabase()
@@ -83,6 +84,7 @@ export class EmailStorage {
       const bodyEncrypted = encryption.encrypt(email.body || '')
       const htmlBodyEncrypted = email.htmlBody ? encryption.encrypt(email.htmlBody) : null
       const textBodyEncrypted = email.textBody ? encryption.encrypt(email.textBody) : null
+      const headersEncrypted = email.headers ? encryption.encrypt(JSON.stringify(email.headers)) : null
       
       this.db.prepare(`
         UPDATE emails SET
@@ -96,6 +98,7 @@ export class EmailStorage {
           body_encrypted = ?,
           html_body_encrypted = ?,
           text_body_encrypted = ?,
+          headers_encrypted = ?,
           flags = ?,
           is_read = ?,
           is_starred = ?,
@@ -118,6 +121,7 @@ export class EmailStorage {
         bodyEncrypted,
         htmlBodyEncrypted,
         textBodyEncrypted,
+        headersEncrypted,
         JSON.stringify(email.flags),
         email.isRead ? 1 : 0,
         email.isStarred ? 1 : 0,
@@ -141,16 +145,17 @@ export class EmailStorage {
     const bodyEncrypted = encryption.encrypt(email.body || '')
     const htmlBodyEncrypted = email.htmlBody ? encryption.encrypt(email.htmlBody) : null
     const textBodyEncrypted = email.textBody ? encryption.encrypt(email.textBody) : null
+    const headersEncrypted = email.headers ? encryption.encrypt(JSON.stringify(email.headers)) : null
 
     try {
       this.db.prepare(`
         INSERT INTO emails (
           id, account_id, folder_id, uid, message_id, subject,
           from_addresses, to_addresses, cc_addresses, bcc_addresses, reply_to_addresses,
-          date, body_encrypted, html_body_encrypted, text_body_encrypted,
+          date, body_encrypted, html_body_encrypted, text_body_encrypted, headers_encrypted,
           flags, is_read, is_starred, thread_id, in_reply_to, email_references,
           encrypted, signed, signature_verified, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         id,
         email.accountId,
@@ -167,6 +172,7 @@ export class EmailStorage {
         bodyEncrypted,
         htmlBodyEncrypted,
         textBodyEncrypted,
+        headersEncrypted,
         JSON.stringify(email.flags),
         email.isRead ? 1 : 0,
         email.isStarred ? 1 : 0,
@@ -198,6 +204,7 @@ export class EmailStorage {
             body_encrypted = ?,
             html_body_encrypted = ?,
             text_body_encrypted = ?,
+            headers_encrypted = ?,
             flags = ?,
             is_read = ?,
             is_starred = ?,
@@ -220,6 +227,7 @@ export class EmailStorage {
           bodyEncrypted,
           htmlBodyEncrypted,
           textBodyEncrypted,
+          headersEncrypted,
           JSON.stringify(email.flags),
           email.isRead ? 1 : 0,
           email.isStarred ? 1 : 0,
@@ -245,7 +253,184 @@ export class EmailStorage {
       }
     }
 
+    // Run spam detection after storing email
+    try {
+      const spamScore = await spamDetector.calculateSpamScore(email)
+      spamDetector.updateSpamScore(id, spamScore)
+
+      // Auto-move to spam folder if score exceeds threshold (0.7)
+      if (spamScore >= 0.7) {
+        await this.moveToSpamFolder(id, email.accountId, email.folderId)
+      }
+    } catch (spamError) {
+      // Don't fail email storage if spam detection fails
+      console.error('Error in spam detection:', spamError)
+    }
+
     return id
+  }
+
+  /**
+   * Find or create spam/junk folder for an account
+   */
+  private async findOrCreateSpamFolder(accountId: string): Promise<string | null> {
+    const db = this.db
+    
+    // Find existing spam folder
+    let spamFolder = db.prepare(`
+      SELECT * FROM folders 
+      WHERE account_id = ? AND (LOWER(name) = 'spam' OR LOWER(name) = 'junk' OR LOWER(path) LIKE '%spam%' OR LOWER(path) LIKE '%junk%')
+      LIMIT 1
+    `).get(accountId) as any
+
+    if (spamFolder) {
+      return spamFolder.id
+    }
+
+    // Try to find or create on IMAP server
+    const account = await accountManager.getAccount(accountId)
+    if (account && account.type === 'imap') {
+      try {
+        const imapClient = getIMAPClient(account)
+        await imapClient.connect()
+        const folders = await imapClient.listFolders()
+        let spamFolderOnServer = folders.find(
+          f => f.name.toLowerCase() === 'spam' || 
+               f.name.toLowerCase() === 'junk' || 
+               f.path.toLowerCase().includes('spam') ||
+               f.path.toLowerCase().includes('junk')
+        )
+
+        // If Spam folder doesn't exist on server, create it
+        if (!spamFolderOnServer) {
+          try {
+            await imapClient.createFolder('Spam')
+            const updatedFolders = await imapClient.listFolders()
+            spamFolderOnServer = updatedFolders.find(
+              f => f.name.toLowerCase() === 'spam' || 
+                   f.name.toLowerCase() === 'junk' || 
+                   f.path.toLowerCase().includes('spam') ||
+                   f.path.toLowerCase().includes('junk')
+            )
+          } catch (createError) {
+            console.error('Error creating Spam folder on IMAP server:', createError)
+          }
+        }
+
+        if (spamFolderOnServer) {
+          // Check if folder exists in DB
+          spamFolder = db.prepare('SELECT * FROM folders WHERE account_id = ? AND path = ?')
+            .get(accountId, spamFolderOnServer.path) as any
+          
+          if (!spamFolder) {
+            // Create folder in DB
+            const folderId = randomUUID()
+            const now = Date.now()
+            db.prepare(`
+              INSERT INTO folders (id, account_id, name, path, subscribed, attributes, created_at, updated_at)
+              VALUES (?, ?, ?, ?, 1, ?, ?, ?)
+            `).run(
+              folderId,
+              accountId,
+              spamFolderOnServer.name,
+              spamFolderOnServer.path,
+              JSON.stringify(spamFolderOnServer.attributes),
+              now,
+              now
+            )
+            spamFolder = { id: folderId }
+          }
+
+          await imapClient.disconnect()
+          return spamFolder.id
+        }
+      } catch (error) {
+        console.error('Error finding/creating Spam folder:', error)
+      }
+    }
+
+    // Create local spam folder as fallback
+    const folderId = randomUUID()
+    const now = Date.now()
+    db.prepare(`
+      INSERT INTO folders (id, account_id, name, path, subscribed, attributes, created_at, updated_at)
+      VALUES (?, ?, ?, ?, 1, ?, ?, ?)
+    `).run(
+      folderId,
+      accountId,
+      'Spam',
+      'Spam',
+      JSON.stringify([]),
+      now,
+      now
+    )
+    return folderId
+  }
+
+  /**
+   * Move email to spam folder
+   */
+  private async moveToSpamFolder(emailId: string, accountId: string, currentFolderId: string): Promise<void> {
+    try {
+      const spamFolderId = await this.findOrCreateSpamFolder(accountId)
+      if (!spamFolderId) {
+        console.warn('Could not find or create spam folder for account:', accountId)
+        return
+      }
+
+      // Don't move if already in spam folder
+      if (currentFolderId === spamFolderId) {
+        return
+      }
+
+      const now = Date.now()
+      
+      // Update folder_id in database
+      this.db.prepare(`
+        UPDATE emails 
+        SET folder_id = ?, updated_at = ?
+        WHERE id = ?
+      `).run(spamFolderId, now, emailId)
+
+      // Try to move on IMAP server if account is IMAP
+      const account = await accountManager.getAccount(accountId)
+      if (account && account.type === 'imap') {
+        try {
+          const email = this.db.prepare('SELECT * FROM emails WHERE id = ?').get(emailId) as any
+          if (email) {
+            const imapClient = getIMAPClient(account)
+            await imapClient.connect()
+            
+            const currentFolder = this.db.prepare('SELECT path FROM folders WHERE id = ?').get(currentFolderId) as any
+            const spamFolder = this.db.prepare('SELECT path FROM folders WHERE id = ?').get(spamFolderId) as any
+            
+            if (currentFolder && spamFolder) {
+              const currentPath = currentFolder.path === 'INBOX' ? 'INBOX' : currentFolder.path
+              const spamPath = spamFolder.path || 'Spam'
+              
+              // Ensure Spam folder exists on server
+              try {
+                await imapClient.createFolder(spamPath)
+              } catch (createError: any) {
+                // Folder may already exist, that's fine
+                if (createError && !createError.message?.includes('already exists') && !createError.message?.includes('EXISTS')) {
+                  console.warn('Spam folder may already exist or creation failed:', createError.message)
+                }
+              }
+
+              await imapClient.moveEmail(email.uid, currentPath, spamPath)
+            }
+            
+            await imapClient.disconnect()
+          }
+        } catch (error) {
+          console.error('Error moving email on IMAP server:', error)
+          // Continue anyway - email is already moved in database
+        }
+      }
+    } catch (error) {
+      console.error('Error moving email to spam folder:', error)
+    }
   }
 
   async updateEmail(id: string, updates: Partial<Email>): Promise<string> {

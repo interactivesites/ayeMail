@@ -70,6 +70,7 @@ export interface Email {
   signed?: boolean
   signatureVerified?: boolean
   status?: EmailStatus
+  headers?: Record<string, string | string[]>
   createdAt: number
   updatedAt: number
 }

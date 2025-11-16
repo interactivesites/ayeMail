@@ -398,6 +398,17 @@ export class IMAPClient {
                       parsed = await simpleParser(body)
                     }
 
+                    // Extract headers from parsed email
+                    let headers: Record<string, string | string[]> | undefined = undefined
+                    if (parsed?.headers) {
+                      // Convert mailparser headers format to simple object
+                      headers = {}
+                      for (const [key, value] of Object.entries(parsed.headers)) {
+                        // mailparser headers can be arrays or single values
+                        headers[key.toLowerCase()] = Array.isArray(value) ? value : [value]
+                      }
+                    }
+
                     // Create email with parsed content
                     // Use original folderName (not normalized) for folderId since that's what the database expects
                     const email: Email = {
@@ -434,6 +445,7 @@ export class IMAPClient {
                       encrypted: false,
                       signed: false,
                       signatureVerified: undefined,
+                      headers: headers,
                       createdAt: Date.now(),
                       updatedAt: Date.now()
                     }

@@ -206,6 +206,72 @@ export function createDatabase(): Database.Database {
   } catch (error) {
     console.error('Error migrating emails table for status column:', error)
   }
+
+  // Migration: Add spam-related columns to emails table
+  try {
+    const tableInfo = db.prepare("PRAGMA table_info(emails)").all() as any[]
+    const hasHeadersColumn = tableInfo.some(col => col.name === 'headers_encrypted')
+    const hasSpamScoreColumn = tableInfo.some(col => col.name === 'spam_score')
+    const hasSpamCheckedColumn = tableInfo.some(col => col.name === 'spam_checked_at')
+    
+    if (!hasHeadersColumn) {
+      db.exec(`ALTER TABLE emails ADD COLUMN headers_encrypted TEXT`)
+    }
+    if (!hasSpamScoreColumn) {
+      db.exec(`ALTER TABLE emails ADD COLUMN spam_score REAL`)
+    }
+    if (!hasSpamCheckedColumn) {
+      db.exec(`ALTER TABLE emails ADD COLUMN spam_checked_at INTEGER`)
+    }
+    
+    // Create index for spam_score for faster queries
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_emails_spam_score ON emails(spam_score)`)
+  } catch (error) {
+    console.error('Error migrating emails table for spam columns:', error)
+  }
+
+  // Create spam_blacklist table
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS spam_blacklist (
+        id TEXT PRIMARY KEY,
+        account_id TEXT,
+        email_address TEXT NOT NULL,
+        domain TEXT,
+        ip_address TEXT,
+        reason TEXT,
+        created_at INTEGER NOT NULL,
+        FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE
+      )
+    `)
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_spam_blacklist_account ON spam_blacklist(account_id)`)
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_spam_blacklist_email ON spam_blacklist(email_address)`)
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_spam_blacklist_domain ON spam_blacklist(domain)`)
+  } catch (error) {
+    console.error('Error creating spam_blacklist table:', error)
+  }
+
+  // Create spam_greylist table
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS spam_greylist (
+        id TEXT PRIMARY KEY,
+        account_id TEXT,
+        email_address TEXT NOT NULL,
+        domain TEXT,
+        ip_address TEXT,
+        first_seen INTEGER NOT NULL,
+        last_seen INTEGER NOT NULL,
+        block_until INTEGER,
+        FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE
+      )
+    `)
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_spam_greylist_account ON spam_greylist(account_id)`)
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_spam_greylist_email ON spam_greylist(email_address)`)
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_spam_greylist_block_until ON spam_greylist(block_until)`)
+  } catch (error) {
+    console.error('Error creating spam_greylist table:', error)
+  }
   
   return db
 }
