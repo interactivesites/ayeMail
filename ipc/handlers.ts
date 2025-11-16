@@ -1191,7 +1191,227 @@ export function registerEmailHandlers() {
 
   ipcMain.handle('emails:delete', async (_, id: string) => {
     const db = getDatabase()
-    db.prepare('DELETE FROM emails WHERE id = ?').run(id)
+    
+    // Get email details
+    const email = db.prepare('SELECT * FROM emails WHERE id = ?').get(id) as any
+    if (!email) {
+      return { success: false, message: 'Email not found' }
+    }
+
+    // Get current folder to check if email is already in trash
+    const currentFolder = db.prepare('SELECT * FROM folders WHERE id = ?').get(email.folder_id) as any
+    const isInTrash = currentFolder && (
+      currentFolder.name.toLowerCase() === 'trash' ||
+      currentFolder.name.toLowerCase() === 'deleted' ||
+      currentFolder.name.toLowerCase() === 'deleted items' ||
+      currentFolder.name.toLowerCase() === 'bin' ||
+      currentFolder.path.toLowerCase().includes('trash') ||
+      currentFolder.path.toLowerCase().includes('deleted') ||
+      currentFolder.path.toLowerCase().includes('bin')
+    )
+
+    // If already in trash, permanently delete
+    if (isInTrash) {
+      // Delete any reminders for this email
+      db.prepare('DELETE FROM reminders WHERE email_id = ?').run(id)
+      
+      // Try to delete on IMAP server if account is IMAP
+      const account = await accountManager.getAccount(email.account_id)
+      if (account && account.type === 'imap') {
+        try {
+          const imapClient = getIMAPClient(account)
+          await imapClient.connect()
+          
+          const folderPath = currentFolder.path === 'INBOX' ? 'INBOX' : currentFolder.path
+          // Permanently delete from IMAP server
+          await imapClient.deleteEmail(email.uid, folderPath)
+          
+          await imapClient.disconnect()
+        } catch (error) {
+          console.error('Error deleting email on IMAP server:', error)
+          // Continue to delete from database anyway
+        }
+      }
+      
+      // Permanently delete from database
+      db.prepare('DELETE FROM emails WHERE id = ?').run(id)
+      return { success: true }
+    }
+
+    // Not in trash - move to trash folder
+    // Find or create Trash folder
+    let trashFolder = db.prepare(`
+      SELECT * FROM folders 
+      WHERE account_id = ? AND (
+        LOWER(name) IN ('trash', 'deleted', 'deleted items', 'bin') OR
+        LOWER(path) LIKE '%trash%' OR
+        LOWER(path) LIKE '%deleted%' OR
+        LOWER(path) LIKE '%bin%'
+      )
+      LIMIT 1
+    `).get(email.account_id) as any
+
+    if (!trashFolder) {
+      // Try to find or create Trash folder on IMAP server
+      const account = await accountManager.getAccount(email.account_id)
+      if (account && account.type === 'imap') {
+        try {
+          const imapClient = getIMAPClient(account)
+          await imapClient.connect()
+          const folders = await imapClient.listFolders()
+          let trashFolderOnServer = folders.find(
+            f => f.name.toLowerCase() === 'trash' ||
+                 f.name.toLowerCase() === 'deleted' ||
+                 f.name.toLowerCase() === 'deleted items' ||
+                 f.name.toLowerCase() === 'bin' ||
+                 f.path.toLowerCase().includes('trash') ||
+                 f.path.toLowerCase().includes('deleted') ||
+                 f.path.toLowerCase().includes('bin')
+          )
+
+          // If Trash folder doesn't exist on server, try to create it
+          if (!trashFolderOnServer) {
+            try {
+              // Try common trash folder names
+              const trashNames = ['Trash', 'Deleted', 'Deleted Items', 'Bin']
+              for (const name of trashNames) {
+                try {
+                  await imapClient.createFolder(name)
+                  // Re-list folders to get the newly created folder
+                  const updatedFolders = await imapClient.listFolders()
+                  trashFolderOnServer = updatedFolders.find(
+                    f => f.name.toLowerCase() === name.toLowerCase() ||
+                         f.path.toLowerCase().includes(name.toLowerCase())
+                  )
+                  if (trashFolderOnServer) break
+                } catch (createError) {
+                  // Try next name
+                  continue
+                }
+              }
+            } catch (createError) {
+              console.error('Error creating Trash folder on IMAP server:', createError)
+              // Continue to create local folder
+            }
+          }
+
+          if (trashFolderOnServer) {
+            // Check if folder exists in DB
+            trashFolder = db.prepare('SELECT * FROM folders WHERE account_id = ? AND path = ?')
+              .get(email.account_id, trashFolderOnServer.path) as any
+            
+            if (!trashFolder) {
+              // Create folder in DB
+              const folderId = randomUUID()
+              const now = Date.now()
+              db.prepare(`
+                INSERT INTO folders (id, account_id, name, path, subscribed, attributes, created_at, updated_at)
+                VALUES (?, ?, ?, ?, 1, ?, ?, ?)
+              `).run(
+                folderId,
+                email.account_id,
+                trashFolderOnServer.name,
+                trashFolderOnServer.path,
+                JSON.stringify(trashFolderOnServer.attributes || []),
+                now,
+                now
+              )
+              trashFolder = { id: folderId, path: trashFolderOnServer.path }
+            } else {
+              // Folder already exists in DB, use it
+              trashFolder = { id: trashFolder.id, path: trashFolder.path }
+            }
+          }
+
+          await imapClient.disconnect()
+        } catch (error) {
+          console.error('Error finding/creating Trash folder:', error)
+        }
+      }
+
+      // If still no trash folder, create a local one (for non-IMAP accounts or as fallback)
+      if (!trashFolder) {
+        const folderId = randomUUID()
+        const now = Date.now()
+        db.prepare(`
+          INSERT INTO folders (id, account_id, name, path, subscribed, attributes, created_at, updated_at)
+          VALUES (?, ?, ?, ?, 1, ?, ?, ?)
+        `).run(
+          folderId,
+          email.account_id,
+          'Trash',
+          'Trash',
+          JSON.stringify([]),
+          now,
+          now
+        )
+        trashFolder = { id: folderId, path: 'Trash' }
+      }
+    }
+
+    // Check if email already exists in trash folder with same account_id and uid
+    const existingTrashEmail = db.prepare(`
+      SELECT id FROM emails 
+      WHERE account_id = ? AND folder_id = ? AND uid = ? AND id != ?
+    `).get(email.account_id, trashFolder.id, email.uid, id) as any
+
+    const now = Date.now()
+    
+    if (existingTrashEmail) {
+      // Email already exists in trash folder, just delete the current one
+      db.prepare('DELETE FROM emails WHERE id = ?').run(id)
+    } else {
+      // Move email to Trash folder
+      try {
+        db.prepare(`
+          UPDATE emails 
+          SET folder_id = ?, updated_at = ?
+          WHERE id = ?
+        `).run(trashFolder.id, now, id)
+      } catch (updateError: any) {
+        // Handle UNIQUE constraint violation - email might have been synced to trash
+        if (updateError?.code === 'SQLITE_CONSTRAINT' || updateError?.message?.includes('UNIQUE constraint')) {
+          const trashEmail = db.prepare(`
+            SELECT id FROM emails 
+            WHERE account_id = ? AND folder_id = ? AND uid = ?
+          `).get(email.account_id, trashFolder.id, email.uid) as any
+          
+          if (trashEmail) {
+            db.prepare('DELETE FROM emails WHERE id = ?').run(id)
+          } else {
+            throw updateError
+          }
+        } else {
+          throw updateError
+        }
+      }
+    }
+
+    // Try to move on IMAP server if account is IMAP
+    const account = await accountManager.getAccount(email.account_id)
+    if (account && account.type === 'imap') {
+      try {
+        const imapClient = getIMAPClient(account)
+        await imapClient.connect()
+        
+        // Get current folder path
+        const currentFolderPath = currentFolder.path === 'INBOX' ? 'INBOX' : currentFolder.path
+        const trashFolderPath = trashFolder.path === 'INBOX' ? 'INBOX' : trashFolder.path
+        
+        if (currentFolderPath && trashFolderPath) {
+          await imapClient.moveEmail(email.uid, currentFolderPath, trashFolderPath)
+          
+          // Update folder_id after successful move (in case it changed)
+          db.prepare('UPDATE emails SET folder_id = ? WHERE id = ?').run(trashFolder.id, id)
+        }
+        
+        await imapClient.disconnect()
+      } catch (error) {
+        console.error('Error moving email to trash on IMAP server:', error)
+        // Continue anyway - email is already moved in database
+      }
+    }
+
     return { success: true }
   })
 

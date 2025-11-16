@@ -1253,6 +1253,46 @@ export class IMAPClient {
     })
   }
 
+  async deleteEmail(uid: number, folderName: string): Promise<void> {
+    await this.ensureConnected()
+
+    return new Promise(async (resolve, reject) => {
+      try {
+        // Decide which folder path to use
+        let targetFolder = folderName
+        if (folderName.toUpperCase() === 'INBOX') {
+          targetFolder = await this.getInboxPath()
+        }
+        
+        this.connection!.openBox(targetFolder, false, (err) => {
+          if (err) {
+            reject(err)
+            return
+          }
+
+          // Mark as deleted
+          this.connection!.addFlags(uid, '\\Deleted', (deleteErr) => {
+            if (deleteErr) {
+              reject(deleteErr)
+              return
+            }
+
+            // Expunge to permanently delete
+            this.connection!.expunge((expungeErr) => {
+              if (expungeErr) {
+                reject(expungeErr)
+                return
+              }
+              resolve()
+            })
+          })
+        })
+      } catch (error) {
+        reject(error)
+      }
+    })
+  }
+
   private async ensureConnected(): Promise<void> {
     if (!this.connection || this.connection.state === 'disconnected') {
       await this.connect()
