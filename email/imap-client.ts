@@ -830,13 +830,17 @@ export class IMAPClient {
   async fetchEmailByUid(folderName: string, uid: number): Promise<Email | null> {
     await this.ensureConnected()
 
+    console.log(`[IMAPClient.fetchEmailByUid] Starting fetch for UID ${uid} in folder ${folderName}`)
+
     return new Promise(async (resolve, reject) => {
       const timeout = setTimeout(() => {
+        console.error(`[IMAPClient.fetchEmailByUid] Timeout after 30s for UID ${uid} in folder ${folderName}`)
         reject(new Error('IMAP fetch timeout'))
       }, 30000) // 30 second timeout
 
       try {
         const errorHandler = (err: Error) => {
+          console.error(`[IMAPClient.fetchEmailByUid] Connection error for UID ${uid}:`, err)
           clearTimeout(timeout)
           this.connection!.removeListener('error', errorHandler)
           reject(err)
@@ -849,19 +853,29 @@ export class IMAPClient {
           targetFolder = await this.getInboxPath()
         }
 
+        console.log(`[IMAPClient.fetchEmailByUid] Opening folder: ${targetFolder} (original: ${folderName})`)
+
         this.connection!.openBox(targetFolder, true, (err, box) => {
           if (err) {
+            console.error(`[IMAPClient.fetchEmailByUid] Error opening folder ${targetFolder}:`, err)
             clearTimeout(timeout)
             this.connection!.removeListener('error', errorHandler)
             reject(err)
             return
           }
 
+          console.log(`[IMAPClient.fetchEmailByUid] Folder opened: ${box.name}, total messages: ${box.messages.total}`)
+
+          // Directly fetch by UID - skip verification as it's too slow for large folders
+          console.log(`[IMAPClient.fetchEmailByUid] Fetching UID ${uid} from ${targetFolder}`)
+          
           const fetch = this.connection!.fetch([uid], {
             bodies: '',
             struct: true,
             envelope: true
           })
+
+          console.log(`[IMAPClient.fetchEmailByUid] Fetch started for UID ${uid}`)
 
           let email: Email | null = null
           let flags: string[] = []
@@ -870,7 +884,10 @@ export class IMAPClient {
           let bodyPromise: Promise<void> | null = null
 
           fetch.on('message', (msg, seqno) => {
+            console.log(`[IMAPClient.fetchEmailByUid] Message event received for UID ${uid}, seqno ${seqno}`)
+            
             msg.on('body', (stream, info) => {
+              console.log(`[IMAPClient.fetchEmailByUid] Body stream started for UID ${uid}`)
               let buffer = Buffer.alloc(0)
               bodyPromise = new Promise<void>((resolve) => {
                 stream.on('data', (chunk: Buffer) => {
@@ -878,6 +895,7 @@ export class IMAPClient {
                 })
                 stream.once('end', () => {
                   body = buffer.toString('utf8')
+                  console.log(`[IMAPClient.fetchEmailByUid] Body stream ended for UID ${uid}, length: ${body.length}`)
                   resolve()
                 })
               })
@@ -886,9 +904,11 @@ export class IMAPClient {
             msg.on('attributes', (attrs) => {
               flags = attrs.flags || []
               envelope = (attrs as any).envelope
+              console.log(`[IMAPClient.fetchEmailByUid] Attributes received for UID ${uid}, actual UID from attrs: ${attrs.uid}`)
             })
 
             msg.once('end', async () => {
+              console.log(`[IMAPClient.fetchEmailByUid] Message end event for UID ${uid}`)
               // Wait for body stream to complete if it exists
               if (bodyPromise) {
                 await bodyPromise
@@ -977,13 +997,17 @@ export class IMAPClient {
 
           fetch.once('error', (err) => {
             clearTimeout(timeout)
-            console.error('IMAP fetch error:', err)
+            console.error(`[IMAPClient.fetchEmailByUid] Fetch error for UID ${uid}:`, err)
             reject(err)
           })
 
           fetch.once('end', () => {
             clearTimeout(timeout)
             this.connection!.removeListener('error', errorHandler)
+            console.log(`[IMAPClient.fetchEmailByUid] Fetch end event for UID ${uid}, email object: ${email ? 'created' : 'NULL'}`)
+            if (!email) {
+              console.warn(`[IMAPClient.fetchEmailByUid] No message received for UID ${uid} in folder ${targetFolder}. This could mean the UID doesn't exist in this folder.`)
+            }
             resolve(email)
           })
         })

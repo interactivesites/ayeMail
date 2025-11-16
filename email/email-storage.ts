@@ -5,6 +5,19 @@ import type { Email, Attachment, EmailAddress } from '../shared/types'
 import { calculateThreadId } from './thread-utils'
 import { spamDetector } from './spam-detector'
 
+type SyncProgressCallback = (data: {
+  folder?: string
+  folderId?: string
+  accountId?: string
+  current: number
+  total?: number
+  emailUid?: number
+  email?: Email
+}) => void
+
+const SYNC_BODY_PREVIEW_LIMIT = 4096
+const SYNC_YIELD_INTERVAL = 25
+
 export class EmailStorage {
   private db = getDatabase()
 
@@ -488,19 +501,48 @@ export class EmailStorage {
     )
   }
 
-  async getEmail(id: string): Promise<Email | null> {
+  async getEmail(
+    id: string,
+    options?: { fetchRemoteBody?: boolean; fetchTimeoutMs?: number }
+  ): Promise<Email | null> {
+    const fetchRemoteBody = options?.fetchRemoteBody !== false
+    const fetchTimeoutMs = options?.fetchTimeoutMs ?? 45000
+
+    console.log(`[EmailStorage.getEmail] Fetching email ${id}, fetchRemoteBody=${fetchRemoteBody}, timeout=${fetchTimeoutMs}ms`)
+
     const email = this.db.prepare('SELECT * FROM emails WHERE id = ?').get(id) as any
-    if (!email) return null
+    if (!email) {
+      console.warn(`[EmailStorage.getEmail] Email ${id} not found in database`)
+      return null
+    }
+
+    console.log(`[EmailStorage.getEmail] Found email ${id} in DB: account=${email.account_id}, folder=${email.folder_id}, uid=${email.uid}`)
 
     const mappedEmail = this.mapDbEmailToEmail(email)
     
     // Check if body is missing or empty
-    const hasBody = mappedEmail.body && mappedEmail.body.trim().length > 0
-    const hasHtmlBody = mappedEmail.htmlBody && mappedEmail.htmlBody.trim().length > 0
-    const hasTextBody = mappedEmail.textBody && mappedEmail.textBody.trim().length > 0
+    // Metadata-only emails may have encrypted empty strings stored, so we check the decrypted values
+    const hasBody = mappedEmail.body && typeof mappedEmail.body === 'string' && mappedEmail.body.trim().length > 0
+    const hasHtmlBody = mappedEmail.htmlBody && typeof mappedEmail.htmlBody === 'string' && mappedEmail.htmlBody.trim().length > 0
+    const hasTextBody = mappedEmail.textBody && typeof mappedEmail.textBody === 'string' && mappedEmail.textBody.trim().length > 0
     
-    if (!hasBody && !hasHtmlBody && !hasTextBody) {
+    // Body is missing if no actual content exists (empty strings don't count)
+    // This handles both cases:
+    // 1. Metadata-only emails with encrypted empty strings (decrypts to empty)
+    // 2. Emails where body fields are NULL (never stored)
+    const bodyMissing = !hasBody && !hasHtmlBody && !hasTextBody
+    
+    // Log for debugging when body is missing
+    if (bodyMissing) {
+      const hasBodyEncrypted = !!(email.body_encrypted && email.body_encrypted.trim().length > 0)
+      const hasHtmlBodyEncrypted = !!(email.html_body_encrypted && email.html_body_encrypted.trim().length > 0)
+      const hasTextBodyEncrypted = !!(email.text_body_encrypted && email.text_body_encrypted.trim().length > 0)
+      console.log(`Email ${id} body check: decrypted hasBody=${hasBody}, hasHtmlBody=${hasHtmlBody}, hasTextBody=${hasTextBody} | encrypted hasBody=${hasBodyEncrypted}, hasHtmlBody=${hasHtmlBodyEncrypted}, hasTextBody=${hasTextBodyEncrypted}`)
+    }
+    
+    if (fetchRemoteBody && bodyMissing) {
       // Body is missing, try to fetch from server
+      console.log(`Email ${id} has no body content, fetching from server...`)
       try {
         const account = await accountManager.getAccount(email.account_id)
         if (!account) {
@@ -519,17 +561,22 @@ export class EmailStorage {
         if (account.type === 'imap') {
           const imapClient = getIMAPClient(account)
           
-          // Add timeout to prevent hanging when sync is running (10 seconds)
+          // Add timeout to prevent hanging when sync is running
           const fetchWithTimeout = async () => {
-            await imapClient.connect()
-            
             try {
+              await imapClient.connect()
+              
               // Use folder name for IMAP operations, ensure INBOX is uppercase
               const imapFolderName = folder.name.toUpperCase() === 'INBOX' ? 'INBOX' : folder.path
               
+              console.log(`Fetching body for email ${id} (UID: ${email.uid}) from folder ${imapFolderName}`)
               const fetchedEmail = await imapClient.fetchEmailByUid(imapFolderName, email.uid)
               
-              if (fetchedEmail && (fetchedEmail.body || fetchedEmail.htmlBody || fetchedEmail.textBody)) {
+              if (!fetchedEmail) {
+                console.warn(`fetchEmailByUid returned null for email ${id} (UID: ${email.uid})`)
+              } else if (!fetchedEmail.body && !fetchedEmail.htmlBody && !fetchedEmail.textBody) {
+                console.warn(`Fetched email ${id} but it has no body content (fetchedEmail exists but all body fields are empty)`)
+              } else {
                 // Update the email in database with the fetched body
                 const bodyEncrypted = encryption.encrypt(fetchedEmail.body || '')
                 const htmlBodyEncrypted = fetchedEmail.htmlBody ? encryption.encrypt(fetchedEmail.htmlBody) : null
@@ -549,30 +596,37 @@ export class EmailStorage {
                 mappedEmail.htmlBody = fetchedEmail.htmlBody
                 mappedEmail.textBody = fetchedEmail.textBody
                 
-                console.log(`Successfully fetched and updated body for email ${id}`)
+                console.log(`Successfully fetched and updated body for email ${id} (body length: ${mappedEmail.body.length}, html: ${!!mappedEmail.htmlBody}, text: ${!!mappedEmail.textBody})`)
               }
+            } catch (fetchErr) {
+              console.error(`Error during fetch operation for email ${id}:`, fetchErr)
+              throw fetchErr
             } finally {
-              await imapClient.disconnect()
+              try {
+                await imapClient.disconnect()
+              } catch (disconnectErr) {
+                console.error(`Error disconnecting IMAP client for email ${id}:`, disconnectErr)
+              }
             }
           }
           
           try {
-            // Race between fetch and timeout (10 seconds)
             await Promise.race([
               fetchWithTimeout(),
-              new Promise((_, reject) => 
-                setTimeout(() => reject(new Error('Server fetch timeout')), 10000)
+              new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('Server fetch timeout')), fetchTimeoutMs)
               )
             ])
           } catch (fetchError: any) {
-            // Log timeout or other errors, but don't fail the whole operation
             if (fetchError.message === 'Server fetch timeout') {
-              console.warn(`Timeout fetching email body from server for ${id} (sync may be running)`)
+              console.warn(`Timeout fetching email body from server for ${id} after ${fetchTimeoutMs}ms (sync may be running)`)
             } else {
               console.error(`Error fetching email body from server for ${id}:`, fetchError)
             }
-            // Return the email without body rather than failing completely
+            // Continue and return email without body - don't fail completely
           }
+        } else {
+          console.warn(`Account type ${account.type} does not support fetching email body by UID`)
         }
       } catch (error) {
         console.error(`Error attempting to fetch email body from server for ${id}:`, error)
@@ -602,19 +656,21 @@ export class EmailStorage {
     return emails.map(e => this.mapDbEmailToEmail(e))
   }
 
-  async syncFolderEmails(imapClient: any, accountId: string, folder: any, progressCallback?: (data: { folder?: string; current: number; total?: number; emailUid?: number }) => void): Promise<{ synced: number; errors: number }> {
+  async syncFolderEmails(imapClient: any, accountId: string, folder: any, progressCallback?: SyncProgressCallback, fetchFullBodies: boolean = false): Promise<{ synced: number; errors: number }> {
     let synced = 0
     let errors = 0
 
     try {
       // Use folder name for IMAP operations, ensure INBOX is uppercase
       const imapFolderName = folder.name.toUpperCase() === 'INBOX' ? 'INBOX' : folder.path
-      console.log(`Fetching emails for folder: ${folder.name}, path: ${folder.path}, using IMAP name: ${imapFolderName}, id: ${folder.id}`)
+      console.log(`Fetching emails for folder: ${folder.name}, path: ${folder.path}, using IMAP name: ${imapFolderName}, id: ${folder.id}, fetchFullBodies: ${fetchFullBodies}`)
 
-      // Fetch email metadata only (much faster) - bodies will be loaded on demand
-      // For INBOX, we want to sync all emails, not just recent ones
-      // Using 999999 to ensure we fetch all emails (fetchEmailMetadata treats >= 10000 as "fetch all")
-      const emails = await imapClient.fetchEmailMetadata(imapFolderName, 1, 999999)
+      // Default: metadata-only for fast initial sync, bodies loaded on-demand when viewing
+      // Full bodies only when explicitly requested (e.g., rebuild operation)
+      // Using 999999 to ensure we fetch all emails
+      const emails = fetchFullBodies 
+        ? await imapClient.fetchEmails(imapFolderName, 1, 999999)
+        : await imapClient.fetchEmailMetadata(imapFolderName, 1, 999999)
 
       console.log(`Found ${emails.length} emails in ${folder.name}`)
       if (emails.length === 0) {
@@ -627,7 +683,7 @@ export class EmailStorage {
         return { synced: 0, errors: 0 }
       }
 
-      progressCallback?.({ folder: folder.name, current: 0, total: emails.length })
+      progressCallback?.({ folder: folder.name, folderId: folder.id, accountId, current: 0, total: emails.length })
 
       for (let i = 0; i < emails.length; i++) {
         const email = emails[i]
@@ -639,12 +695,23 @@ export class EmailStorage {
           const storedId = await this.storeEmail(email)
           console.log(`Successfully stored email with id: ${storedId}`)
           synced++
-          progressCallback?.({ folder: folder.name, current: i + 1, total: emails.length, emailUid: email.uid })
+          const emailSummary = this.buildSyncEmailSummary(email, storedId, folder)
+          progressCallback?.({
+            folder: folder.name,
+            folderId: folder.id,
+            accountId,
+            current: i + 1,
+            total: emails.length,
+            emailUid: email.uid,
+            email: emailSummary
+          })
         } catch (err) {
           console.error(`Error storing email ${email.uid} for account ${email.accountId} in folder ${folder.id} (${folder.name}):`, err)
           errors++
-          progressCallback?.({ folder: folder.name, current: i + 1, total: emails.length, emailUid: email.uid })
+          progressCallback?.({ folder: folder.name, folderId: folder.id, accountId, current: i + 1, total: emails.length, emailUid: email.uid })
         }
+
+        await this.yieldForSync(i)
       }
     } catch (err: any) {
       // Check if this is a "mailbox doesn't exist" error
@@ -667,7 +734,7 @@ export class EmailStorage {
     return { synced, errors }
   }
 
-  async syncFolder(accountId: string, folderId: string, progressCallback?: (data: { folder?: string; current: number; total?: number; emailUid?: number }) => void): Promise<{ synced: number; errors: number }> {
+  async syncFolder(accountId: string, folderId: string, progressCallback?: SyncProgressCallback, options?: { fetchFullBodies?: boolean }): Promise<{ synced: number; errors: number }> {
     const account = await accountManager.getAccount(accountId)
     if (!account) {
       throw new Error('Account not found')
@@ -687,7 +754,7 @@ export class EmailStorage {
         await imapClient.connect()
 
         // Show connecting status
-        progressCallback?.({ folder: folder.name, current: 0, total: undefined })
+        progressCallback?.({ folder: folder.name, folderId: folder.id, accountId, current: 0, total: undefined })
 
         // Get total count before fetching emails
         try {
@@ -695,14 +762,15 @@ export class EmailStorage {
           const status = await imapClient.getFolderStatus(imapFolderName)
           if (status.messages > 0) {
             // Send progress update with total count
-            progressCallback?.({ folder: folder.name, current: 0, total: status.messages })
+            progressCallback?.({ folder: folder.name, folderId: folder.id, accountId, current: 0, total: status.messages })
           }
         } catch (statusError) {
           console.warn(`Could not get folder status for ${folder.name}, will get total from fetch:`, statusError)
           // Continue without total - will be set when emails are fetched
         }
 
-        const result = await this.syncFolderEmails(imapClient, accountId, folder, progressCallback)
+        // Default to metadata-only for fast sync - bodies fetched on-demand when viewing emails
+        const result = await this.syncFolderEmails(imapClient, accountId, folder, progressCallback, options?.fetchFullBodies ?? false)
         synced += result.synced
         errors += result.errors
 
@@ -717,7 +785,18 @@ export class EmailStorage {
     return { synced, errors }
   }
 
-  async syncAccount(accountId: string, progressCallback?: (data: { folder?: string; current: number; total?: number; emailUid?: number }) => void): Promise<{ synced: number; errors: number }> {
+  async clearAndResyncFolder(accountId: string, folderId: string, progressCallback?: SyncProgressCallback): Promise<{ synced: number; errors: number }> {
+    console.log(`Clearing emails from folder ${folderId} and re-syncing with full bodies...`)
+    
+    // Delete all emails from this folder
+    this.db.prepare('DELETE FROM emails WHERE folder_id = ?').run(folderId)
+    console.log(`Cleared emails from folder ${folderId}`)
+    
+    // Re-sync with full bodies
+    return await this.syncFolder(accountId, folderId, progressCallback, { fetchFullBodies: true })
+  }
+
+  async syncAccount(accountId: string, progressCallback?: SyncProgressCallback): Promise<{ synced: number; errors: number }> {
     const account = await accountManager.getAccount(accountId)
     if (!account) {
       throw new Error('Account not found')
@@ -738,7 +817,7 @@ export class EmailStorage {
           const now = Date.now()
 
           // Update/create folders in database
-          progressCallback?.({ folder: 'folders', current: 0, total: serverFolders.length })
+          progressCallback?.({ folder: 'folders', accountId, current: 0, total: serverFolders.length })
           for (let i = 0; i < serverFolders.length; i++) {
             const serverFolder = serverFolders[i]
             const existing = dbFolders.find(f => f.path === serverFolder.path)
@@ -750,7 +829,7 @@ export class EmailStorage {
               `).run(id, accountId, serverFolder.name, serverFolder.path, JSON.stringify(serverFolder.attributes), now, now)
               dbFolders.push({ id, name: serverFolder.name, path: serverFolder.path })
             }
-            progressCallback?.({ folder: 'folders', current: i + 1, total: serverFolders.length })
+            progressCallback?.({ folder: 'folders', accountId, current: i + 1, total: serverFolders.length })
           }
         }
 
@@ -771,7 +850,7 @@ export class EmailStorage {
 
         for (const folder of foldersToSync) {
           try {
-            progressCallback?.({ folder: folder.name, current: 0, total: undefined })
+            progressCallback?.({ folder: folder.name, folderId: folder.id, accountId, current: 0, total: undefined })
 
             // Use folder name for IMAP operations, ensure INBOX is uppercase
             const imapFolderName = folder.name.toUpperCase() === 'INBOX' ? 'INBOX' : folder.path
@@ -786,7 +865,7 @@ export class EmailStorage {
               continue
             }
 
-            progressCallback?.({ folder: folder.name, current: 0, total: emails.length })
+            progressCallback?.({ folder: folder.name, folderId: folder.id, accountId, current: 0, total: emails.length })
 
             for (let i = 0; i < emails.length; i++) {
               const email = emails[i]
@@ -798,12 +877,23 @@ export class EmailStorage {
                 const storedId = await this.storeEmail(email)
                 console.log(`Successfully stored email with id: ${storedId}`)
                 synced++
-                progressCallback?.({ folder: folder.name, current: i + 1, total: emails.length, emailUid: email.uid })
+                const emailSummary = this.buildSyncEmailSummary(email, storedId, folder)
+                progressCallback?.({
+                  folder: folder.name,
+                  folderId: folder.id,
+                  accountId,
+                  current: i + 1,
+                  total: emails.length,
+                  emailUid: email.uid,
+                  email: emailSummary
+                })
               } catch (err) {
                 console.error(`Error storing email ${email.uid} for account ${email.accountId} in folder ${folder.id} (${folder.name}):`, err)
                 errors++
-                progressCallback?.({ folder: folder.name, current: i + 1, total: emails.length, emailUid: email.uid })
+                progressCallback?.({ folder: folder.name, folderId: folder.id, accountId, current: i + 1, total: emails.length, emailUid: email.uid })
               }
+
+              await this.yieldForSync(i)
             }
           } catch (err: any) {
             // Check if this is a "mailbox doesn't exist" error
@@ -868,6 +958,39 @@ export class EmailStorage {
     }
 
     return { synced, errors }
+  }
+
+  private async yieldForSync(index: number): Promise<void> {
+    if ((index + 1) % SYNC_YIELD_INTERVAL === 0) {
+      await new Promise<void>((resolve) => setImmediate(resolve))
+    }
+  }
+
+  private buildSyncEmailSummary(email: Email, storedId: string, folder: any): Email {
+    const baseBody = typeof email.body === 'string' ? email.body : ''
+    const safeBody = baseBody.length > SYNC_BODY_PREVIEW_LIMIT
+      ? baseBody.slice(0, SYNC_BODY_PREVIEW_LIMIT)
+      : baseBody
+    const safeText = typeof email.textBody === 'string'
+      ? (email.textBody.length > SYNC_BODY_PREVIEW_LIMIT ? email.textBody.slice(0, SYNC_BODY_PREVIEW_LIMIT) : email.textBody)
+      : undefined
+    const safeHtml = typeof email.htmlBody === 'string'
+      ? (email.htmlBody.length > SYNC_BODY_PREVIEW_LIMIT ? email.htmlBody.slice(0, SYNC_BODY_PREVIEW_LIMIT) : email.htmlBody)
+      : undefined
+
+    return {
+      ...email,
+      id: storedId,
+      accountId: email.accountId,
+      folderId: folder.id,
+      body: safeBody,
+      htmlBody: safeHtml,
+      textBody: safeText,
+      attachments: [],
+      headers: undefined,
+      createdAt: email.createdAt || Date.now(),
+      updatedAt: Date.now()
+    }
   }
 
   private mapDbEmailToEmail(dbEmail: any): Email {

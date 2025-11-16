@@ -424,7 +424,7 @@ const syncEmails = async () => {
 const syncEmailsForFolder = async (accountId: string, folderId: string) => {
   // Cancel any ongoing sync for a different folder
   if (syncing.value && currentSyncFolderId.value !== folderId) {
-    console.log(`Cancelling sync for folder ${currentSyncFolderId.value}, starting sync for ${folderId}`)
+    
     // Remove progress listener for old sync
     if (currentSyncRemoveListener.value) {
       currentSyncRemoveListener.value()
@@ -468,10 +468,10 @@ const syncEmailsForFolder = async (accountId: string, folderId: string) => {
   const removeProgressListener = window.electronAPI.emails.onSyncProgress((data: any) => {
     // Only process progress updates for the current folder being synced
     if (currentSyncFolderId.value !== folderId) {
-      console.log(`Ignoring progress update for folder ${data.folder}, current sync is for ${currentSyncFolderId.value}`)
+      
       return
     }
-    console.info('Folder sync progress:', data)
+    // console.info('Folder sync progress:', data)
     syncProgress.value = {
       show: true,
       current: data.current || 0,
@@ -488,7 +488,7 @@ const syncEmailsForFolder = async (accountId: string, folderId: string) => {
 
     // Check if this sync was cancelled (user selected a different folder)
     if (currentSyncFolderId.value !== folderId) {
-      console.log(`Sync for folder ${folderId} completed but was cancelled (current: ${currentSyncFolderId.value})`)
+      
       removeProgressListener()
       currentSyncRemoveListener.value = null
       return
@@ -588,7 +588,7 @@ const scheduleBackgroundBodyFetch = (accountId: string, folderId: string) => {
           // Only fetch if this folder is still selected
           const result = await (window.electronAPI as any).emails.fetchBodiesBackground(accountId, folderId, 10)
           if (result.success && result.fetched > 0) {
-            console.log(`Background: Fetched ${result.fetched} email bodies`)
+            
             // Refresh email list to show updated emails
             window.dispatchEvent(new CustomEvent('refresh-emails'))
             // Schedule next batch if there might be more
@@ -613,56 +613,7 @@ const handleAccountSelect = (account: any) => {
   }
 }
 
-// Note: loadFolders is no longer needed as FolderList handles loading all accounts
-// Keeping for backward compatibility if needed, but it's not called anymore
 
-const syncOtherFoldersInBackground = async (accountId: string, folders: any[]) => {
-  // Skip if already syncing in background
-  if (backgroundSyncing.value) {
-    return
-  }
-
-  // Get all folders except INBOX
-  const otherFolders = folders.filter((f: any) => f.name.toLowerCase() !== 'inbox')
-
-  if (otherFolders.length === 0) {
-    return
-  }
-
-  backgroundSyncing.value = true
-
-  // Use requestIdleCallback with fallback
-  const requestIdleCallback = (window as any).requestIdleCallback || ((callback: (deadline?: any) => void) => {
-    setTimeout(() => callback(), 2000)
-  })
-
-  const syncNextFolder = async (index: number) => {
-    if (index >= otherFolders.length) {
-      backgroundSyncing.value = false
-      return
-    }
-
-    const folder = otherFolders[index]
-
-    // Wait for idle time before syncing next folder
-    requestIdleCallback(async () => {
-      try {
-        // Only sync if folder is not currently selected (to avoid conflicts)
-        if (selectedFolderId.value !== folder.id) {
-          await window.electronAPI.emails.syncFolder(accountId, folder.id)
-        }
-      } catch (error) {
-        console.error(`Error syncing folder ${folder.name} in background:`, error)
-      }
-
-      // Sync next folder
-      await syncNextFolder(index + 1)
-    }, { timeout: 2000 })
-  }
-
-  // Start syncing first folder
-  await syncNextFolder(0)
-}
 
 // Track window width for responsive sidebar
 let resizeHandler: (() => void) | null = null

@@ -898,10 +898,18 @@ export function registerEmailHandlers() {
   })
 
   ipcMain.handle('emails:get', async (_, id: string) => {
-    const email = await emailStorage.getEmail(id)
+    console.log(`[emails:get] Fetching email ${id} with fetchRemoteBody=true, timeout=60s`)
+    const email = await emailStorage.getEmail(id, { fetchRemoteBody: true, fetchTimeoutMs: 60000 })
     if (!email) {
+      console.warn(`[emails:get] Email ${id} not found`)
       return null
     }
+
+    // Check if body was loaded
+    const hasBody = email.body && email.body.trim().length > 0
+    const hasHtmlBody = email.htmlBody && email.htmlBody.trim().length > 0
+    const hasTextBody = email.textBody && email.textBody.trim().length > 0
+    console.log(`[emails:get] Email ${id} body status: hasBody=${hasBody}, hasHtmlBody=${hasHtmlBody}, hasTextBody=${hasTextBody}`)
 
     // Load attachments
     const db = getDatabase()
@@ -947,7 +955,7 @@ export function registerEmailHandlers() {
     const db = getDatabase()
     
     // Get the email to find its threadId
-    const email = await emailStorage.getEmail(emailId)
+    const email = await emailStorage.getEmail(emailId, { fetchRemoteBody: false })
     if (!email) {
       return []
     }
@@ -1027,6 +1035,32 @@ export function registerEmailHandlers() {
     } catch (error: any) {
       console.error('Sync folder error:', error)
       return { success: false, message: error.message || 'Unknown error during folder sync' }
+    }
+  })
+
+  ipcMain.handle('emails:clear-and-resync-folder', async (event, accountId: string, folderId: string) => {
+    try {
+      const account = await accountManager.getAccount(accountId)
+      if (!account) {
+        return { success: false, message: 'Account not found' }
+      }
+
+      // Progress callback
+      const progressCallback = (data: { folder?: string; current: number; total?: number; emailUid?: number }) => {
+        console.info(`Clear and resync progress: ${data.folder || 'Unknown'} - ${data.current}/${data.total || 'unknown'} (uid: ${data.emailUid || 'N/A'})`)
+        event.sender.send('emails:sync-progress', data)
+      }
+
+      const result = await emailStorage.clearAndResyncFolder(accountId, folderId, progressCallback)
+      return {
+        success: true,
+        synced: result.synced,
+        errors: result.errors,
+        message: `Cleared and re-synced ${result.synced} emails with full bodies${result.errors > 0 ? ` with ${result.errors} errors` : ''}`
+      }
+    } catch (error: any) {
+      console.error('Clear and resync folder error:', error)
+      return { success: false, message: error.message || 'Unknown error during clear and resync' }
     }
   })
 
@@ -2481,7 +2515,7 @@ export function registerWindowHandlers() {
     let emailData = replyTo
     if (replyTo?.emailId) {
       try {
-        const email = await emailStorage.getEmail(replyTo.emailId)
+        const email = await emailStorage.getEmail(replyTo.emailId, { fetchRemoteBody: true, fetchTimeoutMs: 60000 })
         if (email) {
           // Only pass essential fields (exclude attachments to avoid cloning issues)
           emailData = {

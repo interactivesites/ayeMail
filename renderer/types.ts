@@ -18,6 +18,7 @@ declare global {
         getThread: (emailId: string) => Promise<any[]>
         sync: (accountId: string) => Promise<any>
         syncFolder: (accountId: string, folderId: string) => Promise<any>
+        clearAndResyncFolder: (accountId: string, folderId: string) => Promise<any>
         send: (email: any) => Promise<any>
         delete: (id: string) => Promise<any>
         archive: (id: string) => Promise<{ success: boolean; message?: string }>

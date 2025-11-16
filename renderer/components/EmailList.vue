@@ -420,6 +420,8 @@ const { previewLevel, threadView } = storeToRefs(preferences)
 const isDragging = ref<string | null>(null)
 const removedEmails = ref<Map<string, any>>(new Map()) // Store removed emails for potential restoration
 const deletingAllEmails = ref(false)
+const pendingSyncedEmails = ref<any[]>([])
+const syncProgressUnsubscribe = ref<null | (() => void)>(null)
 
 // Check if we're in spam/junk folder
 const isSpamFolder = computed(() => {
@@ -513,6 +515,92 @@ const getEmailElement = (emailId: string): HTMLElement | null => {
 
 const getEmailAnchorElement = (emailId: string): HTMLElement | null => {
   return document.querySelector(`[data-email-anchor="${emailId}"]`) as HTMLElement | null
+}
+
+const normalizeSyncedEmail = (incoming: any) => {
+  if (!incoming || typeof incoming !== 'object') return null
+  const normalized = {
+    ...incoming,
+    from: Array.isArray(incoming.from) ? incoming.from : [],
+    to: Array.isArray(incoming.to) ? incoming.to : [],
+    cc: Array.isArray(incoming.cc) ? incoming.cc : incoming.cc || undefined,
+    bcc: Array.isArray(incoming.bcc) ? incoming.bcc : incoming.bcc || undefined,
+    replyTo: Array.isArray(incoming.replyTo) ? incoming.replyTo : incoming.replyTo || undefined,
+    flags: Array.isArray(incoming.flags) ? incoming.flags : [],
+    attachments: [],
+    attachmentCount: incoming.attachmentCount ?? (Array.isArray(incoming.attachments) ? incoming.attachments.length : 0),
+    body: typeof incoming.body === 'string' ? incoming.body : '',
+    textBody: typeof incoming.textBody === 'string' ? incoming.textBody : undefined,
+    htmlBody: typeof incoming.htmlBody === 'string' ? incoming.htmlBody : undefined,
+    date: typeof incoming.date === 'number' ? incoming.date : Date.now()
+  }
+  return normalized
+}
+
+const applyNormalizedSyncEmail = (normalized: any) => {
+  if (!normalized?.id) return
+  if (removedEmails.value.has(normalized.id)) {
+    return
+  }
+
+  let updated = [...emails.value]
+  const existingIndex = updated.findIndex(email => email.id === normalized.id)
+
+  if (existingIndex !== -1) {
+    updated[existingIndex] = { ...updated[existingIndex], ...normalized }
+  } else if (threadView.value) {
+    const threadKey = normalized.threadId || normalized.messageId || normalized.id
+    const threadIndex = updated.findIndex(email => (email.threadId || email.messageId || email.id) === threadKey)
+    if (threadIndex !== -1) {
+      if ((normalized.date || 0) >= (updated[threadIndex].date || 0)) {
+        updated[threadIndex] = { ...updated[threadIndex], ...normalized }
+      } else {
+        return
+      }
+    } else {
+      updated.push(normalized)
+    }
+  } else {
+    updated.push(normalized)
+  }
+
+  updated.sort((a, b) => (b.date || 0) - (a.date || 0))
+
+  if (!props.unifiedFolderType && !props.searchQuery && updated.length > 50) {
+    updated = updated.slice(0, 50)
+  }
+
+  emails.value = updated
+}
+
+const flushPendingSyncedEmails = () => {
+  if (!pendingSyncedEmails.value.length) return
+  const queued = [...pendingSyncedEmails.value]
+  pendingSyncedEmails.value = []
+  queued.forEach(applyNormalizedSyncEmail)
+}
+
+const handleSyncProgressUpdate = (data: any) => {
+  if (!data?.email || !props.folderId || props.unifiedFolderType || props.searchQuery) {
+    return
+  }
+
+  if (data.folderId !== props.folderId) {
+    return
+  }
+
+  if (props.accountId && data.email.accountId && data.email.accountId !== props.accountId) {
+    return
+  }
+
+  const normalized = normalizeSyncedEmail(data.email)
+  if (!normalized) return
+
+  if (loading.value) {
+    pendingSyncedEmails.value.push(normalized)
+  } else {
+    applyNormalizedSyncEmail(normalized)
+  }
 }
 
 const updateArrowStyles = (arrowElement: HTMLElement | null | undefined, placement: Placement, middlewareData: MiddlewareData) => {
@@ -1250,6 +1338,7 @@ const loadEmails = async () => {
     console.error('Error loading emails:', error)
   } finally {
     loading.value = false
+    flushPendingSyncedEmails()
   }
 }
 
@@ -1520,6 +1609,7 @@ const groupedEmails = computed(() => {
 const refreshEmails = () => {
   // Clear removed emails cache on refresh since we're getting fresh data
   removedEmails.value.clear()
+  pendingSyncedEmails.value = []
   loadEmails()
 }
 
@@ -1597,6 +1687,9 @@ const handleContainerClick = (event: MouseEvent) => {
 
 onMounted(() => {
   loadEmails()
+  if (window?.electronAPI?.emails?.onSyncProgress) {
+    syncProgressUnsubscribe.value = window.electronAPI.emails.onSyncProgress(handleSyncProgressUpdate)
+  }
   // Listen for refresh event
   window.addEventListener('refresh-emails', refreshEmails)
   // Listen for optimistic email removal
@@ -1614,6 +1707,7 @@ onMounted(() => {
 })
 
 watch([() => props.folderId, () => props.unifiedFolderType, () => props.unifiedFolderAccountIds, () => props.searchQuery, () => threadView.value], () => {
+  pendingSyncedEmails.value = []
   loadEmails()
   closeArchivePopover() // Close popover when folder changes
   archivingEmailId.value = null // Clear archiving state when folder changes
@@ -1672,6 +1766,10 @@ onUnmounted(() => {
   window.removeEventListener('restore-email', handleRestoreEmail as EventListener)
   document.removeEventListener('click', handleClickOutside)
   window.removeEventListener('keydown', handleKeyDown)
+  if (syncProgressUnsubscribe.value) {
+    syncProgressUnsubscribe.value()
+    syncProgressUnsubscribe.value = null
+  }
 })
 </script>
 

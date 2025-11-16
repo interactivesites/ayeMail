@@ -181,6 +181,39 @@
                   </div>
                 </div>
               </div>
+              <div>
+                <h3 class="text-md font-semibold text-gray-900 dark:text-gray-100 mb-2">Maintenance</h3>
+                <div class="p-3 border border-gray-200 dark:border-gray-700 rounded dark:bg-gray-800">
+                  <div class="flex items-center justify-between mb-2">
+                    <div>
+                      <p class="text-sm font-medium text-gray-900 dark:text-gray-100">Rebuild Folders</p>
+                      <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Clear and re-sync all folders with full email bodies</p>
+                    </div>
+                    <button
+                      @click="handleRebuildFolders"
+                      :disabled="rebuildingFolders"
+                      class="px-4 py-2 text-sm font-medium rounded transition-colors"
+                      :class="rebuildingFolders 
+                        ? 'bg-gray-400 text-white cursor-not-allowed' 
+                        : 'bg-orange-600 text-white hover:bg-orange-700'"
+                    >
+                      <span v-if="rebuildingFolders" class="flex items-center gap-2">
+                        <svg class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        Rebuilding...
+                      </span>
+                      <span v-else>Rebuild</span>
+                    </button>
+                  </div>
+                  <div v-if="rebuildProgress" class="text-xs text-gray-600 dark:text-gray-400 mt-2">
+                    {{ rebuildProgress }}
+                  </div>
+                  <div v-if="rebuildResult" class="text-xs mt-2" :class="rebuildResult.success ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'">
+                    {{ rebuildResult.message }}
+                  </div>
+                </div>
+              </div>
             </div>
           </template>
         </UiTabs>
@@ -218,6 +251,9 @@ const editingAccountId = ref<string | null>(null)
 const selectedAccountId = ref<string>('')
 const autoLockEnabled = ref(false)
 const autoLockMinutes = ref(15)
+const rebuildingFolders = ref(false)
+const rebuildProgress = ref<string>('')
+const rebuildResult = ref<{ success: boolean; message: string } | null>(null)
 const settingsTabs = [
   { id: 'general', label: 'General' },
   { id: 'accounts', label: 'Accounts' },
@@ -291,6 +327,77 @@ const updateAutoLock = () => {
   // For now, just store in localStorage
   localStorage.setItem('autoLockEnabled', String(autoLockEnabled.value))
   localStorage.setItem('autoLockMinutes', String(autoLockMinutes.value))
+}
+
+const handleRebuildFolders = async () => {
+  if (!confirm('This will clear and re-sync all folders with full email bodies. This may take a while. Continue?')) {
+    return
+  }
+
+  rebuildingFolders.value = true
+  rebuildProgress.value = 'Loading accounts...'
+  rebuildResult.value = null
+
+  try {
+    const allAccounts = await window.electronAPI.accounts.list()
+    let totalFolders = 0
+    let processedFolders = 0
+    let totalSynced = 0
+
+    for (const account of allAccounts) {
+      rebuildProgress.value = `Loading folders for ${account.email}...`
+      const folders = await window.electronAPI.folders.list(account.id)
+      
+      // Flatten folder tree
+      const flatFolders: any[] = []
+      const flatten = (folderList: any[]) => {
+        for (const folder of folderList) {
+          if (!folder.isUnified) {
+            flatFolders.push(folder)
+          }
+          if (folder.children) {
+            flatten(folder.children)
+          }
+        }
+      }
+      flatten(folders)
+      
+      totalFolders += flatFolders.length
+
+      // Clear and resync each folder
+      for (const folder of flatFolders) {
+        processedFolders++
+        rebuildProgress.value = `Processing ${folder.name} (${processedFolders}/${totalFolders})...`
+        
+        try {
+          const result = await window.electronAPI.emails.clearAndResyncFolder(account.id, folder.id)
+          if (result.success) {
+            totalSynced += result.synced || 0
+          }
+        } catch (error: any) {
+          console.error(`Error rebuilding folder ${folder.name}:`, error)
+        }
+      }
+    }
+
+    rebuildResult.value = {
+      success: true,
+      message: `Successfully rebuilt ${totalFolders} folders with ${totalSynced} emails`
+    }
+    rebuildProgress.value = ''
+
+    // Refresh the email list
+    window.dispatchEvent(new CustomEvent('refresh-emails'))
+    window.dispatchEvent(new CustomEvent('refresh-folders'))
+  } catch (error: any) {
+    rebuildResult.value = {
+      success: false,
+      message: `Error: ${error.message}`
+    }
+    rebuildProgress.value = ''
+  } finally {
+    rebuildingFolders.value = false
+  }
 }
 
 onMounted(() => {
