@@ -468,9 +468,12 @@ const showNewEmailNotification = (data: { accountId: string; count: number; emai
       body = emailList + (count > 3 ? `\n... and ${count - 3} more` : '')
     }
     
+    // Use absolute path for icon to ensure it works in all contexts
+    const iconPath = new URL('/assets/ilogo.png', window.location.origin).href
+    
     const notification = new Notification(title, {
       body,
-      icon: '/assets/ilogo.png',
+      icon: iconPath,
       tag: 'new-emails', // Groups notifications together
       requireInteraction: false
     })
