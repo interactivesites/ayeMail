@@ -34,60 +34,13 @@
         <!-- Description -->
         <div class="text-center space-y-3">
           <p class="text-gray-700 dark:text-gray-300 text-lg leading-relaxed">
-            A modern, secure email client built with Electron. Designed for privacy and productivity.
+            A modern, secure email client designed for privacy and productivity.
+            <br/>
+            This is a free and open-source project. If you like it, please consider supporting us on Buy Me a Coffee. If you are a coder, you and interesting in helping making this thing fly, please get in touch! 
           </p>
         </div>
 
-        <!-- Features Grid -->
-        <div class="grid grid-cols-2 gap-4">
-          <div class="p-4 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 hover:border-primary-300 dark:hover:border-primary-600 transition-all group cursor-pointer">
-            <div class="flex items-center space-x-3 mb-2">
-              <div class="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center group-hover:bg-blue-200 dark:group-hover:bg-blue-900/50 transition-colors">
-                <svg class="w-5 h-5 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                </svg>
-              </div>
-              <h3 class="font-semibold text-gray-900 dark:text-gray-100">Secure</h3>
-            </div>
-            <p class="text-xs text-gray-600 dark:text-gray-400">End-to-end encryption support</p>
-          </div>
-
-          <div class="p-4 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 hover:border-primary-300 dark:hover:border-primary-600 transition-all group cursor-pointer">
-            <div class="flex items-center space-x-3 mb-2">
-              <div class="w-8 h-8 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center group-hover:bg-green-200 dark:group-hover:bg-green-900/50 transition-colors">
-                <svg class="w-5 h-5 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-              </div>
-              <h3 class="font-semibold text-gray-900 dark:text-gray-100">Fast</h3>
-            </div>
-            <p class="text-xs text-gray-600 dark:text-gray-400">Lightning quick sync</p>
-          </div>
-
-          <div class="p-4 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 hover:border-primary-300 dark:hover:border-primary-600 transition-all group cursor-pointer">
-            <div class="flex items-center space-x-3 mb-2">
-              <div class="w-8 h-8 rounded-lg bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center group-hover:bg-purple-200 dark:group-hover:bg-purple-900/50 transition-colors">
-                <svg class="w-5 h-5 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
-                </svg>
-              </div>
-              <h3 class="font-semibold text-gray-900 dark:text-gray-100">Modern</h3>
-            </div>
-            <p class="text-xs text-gray-600 dark:text-gray-400">Beautiful, intuitive UI</p>
-          </div>
-
-          <div class="p-4 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 hover:border-primary-300 dark:hover:border-primary-600 transition-all group cursor-pointer">
-            <div class="flex items-center space-x-3 mb-2">
-              <div class="w-8 h-8 rounded-lg bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center group-hover:bg-orange-200 dark:group-hover:bg-orange-900/50 transition-colors">
-                <svg class="w-5 h-5 text-orange-600 dark:text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                </svg>
-              </div>
-              <h3 class="font-semibold text-gray-900 dark:text-gray-100">Private</h3>
-            </div>
-            <p class="text-xs text-gray-600 dark:text-gray-400">Your data stays local</p>
-          </div>
-        </div>
+      
 
         <!-- Buy Me a Coffee Button -->
         <div class="pt-4 pb-2">
