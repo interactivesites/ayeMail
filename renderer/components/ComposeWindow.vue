@@ -28,7 +28,7 @@
           </select>
         </div>
         <div class="border-l border-gray-300 dark:border-gray-600 h-4 mx-4 flex-shrink-0"></div>
-        <label class="flex items-center space-x-1.5 cursor-pointer">
+        <!-- <label class="flex items-center space-x-1.5 cursor-pointer">
           <input
             v-model="form.encrypt"
             type="checkbox"
@@ -43,7 +43,7 @@
             class="toggle-sm"
           />
           <span class="text-xs text-gray-700 dark:text-gray-300">Sign</span>
-        </label>
+        </label> -->
       </div>
       <div class="app-no-drag flex items-center space-x-1">
         <button
@@ -112,7 +112,7 @@
           />
         </div>
         <div>
-          <div class=" rounded-md overflow-hidden focus-within:ring-0 relative">
+          <div class="rounded-md overflow-hidden focus-within:ring-0 relative bg-white dark:bg-white border border-gray-200 dark:border-gray-200">
             <EditorContent :editor="editor" class="prose max-w-none" />
             <BubbleMenu
               v-if="editor"
@@ -874,7 +874,13 @@ const handleClose = () => {
   outline: none;
   min-height: 300px;
   padding: 1rem;
-  
+  background-color: white !important;
+  color: #111827 !important;
+}
+
+.dark .ProseMirror {
+  background-color: white !important;
+  color: #111827 !important;
 }
 
 .ProseMirror p.is-editor-empty:first-child::before {
@@ -883,23 +889,37 @@ const handleClose = () => {
   float: left;
   height: 0;
   pointer-events: none;
-  
 }
 
 .ProseMirror p {
   margin: 0.5rem 0;
+  color: #111827 !important;
+}
+
+.dark .ProseMirror p {
+  color: #111827 !important;
 }
 
 .ProseMirror h1 {
   font-size: 2em;
   font-weight: bold;
   margin: 0.67em 0;
+  color: #111827 !important;
+}
+
+.dark .ProseMirror h1 {
+  color: #111827 !important;
 }
 
 .ProseMirror h2 {
   font-size: 1.5em;
   font-weight: bold;
   margin: 0.75em 0;
+  color: #111827 !important;
+}
+
+.dark .ProseMirror h2 {
+  color: #111827 !important;
 }
 
 .ProseMirror ul, .ProseMirror ol {
@@ -912,6 +932,14 @@ const handleClose = () => {
   padding-left: 1em;
   margin: 0.5em 0;
   font-style: italic;
+}
+
+.ProseMirror a {
+  color: #2563eb !important;
+}
+
+.dark .ProseMirror a {
+  color: #2563eb !important;
 }
 
 .bubble-menu {

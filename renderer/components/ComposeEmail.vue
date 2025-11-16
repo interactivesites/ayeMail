@@ -52,7 +52,7 @@
             placeholder="Email body"
           ></textarea>
         </div>
-        <div class="flex items-center space-x-4">
+        <div class="flex items-center space-x-4 ">
           <label class="flex items-center">
             <input
               v-model="form.encrypt"
