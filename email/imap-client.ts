@@ -890,6 +890,9 @@ export class IMAPClient {
             })
           }
         })
+      } catch (error) {
+        reject(error)
+      }
     })
   }
 

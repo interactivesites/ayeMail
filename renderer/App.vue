@@ -603,6 +603,7 @@ onMounted(async () => {
   // Auto-select "All Inboxes" unified folder
   try {
     const accounts = await window.electronAPI.accounts.list()
+    
     if (accounts.length > 0) {
       selectedAccount.value = accounts[0]
       

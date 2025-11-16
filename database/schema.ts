@@ -210,7 +210,12 @@ export function createDatabase(): Database.Database {
   return db
 }
 
+let dbInstance: Database.Database | null = null
+
 export function getDatabase(): Database.Database {
-  return createDatabase()
+  if (!dbInstance) {
+    dbInstance = createDatabase()
+  }
+  return dbInstance
 }
 

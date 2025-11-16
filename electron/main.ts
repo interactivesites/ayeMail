@@ -23,6 +23,7 @@ function createWindow() {
     titleBarStyle: isMac ? 'hiddenInset' : 'default',
     backgroundColor: isMac ? '#00000000' : '#0f172a',
     transparent: isMac,
+    show: false, // Don't show until ready
     webPreferences: {
       preload: join(__dirname, 'preload.js'),
       nodeIntegration: false,
@@ -51,16 +52,40 @@ function createWindow() {
     mainWindow.setBackgroundColor('#00000000')
   }
 
+  // Prevent white/black flash during load
+  mainWindow.once('ready-to-show', () => {
+    mainWindow?.show()
+  })
+
+  // Fallback: Show window after 5 seconds even if ready-to-show doesn't fire
+  setTimeout(() => {
+    if (mainWindow && !mainWindow.isVisible()) {
+      mainWindow.show()
+    }
+  }, 5000)
+
   // Always use dev server in development, fallback to file in production
-  // In dev mode, NODE_ENV is not set or is 'development', and app is not packaged
-  const isDev = !app.isPackaged || process.env.NODE_ENV === 'development'
+  // Only check app.isPackaged - this is the most reliable indicator
+  const isDev = !app.isPackaged
   
   if (isDev) {
     mainWindow.loadURL('http://localhost:5173')
     mainWindow.webContents.openDevTools()
   } else {
-    const indexPath = join(__dirname, '../dist/index.html')
-    mainWindow.loadFile(indexPath)
+    // In production, __dirname is in dist-electron/electron/, so we need to go up two levels
+    const appPath = app.getAppPath()
+    const indexPath = join(appPath, 'dist', 'index.html')
+    
+    mainWindow.loadFile(indexPath).catch((err) => {
+      console.error('Failed to load index.html:', err)
+      // Fallback path
+      const fallbackPath = join(__dirname, '../../dist/index.html')
+      mainWindow.loadFile(fallbackPath).catch((fallbackErr) => {
+        console.error('Fallback also failed:', fallbackErr)
+        // Show window anyway so user can see error
+        mainWindow?.show()
+      })
+    })
   }
 
   mainWindow.on('closed', () => {
@@ -77,6 +102,7 @@ function createComposeWindow(accountId: string, replyTo?: any) {
     frame: false,
     backgroundColor: isMac ? '#00000000' : '#ffffff',
     transparent: isMac,
+    show: false, // Don't show until ready
     webPreferences: {
       preload: join(__dirname, 'preload.js'),
       nodeIntegration: false,
@@ -100,6 +126,11 @@ function createComposeWindow(accountId: string, replyTo?: any) {
     composeWindow.setBackgroundColor('#00000000')
   }
 
+  // Prevent white/black flash during load
+  composeWindow.once('ready-to-show', () => {
+    composeWindow.show()
+  })
+
   // Prevent navigation to file:// URLs (prevents opening files when dragged)
   composeWindow.webContents.on('will-navigate', (event, url) => {
     if (url.startsWith('file://')) {
@@ -115,13 +146,17 @@ function createComposeWindow(accountId: string, replyTo?: any) {
   // Store compose data in window
   ;(composeWindow as any).composeData = { accountId, replyTo }
 
-  const isDev = !app.isPackaged || process.env.NODE_ENV === 'development'
+  const isDev = !app.isPackaged
   
   if (isDev) {
     composeWindow.loadURL(`http://localhost:5173?compose=true&accountId=${accountId}`)
   } else {
-    const indexPath = join(__dirname, '../dist/index.html')
-    composeWindow.loadFile(indexPath, { query: { compose: 'true', accountId } })
+    const indexPath = join(app.getAppPath(), 'dist', 'index.html')
+    composeWindow.loadFile(indexPath, { query: { compose: 'true', accountId } }).catch((err) => {
+      console.error('Failed to load index.html:', err)
+      const fallbackPath = join(__dirname, '../../dist/index.html')
+      composeWindow.loadFile(fallbackPath, { query: { compose: 'true', accountId } })
+    })
   }
   
   // Send replyTo data via IPC after window loads
@@ -169,8 +204,7 @@ app.whenReady().then(async () => {
     // Run extraction in background
     setTimeout(() => {
       try {
-        const result = contactManager.extractContactsFromExistingEmails()
-        console.log(`Extracted ${result.extracted} contacts from existing emails`)
+        contactManager.extractContactsFromExistingEmails()
       } catch (error) {
         console.error('Error extracting contacts from existing emails:', error)
       }

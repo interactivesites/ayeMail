@@ -6,7 +6,8 @@ const IV_LENGTH = 16
 const SALT_LENGTH = 64
 const TAG_LENGTH = 16
 
-// Get encryption key from Electron's safeStorage or generate one
+// Get encryption key - use a stable key derived from app data directory
+// This avoids keychain access prompts during initialization
 let encryptionKey: Buffer | null = null
 
 function getEncryptionKey(): Buffer {
@@ -14,18 +15,12 @@ function getEncryptionKey(): Buffer {
     return encryptionKey
   }
   
-  // Try to use Electron's safeStorage if available
-  if (safeStorage.isEncryptionAvailable()) {
-    // For now, we'll generate a key and store it encrypted
-    // In production, you'd want to derive this from user input or secure storage
-    const keyData = safeStorage.encryptString('imail-encryption-key')
-    // This is a simplified approach - in production, use proper key derivation
-    encryptionKey = crypto.scryptSync(keyData.toString('hex'), 'imail-salt', 32)
-  } else {
-    // Fallback: generate a key (less secure, but works)
-    // In production, prompt user for password and derive key
-    encryptionKey = crypto.scryptSync('default-key-change-in-production', 'imail-salt', 32)
-  }
+  // Use a stable key derived from the app's user data directory
+  // This avoids triggering keychain access prompts on startup
+  // The key is consistent per installation but not stored in keychain
+  const { app } = require('electron')
+  const userDataPath = app.getPath('userData')
+  encryptionKey = crypto.scryptSync(userDataPath, 'imail-encryption-key-salt', 32)
   
   return encryptionKey
 }
@@ -100,23 +95,35 @@ export function decryptBuffer(encryptedBuffer: Buffer): Buffer {
 }
 
 // Helper to encrypt credentials using Electron's safeStorage when available
+// Only accesses keychain when actually encrypting/decrypting credentials
 export function encryptCredential(credential: string): string {
-  if (safeStorage.isEncryptionAvailable()) {
-    return safeStorage.encryptString(credential).toString('base64')
+  try {
+    // Check if safeStorage is available without triggering keychain prompt
+    // isEncryptionAvailable() doesn't trigger the prompt, only encryptString/decryptString do
+    if (safeStorage.isEncryptionAvailable()) {
+      // This will trigger keychain access, but only when saving credentials
+      return safeStorage.encryptString(credential).toString('base64')
+    }
+  } catch (error) {
+    // If keychain access fails or is denied, fall back to our encryption
+    console.warn('SafeStorage not available, using fallback encryption:', error)
   }
   // Fallback to our encryption
   return encrypt(credential)
 }
 
 export function decryptCredential(encryptedCredential: string): string {
-  if (safeStorage.isEncryptionAvailable()) {
-    try {
+  try {
+    // Check if safeStorage is available without triggering keychain prompt
+    if (safeStorage.isEncryptionAvailable()) {
+      // This will trigger keychain access, but only when loading credentials
       return safeStorage.decryptString(Buffer.from(encryptedCredential, 'base64'))
-    } catch {
-      // If it fails, try our encryption
-      return decrypt(encryptedCredential)
     }
+  } catch (error) {
+    // If keychain access fails, try our encryption fallback
+    // This handles cases where user denied keychain access
   }
+  // Fallback to our encryption
   return decrypt(encryptedCredential)
 }
 
