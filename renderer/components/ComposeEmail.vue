@@ -53,7 +53,7 @@
           ></textarea>
         </div>
         <div class="flex items-center space-x-4 ">
-          <label class="flex items-center">
+          <!-- <label class="flex items-center">
             <input
               v-model="form.encrypt"
               type="checkbox"
@@ -68,7 +68,7 @@
               class="mr-2"
             />
             <span class="text-sm text-gray-700">Sign</span>
-          </label>
+          </label> -->
         </div>
         <div class="flex items-center justify-between border-t border-gray-200 pt-4 mt-4">
           <div class="flex items-center space-x-2">
