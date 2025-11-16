@@ -1,33 +1,19 @@
 <template>
+  <!-- As composer mode is open, show the compose window -->
   <ComposeWindow v-if="isComposeMode" :account-id="composeAccountId" :reply-to="composeReplyTo" />
+  <!-- As composer mode is not open, show the main app -->
   <div v-else class="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
-    <MainNav
-      key="main-nav"
-      :syncing="syncing"
-      :has-selected-email="Boolean(selectedEmailId)"
-      :email-list-width="isGridLayout ? 0 : mailPaneWidth"
-      :is-resizing="isResizingMailPane"
-      @open-settings="showSettings = true"
-      @sync="syncEmails"
-      @compose="handleCompose"
-      @reply="handleNavReply"
-      @forward="handleNavForward"
-      @set-reminder="handleNavReminder"
-      @delete="handleNavDelete"
-      @search="handleSearch"
-      @clear-search="handleClearSearch"
-    />
+
     <main class="flex-1 flex overflow-hidden">
-      <aside 
-        class="border-r border-white/10 dark:border-gray-700 bg-slate-900/70 dark:bg-gray-800 text-slate-100 dark:text-gray-100 backdrop-blur-2xl shadow-xl flex flex-col transition-all duration-200 flex-shrink-0"
-        :style="{ width: sidebarWidth + 'px', minWidth: sidebarWidth + 'px', maxWidth: sidebarWidth + 'px' }"
-      >
+
+      <aside class="border-r border-white/10 dark:border-gray-700 bg-slate-900/70 dark:bg-gray-800 text-slate-100 dark:text-gray-100 backdrop-blur-2xl shadow-xl flex flex-col transition-all duration-200 flex-shrink-0" :style="{ width: sidebarWidth + 'px', minWidth: sidebarWidth + 'px', maxWidth: sidebarWidth + 'px' }">
+        <MainNav mode="left" :syncing="syncing" :has-selected-email="Boolean(selectedEmailId)" @sync="syncEmails" @compose="handleCompose" />
         <div class="flex-1 overflow-hidden">
           <FolderList :selected-folder-id="selectedFolderId" @select-folder="handleFolderSelect" />
         </div>
-          <div v-if="syncProgress.show" class="p-3 border-t border-white/10 bg-white/5">
+        <div v-if="syncProgress.show" class="p-3 border-t border-white/10 bg-white/5">
           <div class="flex items-center justify-between mb-1">
-              <span class="text-xs text-slate-200">
+            <span class="text-xs text-slate-200">
               <span v-if="syncProgress.folder === 'folders'">Syncing folders</span>
               <span v-else-if="syncProgress.folder === 'Complete'">Sync complete</span>
               <span v-else-if="syncProgress.folder">
@@ -38,8 +24,8 @@
               <span v-else>Downloading emails</span>
             </span>
           </div>
-            <div class="w-full bg-white/10 rounded-full h-1.5">
-              <div class="bg-primary-500 h-1.5 rounded-full transition-all duration-300" :style="{
+          <div class="w-full bg-white/10 rounded-full h-1.5">
+            <div class="bg-primary-500 h-1.5 rounded-full transition-all duration-300" :style="{
               width: syncProgress.total > 0 ? `${Math.min(100, (syncProgress.current / syncProgress.total) * 100)}%` :
                 syncProgress.total === 0 ? '100%' :
                   '25%'
@@ -47,76 +33,37 @@
           </div>
         </div>
       </aside>
-        <div class="flex-1 flex overflow-hidden">
-          <!-- Grid/Calm Mode: Use CalmMode component -->
-          <template v-if="isGridLayout">
-            <CalmMode v-if="selectedAccount && !searchQuery" :account-id="selectedAccount.id" :selected-email-id="selectedEmailId" @select-email="handleEmailSelect" />
-            <!-- For search in grid mode, fall back to EmailList -->
-            <div v-else-if="searchQuery" class="flex-1 px-2">
-              <EmailList
-                :folder-id="''"
-                :folder-name="'Search Results'"
-                :selected-email-id="selectedEmailId"
-                :account-id="selectedAccount?.id"
-                :search-query="searchQuery"
-                @select-email="handleEmailSelect"
-                @drag-start="handleDragStart"
-                @drag-end="handleDragEnd"
-              />
-            </div>
-          </template>
-          <!-- List Mode: Standard list view with email viewer -->
-          <template v-else>
+      <div class="flex-1 flex flex-col overflow-hidden">
+        <!-- Grid/Calm Mode: Use CalmMode component -->
+        <template v-if="isGridLayout">
+          <CalmMode v-if="selectedAccount && !searchQuery" :account-id="selectedAccount.id" :selected-email-id="selectedEmailId" @select-email="handleEmailSelect" />
+          <!-- For search in grid mode, fall back to EmailList -->
+          <div v-else-if="searchQuery" class="flex-1 px-2">
+            <EmailList :folder-id="''" :folder-name="'Search Results'" :selected-email-id="selectedEmailId" :account-id="selectedAccount?.id" :search-query="searchQuery" @select-email="handleEmailSelect" @drag-start="handleDragStart" @drag-end="handleDragEnd" />
+          </div>
+        </template>
+        <!-- List Mode: Standard list view with email viewer -->
+        <template v-else>
+          <div class="flex-1 flex overflow-hidden">
             <div :class="[
               'border-r border-gray-200 dark:border-gray-700 flex-shrink-0',
               !isResizingMailPane ? 'transition-all duration-200' : ''
             ]" :style="{ width: mailPaneWidth + 'px' }">
-              <component
-                v-if="selectedFolderId || searchQuery"
-                :is="EmailList"
-                :folder-id="searchQuery ? '' : selectedFolderId"
-                :folder-name="searchQuery ? 'Search Results' : selectedFolderName"
-                :selected-email-id="selectedEmailId"
-                :account-id="selectedAccount?.id"
-                :unified-folder-type="unifiedFolderType"
-                :unified-folder-account-ids="unifiedFolderAccountIds"
-                :search-query="searchQuery"
-                @select-email="handleEmailSelect"
-                @drag-start="handleDragStart"
-                @drag-end="handleDragEnd"
-              />
+              <component v-if="selectedFolderId || searchQuery" :is="EmailList" :folder-id="searchQuery ? '' : selectedFolderId" :folder-name="searchQuery ? 'Search Results' : selectedFolderName" :selected-email-id="selectedEmailId" :account-id="selectedAccount?.id" :unified-folder-type="unifiedFolderType" :unified-folder-account-ids="unifiedFolderAccountIds" :search-query="searchQuery" @select-email="handleEmailSelect" @drag-start="handleDragStart" @drag-end="handleDragEnd" />
             </div>
-            <div
-              class="w-2 flex-shrink-0 cursor-col-resize relative group bg-transparent hover:bg-gray-100/50 dark:hover:bg-gray-700/50 transition-colors"
-              role="separator"
-              aria-orientation="vertical"
-              aria-label="Resize email list"
-              @mousedown.prevent="startMailResize"
-            >
+            <div class="w-2 flex-shrink-0 cursor-col-resize relative group bg-transparent hover:bg-gray-100/50 dark:hover:bg-gray-700/50 transition-colors" role="separator" aria-orientation="vertical" aria-label="Resize email list" @mousedown.prevent="startMailResize">
               <span class="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-gray-300 dark:bg-gray-600 group-hover:bg-gray-500 dark:group-hover:bg-gray-400 transition-colors"></span>
             </div>
-            <div class="flex-1 relative">
-              <EmailDropZone
-                v-if="isDraggingEmail && draggedEmail"
-                :dragged-email="draggedEmail"
-                :account-id="selectedAccount?.id || ''"
-                @action-complete="handleDragActionComplete"
-                @close="handleDragEnd"
-                @drop-start="handleDropStart"
-                @drop-error="handleDropError"
-              />
-              <EmailViewer
-                v-else
-                :email-id="selectedEmailId"
-                @reply="handleReply"
-                @forward="handleForward"
-                @set-reminder="handleSetReminder"
-                @delete="handleDeleteEmail"
-                @select-thread-email="handleEmailSelect"
-              />
+            <div class="flex-1 flex flex-col relative">
+              <MainNav mode="right" :syncing="false" :has-selected-email="Boolean(selectedEmailId)" @reply="handleNavReply" @forward="handleNavForward" @set-reminder="handleNavReminder" @delete="handleNavDelete" @open-settings="showSettings = true" @search="handleSearch" @clear-search="handleClearSearch" />
+              <div class="flex-1 overflow-hidden">
+                <EmailDropZone v-if="isDraggingEmail && draggedEmail" :dragged-email="draggedEmail" :account-id="selectedAccount?.id || ''" @action-complete="handleDragActionComplete" @close="handleDragEnd" @drop-start="handleDropStart" @drop-error="handleDropError" />
+                <EmailViewer v-else :email-id="selectedEmailId" @reply="handleReply" @forward="handleForward" @set-reminder="handleSetReminder" @delete="handleDeleteEmail" @select-thread-email="handleEmailSelect" />
+              </div>
             </div>
-          </template>
-        </div>
+          </div>
+        </template>
+      </div>
     </main>
     <SettingsModal v-if="showSettings" @close="showSettings = false" @account-selected="handleAccountSelect" />
     <ReminderModal v-if="showReminderModal && reminderEmail" :email-id="reminderEmail.id" :account-id="reminderEmail.accountId" @close="showReminderModal = false; reminderEmail = null" @saved="handleReminderSaved" />
@@ -127,7 +74,6 @@
 import { ref, onMounted, computed, onBeforeUnmount } from 'vue'
 import FolderList from './components/FolderList.vue'
 import EmailList from './components/EmailList.vue'
-import EmailGrid from './components/EmailGrid.vue'
 import CalmMode from './components/CalmMode.vue'
 import EmailViewer from './components/EmailViewer.vue'
 import EmailDropZone from './components/EmailDropZone.vue'
@@ -182,19 +128,18 @@ const windowWidth = ref(window.innerWidth)
 // Sidebar width: default 256px (w-64), but 30% narrower (179px) when email list < 20% of screen width
 const sidebarWidth = computed(() => {
   if (isGridLayout.value) return 256 // Grid layout doesn't use email list pane
-  
+
   const screenWidth = windowWidth.value
   const thresholdPercent = 20 // 20% threshold
   const thresholdPixels = (screenWidth * thresholdPercent) / 100
-  
+
   // Check if email list width is at or below 20% of screen width
   // Since MIN_MAIL_WIDTH prevents going below 280px, we need to use the higher of:
   // - 20% of screen width, OR
   // - MIN_MAIL_WIDTH + a small buffer (so it triggers when near minimum)
   const effectiveThreshold = Math.max(thresholdPixels, MIN_MAIL_WIDTH + 5) // 5px buffer above minimum
   const shouldShrink = mailPaneWidth.value <= effectiveThreshold
-  
-  
+
   if (shouldShrink) {
     // 30% narrower: 256px * 0.7 = 179.2px ≈ 179px
     return 179
@@ -230,10 +175,6 @@ const startMailResize = (event: MouseEvent) => {
   document.addEventListener('mouseup', stopMailResize)
 }
 
-const clearSelectedEmail = () => {
-  selectedEmailId.value = ''
-  selectedEmail.value = null
-}
 
 const handleNavReply = () => {
   if (!selectedEmail.value) return
@@ -290,7 +231,7 @@ const handleFolderSelect = async (folder: any) => {
   if (folder.accountId) {
     const accounts = await window.electronAPI.accounts.list()
     selectedAccount.value = accounts.find((a: any) => a.id === folder.accountId)
-    
+
     if (selectedAccount.value && folder.id) {
       try {
         await syncEmailsForFolder(selectedAccount.value.id, folder.id)
@@ -305,18 +246,18 @@ let markAsReadTimeout: NodeJS.Timeout | null = null
 
 const handleEmailSelect = async (emailId: string) => {
   selectedEmailId.value = emailId
-  
+
   // Clear any existing timeout
   if (markAsReadTimeout) {
     clearTimeout(markAsReadTimeout)
     markAsReadTimeout = null
   }
-  
+
   // Load full email details
   if (emailId) {
     try {
       selectedEmail.value = await window.electronAPI.emails.get(emailId)
-      
+
       // Mark as read after 3 seconds if email is unread
       if (selectedEmail.value && !selectedEmail.value.isRead) {
         markAsReadTimeout = setTimeout(async () => {
@@ -341,24 +282,24 @@ const handleEmailSelect = async (emailId: string) => {
 
 const handleCompose = () => {
   if (!selectedAccount.value) return
-  ;(window.electronAPI as any).window.compose.create(selectedAccount.value.id)
+    ; (window.electronAPI as any).window.compose.create(selectedAccount.value.id)
 }
 
 const handleReply = (email: any) => {
   if (!email || !selectedAccount.value || !email.id) return
-  // Pass only the email ID to avoid cloning issues and URL size limits
-  ;(window.electronAPI as any).window.compose.create(selectedAccount.value.id, { emailId: email.id, forward: false })
+    // Pass only the email ID to avoid cloning issues and URL size limits
+    ; (window.electronAPI as any).window.compose.create(selectedAccount.value.id, { emailId: email.id, forward: false })
 }
 
 const handleForward = (email: any) => {
   if (!email || !selectedAccount.value || !email.id) return
-  // Pass only the email ID to avoid cloning issues and URL size limits
-  ;(window.electronAPI as any).window.compose.create(selectedAccount.value.id, { emailId: email.id, forward: true })
+    // Pass only the email ID to avoid cloning issues and URL size limits
+    ; (window.electronAPI as any).window.compose.create(selectedAccount.value.id, { emailId: email.id, forward: true })
 }
 
 const handleSetReminder = async (email: any) => {
   if (!email || !email.id) return
-  
+
   // Check if email already has a reminder
   try {
     const hasReminder = await window.electronAPI.reminders.hasReminder(email.id)
@@ -369,7 +310,7 @@ const handleSetReminder = async (email: any) => {
   } catch (error) {
     console.error('Error checking for existing reminder:', error)
   }
-  
+
   reminderEmail.value = email
   showReminderModal.value = true
 }
@@ -390,10 +331,6 @@ const handleDeleteEmail = async (email: any) => {
     console.error('Error deleting email:', error)
     alert(`Failed to delete email: ${error.message || error}`)
   }
-}
-
-const handleEmailSent = () => {
-  // Refresh email list if needed
 }
 
 const handleReminderSaved = () => {
@@ -539,29 +476,29 @@ const syncOtherFoldersInBackground = async (accountId: string, folders: any[]) =
   if (backgroundSyncing.value) {
     return
   }
-  
+
   // Get all folders except INBOX
   const otherFolders = folders.filter((f: any) => f.name.toLowerCase() !== 'inbox')
-  
+
   if (otherFolders.length === 0) {
     return
   }
-  
+
   backgroundSyncing.value = true
-  
+
   // Use requestIdleCallback with fallback
   const requestIdleCallback = (window as any).requestIdleCallback || ((callback: (deadline?: any) => void) => {
     setTimeout(() => callback(), 2000)
   })
-  
+
   const syncNextFolder = async (index: number) => {
     if (index >= otherFolders.length) {
       backgroundSyncing.value = false
       return
     }
-    
+
     const folder = otherFolders[index]
-    
+
     // Wait for idle time before syncing next folder
     requestIdleCallback(async () => {
       try {
@@ -572,12 +509,12 @@ const syncOtherFoldersInBackground = async (accountId: string, folders: any[]) =
       } catch (error) {
         console.error(`Error syncing folder ${folder.name} in background:`, error)
       }
-      
+
       // Sync next folder
       await syncNextFolder(index + 1)
     }, { timeout: 2000 })
   }
-  
+
   // Start syncing first folder
   await syncNextFolder(0)
 }
@@ -603,10 +540,10 @@ onMounted(async () => {
   // Auto-select "All Inboxes" unified folder
   try {
     const accounts = await window.electronAPI.accounts.list()
-    
+
     if (accounts.length > 0) {
       selectedAccount.value = accounts[0]
-      
+
       // Auto-select "All Inboxes" unified folder
       selectedFolderId.value = 'unified-all-inboxes'
       selectedFolderName.value = 'All Inboxes'
