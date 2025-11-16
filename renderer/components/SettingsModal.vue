@@ -296,7 +296,8 @@
       </div>
       <AddAccountForm
         v-if="showAddAccount"
-        @close="showAddAccount = false"
+        :prevent-close="props.autoShowAddAccount && accounts.length === 0"
+        @close="handleAddAccountClose"
         @added="handleAccountAdded"
       />
       <AddAccountForm
@@ -316,6 +317,10 @@ import AddAccountForm from './AddAccountForm.vue'
 import SignatureManager from './SignatureManager.vue'
 import UiTabs from './UiTabs.vue'
 import { usePreferencesStore } from '../stores/preferences'
+
+const props = defineProps<{
+  autoShowAddAccount?: boolean
+}>()
 
 const emit = defineEmits<{
   'close': []
@@ -406,13 +411,24 @@ const editAccount = (account: any) => {
   editingAccountId.value = account.id
 }
 
-const handleAccountAdded = () => {
+const handleAddAccountClose = () => {
+  // Don't allow closing if this is a fresh start (no accounts)
+  if (props.autoShowAddAccount && accounts.value.length === 0) {
+    return
+  }
   showAddAccount.value = false
-  loadAccounts().then(() => {
-    if (accounts.value.length > 0 && !selectedAccountId.value) {
+}
+
+const handleAccountAdded = async () => {
+  showAddAccount.value = false
+  await loadAccounts()
+  if (accounts.value.length > 0) {
+    if (!selectedAccountId.value) {
       selectedAccountId.value = accounts.value[0].id
     }
-  })
+    // Emit account-selected so App.vue can update hasAccounts
+    emit('account-selected', accounts.value[0])
+  }
 }
 
 const handleAccountUpdated = () => {
@@ -511,8 +527,8 @@ const handleRebuildFolders = async () => {
   }
 }
 
-onMounted(() => {
-  loadAccounts()
+onMounted(async () => {
+  await loadAccounts()
   // Sync i18n locale with preferences on mount
   locale.value = preferences.language
   // Load auto-lock settings
@@ -527,6 +543,12 @@ onMounted(() => {
   const savedInterval = localStorage.getItem('autoSyncInterval')
   if (savedInterval) {
     autoSyncInterval.value = parseInt(savedInterval, 10)
+  }
+  
+  // Auto-show add account form if prop is set (fresh start)
+  if (props.autoShowAddAccount) {
+    activeTab.value = 'accounts'
+    showAddAccount.value = true
   }
 })
 </script>

@@ -4,6 +4,7 @@
       <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
         <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ editingAccount ? $t('accounts.editAccount') : $t('accounts.addAccount') }}</h2>
         <button
+          v-if="!preventClose"
           @click="$emit('close')"
           class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
         >
@@ -128,6 +129,7 @@
       </div>
       <div class="p-4 border-t border-gray-200 dark:border-gray-700 flex justify-end space-x-2">
         <button
+          v-if="!preventClose"
           @click="$emit('close')"
           class="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded hover:bg-gray-300 dark:hover:bg-gray-600"
         >
@@ -151,6 +153,7 @@ import { useI18n } from 'vue-i18n'
 
 const props = defineProps<{
   accountId?: string
+  preventClose?: boolean
 }>()
 
 const emit = defineEmits<{

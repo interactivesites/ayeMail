@@ -6,7 +6,7 @@
 
     <main class="flex-1 flex overflow-hidden">
 
-      <aside class="border-r border-white/10 dark:border-gray-700 bg-slate-900/70 dark:bg-gray-800 text-slate-100 dark:text-gray-100 backdrop-blur-2xl shadow-xl flex flex-col transition-all duration-200 flex-shrink-0" :style="{ width: sidebarWidth + 'px', minWidth: sidebarWidth + 'px', maxWidth: sidebarWidth + 'px' }">
+      <aside v-if="hasAccounts" class="border-r border-white/10 dark:border-gray-700 bg-slate-900/70 dark:bg-gray-800 text-slate-100 dark:text-gray-100 backdrop-blur-2xl shadow-xl flex flex-col transition-all duration-200 flex-shrink-0" :style="{ width: sidebarWidth + 'px', minWidth: sidebarWidth + 'px', maxWidth: sidebarWidth + 'px' }">
         <MainNav mode="left" :syncing="syncing" :has-selected-email="Boolean(selectedEmailId)" @sync="syncEmails" @compose="handleCompose" />
         <div class="flex-1 overflow-hidden">
           <FolderList :selected-folder-id="selectedFolderId" :syncing-folder-id="currentSyncFolderId" @select-folder="handleFolderSelect" @open-about="showAbout = true" />
@@ -72,7 +72,7 @@
         </template>
       </div>
     </main>
-    <SettingsModal v-if="showSettings" @close="showSettings = false" @account-selected="handleAccountSelect" @open-about="showAbout = true; showSettings = false" />
+    <SettingsModal v-if="showSettings" :auto-show-add-account="!hasAccounts" @close="handleSettingsClose" @account-selected="handleAccountSelect" @open-about="showAbout = true; showSettings = false" />
     <AboutModal v-if="showAbout" @close="showAbout = false" />
     <ReminderModal v-if="showReminderModal && reminderEmail" :email-id="reminderEmail.id" :account-id="reminderEmail.accountId" @close="showReminderModal = false; reminderEmail = null" @saved="handleReminderSaved" />
   </div>
@@ -116,6 +116,7 @@ const selectedEmail = ref<any>(null)
 const unifiedFolderType = ref<string | null>(null) // 'all-inboxes', 'aside'
 const unifiedFolderAccountIds = ref<string[]>([]) // For unified folders that need account context
 const showSettings = ref(false)
+const hasAccounts = ref(false)
 const showAbout = ref(false)
 const showReminderModal = ref(false)
 const reminderEmail = ref<any>(null)
@@ -684,15 +685,37 @@ const scheduleBackgroundBodyFetch = (accountId: string, folderId: string) => {
   }, 3000) // Wait 3 seconds after sync completes
 }
 
-const handleAccountSelect = (account: any) => {
+const handleAccountSelect = async (account: any) => {
   selectedAccount.value = account
+  // Update hasAccounts when an account is selected/added
+  if (account) {
+    hasAccounts.value = true
+    // Refresh accounts list to ensure we have the latest
+    try {
+      const accounts = await window.electronAPI.accounts.list()
+      if (accounts.length > 0) {
+        hasAccounts.value = true
+        // Auto-select "All Inboxes" unified folder
+        selectedFolderId.value = 'unified-all-inboxes'
+        selectedFolderName.value = 'All Inboxes'
+        unifiedFolderType.value = 'all-inboxes'
+        unifiedFolderAccountIds.value = accounts.map((a: any) => a.id)
+      }
+    } catch (error) {
+      console.error('Error refreshing accounts:', error)
+    }
+  }
   showSettings.value = false
   // Note: FolderList now loads all accounts, so we don't need to load folders here
   // But we can still select the account's inbox if needed
-  if (account) {
-    // Optionally select the account's inbox
-    // This will be handled by FolderList automatically
+}
+
+const handleSettingsClose = () => {
+  // Don't allow closing settings if there are no accounts (fresh start)
+  if (!hasAccounts.value) {
+    return
   }
+  showSettings.value = false
 }
 
 
@@ -747,9 +770,10 @@ onMounted(async () => {
   window.addEventListener('resize', resizeHandler)
 
   // Note: FolderList now handles loading all accounts and folders
-  // Auto-select "All Inboxes" unified folder
+  // Check if this is a fresh start (no accounts)
   try {
     const accounts = await window.electronAPI.accounts.list()
+    hasAccounts.value = accounts.length > 0
 
     if (accounts.length > 0) {
       selectedAccount.value = accounts[0]
@@ -759,9 +783,15 @@ onMounted(async () => {
       selectedFolderName.value = 'All Inboxes'
       unifiedFolderType.value = 'all-inboxes'
       unifiedFolderAccountIds.value = accounts.map((a: any) => a.id)
+    } else {
+      // Fresh start: show settings modal with add account form
+      showSettings.value = true
     }
   } catch (error) {
     console.error('Error loading accounts:', error)
+    // On error, assume no accounts and show settings
+    hasAccounts.value = false
+    showSettings.value = true
   }
 })
 

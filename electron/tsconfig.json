@@ -18,7 +18,8 @@
     "noImplicitAny": false,
     "noUnusedLocals": false,
     "noUnusedParameters": false,
-    "noImplicitReturns": false
+    "noImplicitReturns": false,
+    "sourceMap": false
   },
   "include": [
     "../electron/**/*.ts",

@@ -8,23 +8,30 @@
     "dist-electron/**/*",
     "dist/**/*",
     "package.json",
-    "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}",
-    "!**/node_modules/*/{test,__tests__,tests,powered-test,example,examples}",
+    "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme,LICENSE,LICENSE.md,license.txt,NOTICE,NOTICE.md}",
+    "!**/node_modules/*/{test,__tests__,tests,powered-test,example,examples,docs,documentation,*.test.js,*.spec.js,*.test.ts,*.spec.ts}",
     "!**/node_modules/*.d.ts",
+    "!**/node_modules/*/{*.map,*.ts,*.tsx,*.flow,*.js.map}",
     "!**/node_modules/.bin",
-    "!**/*.{iml,o,hprof,orig,pyc,pyo,rbc,swp,csproj,sln,xproj}",
+    "!**/node_modules/**/{.git,.github,.nyc_output,coverage,.eslintrc,.prettierrc}",
+    "!**/*.{iml,o,hprof,orig,pyc,pyo,rbc,swp,csproj,sln,xproj,map,db,sqlite,sqlite3}",
+    "!**/*.db",
+    "!**/*.sqlite",
+    "!**/*.sqlite3",
     "!.editorconfig",
     "!**/._*",
     "!**/{.DS_Store,.git,.hg,.svn,CVS,RCS,SCCS,.gitignore,.gitattributes}",
     "!**/{__pycache__,thumbs.db,.flowconfig,.idea,.vs,.nyc_output}",
     "!**/{appveyor.yml,.travis.yml,circle.yml}",
-    "!**/{npm-debug.log,yarn.lock,.yarn-integrity,.yarn-metadata.json}"
+    "!**/{npm-debug.log,yarn.lock,.yarn-integrity,.yarn-metadata.json}",
+    "!**/node_modules/@types/**",
+    "!**/node_modules/typescript/**",
+    "!**/node_modules/**/package-lock.json",
+    "!**/node_modules/**/yarn.lock"
   ],
-  "asar": true,
+  "asar": false,
   "compression": "maximum",
-  "asarUnpack": [
-    "node_modules/better-sqlite3/**/*"
-  ],
+  "includeSubNodeModules": false,
   "mac": {
     "category": "public.app-category.productivity",
     "target": [
