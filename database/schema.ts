@@ -206,7 +206,7 @@ export function createDatabase(): Database.Database {
   } catch (error) {
     console.error('Error migrating emails table for status column:', error)
   }
-
+  
   // Migration: Add spam-related columns to emails table
   try {
     const tableInfo = db.prepare("PRAGMA table_info(emails)").all() as any[]

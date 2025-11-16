@@ -37,6 +37,30 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
           </svg>
         </button>
+        <button
+          v-if="showDeleteAllButton"
+          type="button"
+          @click="handleDeleteAllEmails"
+          :disabled="deletingAllEmails || emails.length === 0"
+          class="px-3 py-1.5 text-sm font-medium rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600 disabled:opacity-50 disabled:cursor-not-allowed"
+          :class="deletingAllEmails || emails.length === 0 
+            ? 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500' 
+            : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/50'"
+          title="Delete all emails in this folder"
+        >
+          <span v-if="deletingAllEmails" class="flex items-center gap-2">
+            <svg class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            Deleting...
+          </span>
+          <span v-else class="flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+            Delete All ({{ emails.length }})
+          </span>
+        </button>
       </div>
     </div>
     <div class="flex-1 overflow-y-auto">
@@ -395,6 +419,7 @@ const preferences = usePreferencesStore()
 const { previewLevel, threadView } = storeToRefs(preferences)
 const isDragging = ref<string | null>(null)
 const removedEmails = ref<Map<string, any>>(new Map()) // Store removed emails for potential restoration
+const deletingAllEmails = ref(false)
 
 // Check if we're in spam/junk folder
 const isSpamFolder = computed(() => {
@@ -402,6 +427,21 @@ const isSpamFolder = computed(() => {
   return folderNameLower === 'spam' || folderNameLower === 'junk' || 
          props.folderId.toLowerCase().includes('spam') || 
          props.folderId.toLowerCase().includes('junk')
+})
+
+// Check if we're in deleted/trash folder
+const isDeletedFolder = computed(() => {
+  const folderNameLower = props.folderName.toLowerCase()
+  return folderNameLower === 'trash' || folderNameLower === 'deleted' || 
+         folderNameLower === 'deleted items' || folderNameLower === 'bin' ||
+         props.folderId.toLowerCase().includes('trash') || 
+         props.folderId.toLowerCase().includes('deleted') ||
+         props.folderId.toLowerCase().includes('bin')
+})
+
+// Check if we should show delete all button
+const showDeleteAllButton = computed(() => {
+  return isSpamFolder.value || isDeletedFolder.value
 })
 
 // Grouping mode - can be extended later for other grouping options
@@ -776,6 +816,67 @@ const handleUnspamEmail = async (emailId: string) => {
     }
   } catch (error) {
     console.error('Error un-spamming email:', error)
+  }
+}
+
+const handleDeleteAllEmails = async () => {
+  if (emails.value.length === 0) return
+  
+  // Confirm deletion
+  const confirmMessage = `Are you sure you want to permanently delete all ${emails.value.length} email${emails.value.length === 1 ? '' : 's'} in this folder? This action cannot be undone.`
+  if (!confirm(confirmMessage)) {
+    return
+  }
+  
+  deletingAllEmails.value = true
+  
+  try {
+    const allEmailIds = getAllEmailsFlat().map(e => e.id)
+    let successCount = 0
+    let errorCount = 0
+    
+    // Delete emails in batches to avoid blocking the UI
+    const batchSize = 10
+    for (let i = 0; i < allEmailIds.length; i += batchSize) {
+      const batch = allEmailIds.slice(i, i + batchSize)
+      const promises = batch.map(async (emailId) => {
+        try {
+          const result = await window.electronAPI.emails.delete(emailId)
+          if (result.success) {
+            successCount++
+            // Remove from local list immediately
+            emails.value = emails.value.filter(e => e.id !== emailId)
+          } else {
+            errorCount++
+          }
+        } catch (error) {
+          console.error(`Error deleting email ${emailId}:`, error)
+          errorCount++
+        }
+      })
+      
+      await Promise.all(promises)
+      
+      // Small delay between batches to keep UI responsive
+      if (i + batchSize < allEmailIds.length) {
+        await new Promise(resolve => setTimeout(resolve, 50))
+      }
+    }
+    
+    // Clear selection
+    emit('select-email', '')
+    
+    // Refresh email list
+    window.dispatchEvent(new CustomEvent('refresh-emails'))
+    
+    if (errorCount > 0) {
+      alert(`Deleted ${successCount} email${successCount === 1 ? '' : 's'}. ${errorCount} email${errorCount === 1 ? '' : 's'} could not be deleted.`)
+    }
+  } catch (error) {
+    console.error('Error deleting all emails:', error)
+    alert('An error occurred while deleting emails. Please try again.')
+  } finally {
+    deletingAllEmails.value = false
   }
 }
 
