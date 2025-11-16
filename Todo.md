@@ -1,6 +1,6 @@
 
 ## Functionality
-
+- delete mails -> moved to folder???
 - image resizing in mail (attachments)
 - bg image
 - language (i18n) / - formatters (date, time, etc.) - try to get from system

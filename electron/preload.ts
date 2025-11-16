@@ -56,7 +56,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
     onSyncProgress: (callback: (data: any) => void) => {
       ipcRenderer.on('emails:sync-progress', (_, data) => callback(data))
       return () => ipcRenderer.removeAllListeners('emails:sync-progress')
-    }
+    },
+    onNewEmails: (callback: (data: any) => void) => {
+      ipcRenderer.on('emails:new-emails', (_, data) => callback(data))
+      return () => ipcRenderer.removeAllListeners('emails:new-emails')
+    },
+    onAutoSyncRefresh: (callback: () => void) => {
+      ipcRenderer.on('auto-sync:refresh-needed', () => callback())
+      return () => ipcRenderer.removeAllListeners('auto-sync:refresh-needed')
+    },
+    updateAutoSync: (enabled: boolean, intervalMinutes: number) =>
+      ipcRenderer.invoke('emails:update-auto-sync', enabled, intervalMinutes)
   },
   
   // Folder operations

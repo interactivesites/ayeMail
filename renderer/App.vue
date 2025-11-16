@@ -378,6 +378,11 @@ const syncEmails = async () => {
     }
   })
 
+  // Listen for new email notifications
+  const removeNewEmailsListener = window.electronAPI.emails.onNewEmails((data: any) => {
+    showNewEmailNotification(data)
+  })
+
   try {
     // Show initial progress
     syncProgress.value = { show: true, current: 0, total: 0, folder: '' }
@@ -408,19 +413,90 @@ const syncEmails = async () => {
         syncProgress.value = { show: false, current: 0, total: undefined, folder: '' }
         syncProgress.value = { show: false, current: 0, total: undefined, folder: '' }
         removeProgressListener()
+        removeNewEmailsListener()
       }, 3000)
     } else {
       alert(`Sync failed: ${result.message}`)
       syncProgress.value = { show: false, current: 0, total: undefined, folder: '' }
       removeProgressListener()
+      removeNewEmailsListener()
     }
   } catch (error: any) {
     console.error('Error syncing emails:', error)
     alert(`Error syncing emails: ${error.message}`)
     syncProgress.value.show = false
     removeProgressListener()
+    removeNewEmailsListener()
   } finally {
     syncing.value = false
+  }
+}
+
+const showNewEmailNotification = (data: { accountId: string; count: number; emails: any[] }) => {
+  console.log('showNewEmailNotification called:', { count: data.count, emailsLength: data.emails?.length, notificationsEnabled: preferences.showEmailNotifications, permission: 'Notification' in window ? Notification.permission : 'N/A' })
+  
+  // Check if notifications are enabled
+  if (!preferences.showEmailNotifications) {
+    console.log('Email notifications disabled in settings')
+    return
+  }
+
+  const { count, emails } = data
+  
+  if (!emails || emails.length === 0) {
+    console.log('No emails to notify about')
+    return
+  }
+  
+  // Create notification
+  if ('Notification' in window && Notification.permission === 'granted') {
+    console.log('Creating notification for', count, 'new email(s)')
+    const title = count === 1 
+      ? 'New Email'
+      : `${count} New Emails`
+    
+    let body = ''
+    if (count === 1 && emails.length > 0) {
+      const email = emails[0]
+      const from = email.from?.[0]?.name || email.from?.[0]?.address || 'Unknown'
+      body = `From: ${from}\n${email.subject || '(No Subject)'}`
+    } else if (count > 1) {
+      const emailList = emails.slice(0, 3).map((email: any) => {
+        const from = email.from?.[0]?.name || email.from?.[0]?.address || 'Unknown'
+        return `• ${from}: ${email.subject || '(No Subject)'}`
+      }).join('\n')
+      body = emailList + (count > 3 ? `\n... and ${count - 3} more` : '')
+    }
+    
+    const notification = new Notification(title, {
+      body,
+      icon: '/assets/ilogo.png',
+      tag: 'new-emails', // Groups notifications together
+      requireInteraction: false
+    })
+    
+    console.log('Notification created and shown')
+    
+    // Handle click - focus app and show first new email
+    notification.onclick = () => {
+      console.log('Notification clicked')
+      if (emails.length > 0) {
+        // Focus the app window
+        window.focus()
+        // Select the first new email
+        handleEmailSelect(emails[0].id)
+      }
+    }
+  } else if ('Notification' in window && Notification.permission === 'default') {
+    // Request permission if not yet granted
+    console.log('Requesting notification permission...')
+    Notification.requestPermission().then(permission => {
+      console.log('Permission result:', permission)
+    })
+  } else if ('Notification' in window) {
+    console.warn('Notifications not granted. Permission:', Notification.permission)
+  } else {
+    console.warn('Notification API not available in this browser')
   }
 }
 
@@ -627,6 +703,31 @@ const handleEmailRefresh = () => {
 }
 
 onMounted(async () => {
+  // Request notification permission if not already granted
+  if ('Notification' in window && Notification.permission === 'default') {
+    try {
+      const permission = await Notification.requestPermission()
+      console.log('Notification permission:', permission)
+    } catch (error) {
+      console.error('Error requesting notification permission:', error)
+    }
+  } else if ('Notification' in window) {
+    console.log('Notification permission already set:', Notification.permission)
+  }
+
+  // Listen for new email notifications (global - for both manual sync and auto-sync)
+  window.electronAPI.emails.onNewEmails((data: any) => {
+    console.log('Received new emails event:', data)
+    showNewEmailNotification(data)
+  })
+
+  // Listen for auto-sync refresh events
+  window.electronAPI.emails.onAutoSyncRefresh(() => {
+    console.log('Auto-sync: Refresh triggered, updating email list')
+    window.dispatchEvent(new CustomEvent('refresh-emails'))
+    window.dispatchEvent(new CustomEvent('refresh-folders'))
+  })
+
   // Listen for email refresh events to clear sync loader
   window.addEventListener('refresh-emails', handleEmailRefresh)
   // Initialize dark mode

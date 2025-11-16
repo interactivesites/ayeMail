@@ -89,6 +89,60 @@
                 <SignatureManager :account-id="selectedAccountId" />
               </div>
             </div>
+            <div v-else-if="currentTab === 'security'" class="space-y-6">
+              <div>
+                <h3 class="text-md font-semibold text-gray-900 dark:text-gray-100 mb-2">GPG Encryption</h3>
+                <div class="p-3 border border-gray-200 dark:border-gray-700 rounded dark:bg-gray-800 opacity-60 pointer-events-none">
+                  <div class="flex items-center justify-between mb-2">
+                    <div>
+                      <p class="text-sm font-medium text-gray-900 dark:text-gray-100">GPG Key Management</p>
+                      <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Not yet implemented (NYI)</p>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                      <button
+                        disabled
+                        class="px-3 py-1 bg-gray-400 text-white text-sm rounded cursor-not-allowed"
+                      >
+                        Import Key
+                      </button>
+                      <button
+                        disabled
+                        class="px-3 py-1 bg-gray-400 text-white text-sm rounded cursor-not-allowed"
+                      >
+                        Generate Key
+                      </button>
+                    </div>
+                  </div>
+                  <div class="text-gray-500 dark:text-gray-400 text-sm">
+                    No GPG keys configured
+                  </div>
+                </div>
+              </div>
+              <div>
+                <h3 class="text-md font-semibold text-gray-900 dark:text-gray-100 mb-2">Auto-Lock</h3>
+                <div class="space-y-2">
+                  <label class="flex items-center">
+                    <input
+                      v-model="autoLockEnabled"
+                      type="checkbox"
+                      class="toggle mr-2"
+                      @change="updateAutoLock"
+                    />
+                    <span class="text-sm text-gray-700 dark:text-gray-300">Auto-lock after inactivity</span>
+                  </label>
+                  <div v-if="autoLockEnabled" class="ml-6">
+                    <label class="block text-sm text-gray-700 dark:text-gray-300 mb-1">Lock after (minutes)</label>
+                    <input
+                      v-model.number="autoLockMinutes"
+                      type="number"
+                      min="1"
+                      class="w-32 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-600 dark:bg-gray-800 dark:text-gray-100"
+                      @change="updateAutoLock"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
             <div v-else class="space-y-6">
               <div>
                 <h3 class="text-md font-semibold text-gray-900 dark:text-gray-100 mb-2">Appearance</h3>
@@ -130,54 +184,45 @@
                 </label>
               </div>
               <div>
-                <h3 class="text-md font-semibold text-gray-900 dark:text-gray-100 mb-2">GPG Encryption</h3>
-                <div class="p-3 border border-gray-200 dark:border-gray-700 rounded dark:bg-gray-800 opacity-60 pointer-events-none">
-                  <div class="flex items-center justify-between mb-2">
-                    <div>
-                      <p class="text-sm font-medium text-gray-900 dark:text-gray-100">GPG Key Management</p>
-                      <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Not yet implemented (NYI)</p>
-                    </div>
-                    <div class="flex items-center space-x-2">
-                      <button
-                        disabled
-                        class="px-3 py-1 bg-gray-400 text-white text-sm rounded cursor-not-allowed"
-                      >
-                        Import Key
-                      </button>
-                      <button
-                        disabled
-                        class="px-3 py-1 bg-gray-400 text-white text-sm rounded cursor-not-allowed"
-                      >
-                        Generate Key
-                      </button>
-                    </div>
+                <h3 class="text-md font-semibold text-gray-900 dark:text-gray-100 mb-2">Notifications</h3>
+                <label class="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-700 rounded dark:bg-gray-800">
+                  <div>
+                    <p class="text-sm font-medium text-gray-900 dark:text-gray-100">Show new email notifications</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Display system notifications when new emails arrive</p>
                   </div>
-                  <div class="text-gray-500 dark:text-gray-400 text-sm">
-                    No GPG keys configured
-                  </div>
-                </div>
+                  <input
+                    v-model="showEmailNotifications"
+                    type="checkbox"
+                    class="toggle"
+                  />
+                </label>
               </div>
               <div>
-                <h3 class="text-md font-semibold text-gray-900 dark:text-gray-100 mb-2">Security</h3>
+                <h3 class="text-md font-semibold text-gray-900 dark:text-gray-100 mb-2">Auto-Sync</h3>
                 <div class="space-y-2">
-                  <label class="flex items-center">
+                  <label class="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-700 rounded dark:bg-gray-800">
+                    <div>
+                      <p class="text-sm font-medium text-gray-900 dark:text-gray-100">Enable auto-sync</p>
+                      <p class="text-xs text-gray-500 dark:text-gray-400">Automatically check for new emails (inbox only)</p>
+                    </div>
                     <input
-                      v-model="autoLockEnabled"
+                      v-model="autoSyncEnabled"
                       type="checkbox"
-                      class="toggle mr-2"
-                      @change="updateAutoLock"
+                      class="toggle"
+                      @change="updateAutoSync"
                     />
-                    <span class="text-sm text-gray-700 dark:text-gray-300">Auto-lock after inactivity</span>
                   </label>
-                  <div v-if="autoLockEnabled" class="ml-6">
-                    <label class="block text-sm text-gray-700 dark:text-gray-300 mb-1">Lock after (minutes)</label>
+                  <div v-if="autoSyncEnabled" class="ml-6 p-3 border border-gray-200 dark:border-gray-700 rounded dark:bg-gray-800">
+                    <label class="block text-sm text-gray-700 dark:text-gray-300 mb-2">Check every (minutes)</label>
                     <input
-                      v-model.number="autoLockMinutes"
+                      v-model.number="autoSyncInterval"
                       type="number"
                       min="1"
+                      max="60"
                       class="w-32 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-600 dark:bg-gray-800 dark:text-gray-100"
-                      @change="updateAutoLock"
+                      @change="updateAutoSync"
                     />
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">Recommended: 5-15 minutes</p>
                   </div>
                 </div>
               </div>
@@ -269,6 +314,8 @@ const editingAccountId = ref<string | null>(null)
 const selectedAccountId = ref<string>('')
 const autoLockEnabled = ref(false)
 const autoLockMinutes = ref(15)
+const autoSyncEnabled = ref(true)
+const autoSyncInterval = ref(5)
 const rebuildingFolders = ref(false)
 const rebuildProgress = ref<string>('')
 const rebuildResult = ref<{ success: boolean; message: string } | null>(null)
@@ -276,6 +323,7 @@ const settingsTabs = [
   { id: 'general', label: 'General' },
   { id: 'accounts', label: 'Accounts' },
   { id: 'signatures', label: 'Signatures' },
+  { id: 'security', label: 'Security' },
 ]
 const activeTab = ref('general')
 const preferences = usePreferencesStore()
@@ -292,6 +340,11 @@ const darkMode = computed({
 const confirmArchive = computed({
   get: () => preferences.confirmArchive,
   set: (value: boolean) => preferences.setConfirmArchive(value),
+})
+
+const showEmailNotifications = computed({
+  get: () => preferences.showEmailNotifications,
+  set: (value: boolean) => preferences.setShowEmailNotifications(value),
 })
 
 const loadAccounts = async () => {
@@ -345,6 +398,19 @@ const updateAutoLock = () => {
   // For now, just store in localStorage
   localStorage.setItem('autoLockEnabled', String(autoLockEnabled.value))
   localStorage.setItem('autoLockMinutes', String(autoLockMinutes.value))
+}
+
+const updateAutoSync = async () => {
+  // Store settings
+  localStorage.setItem('autoSyncEnabled', String(autoSyncEnabled.value))
+  localStorage.setItem('autoSyncInterval', String(autoSyncInterval.value))
+  
+  // Notify backend to update auto-sync scheduler
+  try {
+    await window.electronAPI.emails.updateAutoSync(autoSyncEnabled.value, autoSyncInterval.value)
+  } catch (error) {
+    console.error('Error updating auto-sync settings:', error)
+  }
 }
 
 const handleRebuildFolders = async () => {
@@ -425,6 +491,13 @@ onMounted(() => {
   const savedMinutes = localStorage.getItem('autoLockMinutes')
   if (savedMinutes) {
     autoLockMinutes.value = parseInt(savedMinutes, 10)
+  }
+  
+  // Load auto-sync settings
+  autoSyncEnabled.value = localStorage.getItem('autoSyncEnabled') !== 'false' // Default enabled
+  const savedInterval = localStorage.getItem('autoSyncInterval')
+  if (savedInterval) {
+    autoSyncInterval.value = parseInt(savedInterval, 10)
   }
 })
 </script>

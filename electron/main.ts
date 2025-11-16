@@ -9,6 +9,7 @@ import { registerAllHandlers } from '../ipc/handlers'
 import { getDatabase } from '../database'
 import { reminderScheduler } from '../reminders/scheduler'
 import { autoLockManager } from '../security/auto-lock'
+import { autoSyncScheduler } from '../email/auto-sync'
 
 // In CommonJS, __dirname is automatically available
 // TypeScript needs this declaration for type checking, but it won't be emitted
@@ -223,6 +224,30 @@ app.whenReady().then(async () => {
   autoLockManager.start()
   
   createWindow()
+  
+  // Start auto-sync after window is created (wait 2 seconds for window to be ready)
+  setTimeout(() => {
+    const mainWin = BrowserWindow.getAllWindows()[0]
+    if (mainWin) {
+      autoSyncScheduler.setMainWindow(mainWin)
+      // Check if auto-sync is enabled (default 5 minutes)
+      const autoSyncEnabled = mainWin.webContents.executeJavaScript(
+        `localStorage.getItem('autoSyncEnabled') !== 'false'`
+      )
+      const autoSyncInterval = mainWin.webContents.executeJavaScript(
+        `parseInt(localStorage.getItem('autoSyncInterval') || '5', 10)`
+      )
+      
+      Promise.all([autoSyncEnabled, autoSyncInterval]).then(([enabled, interval]) => {
+        if (enabled) {
+          console.log(`Starting auto-sync with ${interval} minute interval`)
+          autoSyncScheduler.start(interval)
+        } else {
+          console.log('Auto-sync disabled in settings')
+        }
+      })
+    }
+  }, 2000)
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

@@ -6,6 +6,7 @@ import { accountManager, getIMAPClient, getSMTPClient } from '../email'
 import { emailStorage } from '../email/email-storage'
 import { contactManager } from '../email/contact-manager'
 import { gpgManager } from '../gpg/manager'
+import { autoSyncScheduler } from '../email/auto-sync'
 import type { Account, Folder, Email, Reminder, Signature } from '../shared/types'
 
 function decryptEmailField(value: unknown, emailId: string, fieldLabel: string): string | undefined {
@@ -1071,18 +1072,56 @@ export function registerEmailHandlers() {
         return { success: false, message: 'Account not found' }
       }
 
+      // Track new unread emails for notifications
+      const newUnreadEmails: any[] = []
+      const db = getDatabase()
+      
+      // Get count of unread emails before sync
+      const beforeUnreadCount = db.prepare(
+        'SELECT COUNT(*) as count FROM emails WHERE account_id = ? AND is_read = 0'
+      ).get(accountId) as any
+      const unreadBeforeSync = beforeUnreadCount?.count || 0
+
       // Progress callback
-      const progressCallback = (data: { folder?: string; current: number; total?: number; emailUid?: number }) => {
+      const progressCallback = (data: { folder?: string; folderId?: string; accountId?: string; current: number; total?: number; emailUid?: number; email?: any }) => {
         console.info(`Sync progress: ${data.folder || 'Unknown'} - ${data.current}/${data.total || 'unknown'} (uid: ${data.emailUid || 'N/A'})`)
         event.sender.send('emails:sync-progress', data)
+        
+        // Track new unread emails for notifications
+        if (data.email && !data.email.isRead) {
+          newUnreadEmails.push({
+            id: data.email.id,
+            subject: data.email.subject,
+            from: data.email.from,
+            folder: data.folder
+          })
+        }
       }
 
       // Ensure folders are synced first (this is handled in syncAccount, but we can also do it here)
       const result = await emailStorage.syncAccount(accountId, progressCallback)
+      
+      // Get count of unread emails after sync
+      const afterUnreadCount = db.prepare(
+        'SELECT COUNT(*) as count FROM emails WHERE account_id = ? AND is_read = 0'
+      ).get(accountId) as any
+      const unreadAfterSync = afterUnreadCount?.count || 0
+      const newUnreadCount = unreadAfterSync - unreadBeforeSync
+      
+      // Send notification data to renderer for display
+      if (newUnreadCount > 0) {
+        event.sender.send('emails:new-emails', {
+          accountId,
+          count: newUnreadCount,
+          emails: newUnreadEmails.slice(0, 5) // Send first 5 for preview
+        })
+      }
+      
       return {
         success: true,
         synced: result.synced,
         errors: result.errors,
+        newUnread: newUnreadCount,
         message: `Synced ${result.synced} emails${result.errors > 0 ? ` with ${result.errors} errors` : ''}`
       }
     } catch (error: any) {
@@ -1894,6 +1933,20 @@ export function registerEmailHandlers() {
     })
     
     return mappedEmails
+  })
+
+  ipcMain.handle('emails:update-auto-sync', async (_, enabled: boolean, intervalMinutes: number) => {
+    try {
+      if (enabled) {
+        autoSyncScheduler.start(intervalMinutes)
+      } else {
+        autoSyncScheduler.stop()
+      }
+      return { success: true }
+    } catch (error: any) {
+      console.error('Error updating auto-sync:', error)
+      return { success: false, message: error.message }
+    }
   })
 }
 

@@ -30,6 +30,9 @@ declare global {
         moveToFolder: (emailId: string, folderId: string) => Promise<{ success: boolean; message?: string }>
         downloadAttachment: (attachmentId: string) => Promise<any>
         onSyncProgress: (callback: (data: any) => void) => () => void
+        onNewEmails: (callback: (data: any) => void) => () => void
+        onAutoSyncRefresh: (callback: () => void) => () => void
+        updateAutoSync: (enabled: boolean, intervalMinutes: number) => Promise<any>
       }
       folders: {
         list: (accountId: string) => Promise<any[]>

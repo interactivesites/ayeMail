@@ -132,6 +132,19 @@ export const usePreferencesStore = defineStore('preferences', () => {
     }
   }
 
+  const showEmailNotifications = ref(
+    typeof window !== 'undefined'
+      ? window.localStorage.getItem('showEmailNotifications') !== 'false'
+      : true
+  )
+
+  const setShowEmailNotifications = (value: boolean) => {
+    showEmailNotifications.value = value
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('showEmailNotifications', String(value))
+    }
+  }
+
   const setExpandedAccounts = (accountIds: string[]) => {
     expandedAccounts.value = accountIds
     if (typeof window !== 'undefined') {
@@ -197,6 +210,8 @@ export const usePreferencesStore = defineStore('preferences', () => {
     isFolderExpanded,
     confirmArchive,
     setConfirmArchive,
+    showEmailNotifications,
+    setShowEmailNotifications,
   }
 })
 
