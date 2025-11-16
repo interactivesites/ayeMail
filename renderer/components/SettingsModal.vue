@@ -214,6 +214,23 @@
                   </div>
                 </div>
               </div>
+              <div>
+                <h3 class="text-md font-semibold text-gray-900 dark:text-gray-100 mb-2">About</h3>
+                <div class="p-3 border border-gray-200 dark:border-gray-700 rounded dark:bg-gray-800">
+                  <div class="flex items-center justify-between">
+                    <div>
+                      <p class="text-sm font-medium text-gray-900 dark:text-gray-100">iMail</p>
+                      <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Learn more about this app</p>
+                    </div>
+                    <button
+                      @click="$emit('open-about')"
+                      class="px-4 py-2 text-sm font-medium rounded transition-colors bg-primary-600 text-white hover:bg-primary-700"
+                    >
+                      About
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           </template>
         </UiTabs>
@@ -243,6 +260,7 @@ import { usePreferencesStore } from '../stores/preferences'
 const emit = defineEmits<{
   'close': []
   'account-selected': [account: any]
+  'open-about': []
 }>()
 
 const accounts = ref<any[]>([])

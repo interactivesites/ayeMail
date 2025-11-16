@@ -72,7 +72,8 @@
         </template>
       </div>
     </main>
-    <SettingsModal v-if="showSettings" @close="showSettings = false" @account-selected="handleAccountSelect" />
+    <SettingsModal v-if="showSettings" @close="showSettings = false" @account-selected="handleAccountSelect" @open-about="showAbout = true; showSettings = false" />
+    <AboutModal v-if="showAbout" @close="showAbout = false" />
     <ReminderModal v-if="showReminderModal && reminderEmail" :email-id="reminderEmail.id" :account-id="reminderEmail.accountId" @close="showReminderModal = false; reminderEmail = null" @saved="handleReminderSaved" />
   </div>
 </template>
@@ -86,6 +87,7 @@ import EmailViewer from './components/EmailViewer.vue'
 import EmailDropZone from './components/EmailDropZone.vue'
 import ComposeWindow from './components/ComposeWindow.vue'
 import SettingsModal from './components/SettingsModal.vue'
+import AboutModal from './components/AboutModal.vue'
 import ReminderModal from './components/ReminderModal.vue'
 import MainNav from './components/MainNav.vue'
 import { usePreferencesStore } from './stores/preferences'
@@ -114,6 +116,7 @@ const selectedEmail = ref<any>(null)
 const unifiedFolderType = ref<string | null>(null) // 'all-inboxes', 'aside'
 const unifiedFolderAccountIds = ref<string[]>([]) // For unified folders that need account context
 const showSettings = ref(false)
+const showAbout = ref(false)
 const showReminderModal = ref(false)
 const reminderEmail = ref<any>(null)
 const syncing = ref(false)
