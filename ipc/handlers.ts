@@ -964,9 +964,38 @@ export function registerEmailHandlers() {
     
     // Map to return format with decrypted body content
     const mappedEmails = threadEmails.map(e => {
-      const body = encryption.decrypt(e.body_encrypted)
-      const htmlBody = e.html_body_encrypted ? encryption.decrypt(e.html_body_encrypted) : undefined
-      const textBody = e.text_body_encrypted ? encryption.decrypt(e.text_body_encrypted) : undefined
+      // Decrypt body with error handling
+      let body = ''
+      if (e.body_encrypted) {
+        try {
+          body = encryption.decrypt(e.body_encrypted)
+        } catch (error) {
+          console.error(`Error decrypting body for email ${e.id}:`, error)
+          // Continue with empty body
+        }
+      }
+      
+      // Decrypt HTML body with error handling
+      let htmlBody: string | undefined = undefined
+      if (e.html_body_encrypted) {
+        try {
+          htmlBody = encryption.decrypt(e.html_body_encrypted)
+        } catch (error) {
+          console.error(`Error decrypting HTML body for email ${e.id}:`, error)
+          // Continue without HTML body
+        }
+      }
+      
+      // Decrypt text body with error handling
+      let textBody: string | undefined = undefined
+      if (e.text_body_encrypted) {
+        try {
+          textBody = encryption.decrypt(e.text_body_encrypted)
+        } catch (error) {
+          console.error(`Error decrypting text body for email ${e.id}:`, error)
+          // Continue without text body
+        }
+      }
       
       return {
         id: e.id,
@@ -1691,9 +1720,38 @@ export function registerEmailHandlers() {
     
     // Map to return format with decrypted body content
     const mappedEmails = emails.map(e => {
-      const body = encryption.decrypt(e.body_encrypted)
-      const htmlBody = e.html_body_encrypted ? encryption.decrypt(e.html_body_encrypted) : undefined
-      const textBody = e.text_body_encrypted ? encryption.decrypt(e.text_body_encrypted) : undefined
+      // Decrypt body with error handling
+      let body = ''
+      if (e.body_encrypted) {
+        try {
+          body = encryption.decrypt(e.body_encrypted)
+        } catch (error) {
+          console.error(`Error decrypting body for email ${e.id}:`, error)
+          // Continue with empty body
+        }
+      }
+      
+      // Decrypt HTML body with error handling
+      let htmlBody: string | undefined = undefined
+      if (e.html_body_encrypted) {
+        try {
+          htmlBody = encryption.decrypt(e.html_body_encrypted)
+        } catch (error) {
+          console.error(`Error decrypting HTML body for email ${e.id}:`, error)
+          // Continue without HTML body
+        }
+      }
+      
+      // Decrypt text body with error handling
+      let textBody: string | undefined = undefined
+      if (e.text_body_encrypted) {
+        try {
+          textBody = encryption.decrypt(e.text_body_encrypted)
+        } catch (error) {
+          console.error(`Error decrypting text body for email ${e.id}:`, error)
+          // Continue without text body
+        }
+      }
       
       return {
         id: e.id,
@@ -1738,9 +1796,38 @@ export function registerEmailHandlers() {
     `).all(accountId, limit) as any[]
     
     const mappedEmails = emails.map(e => {
-      const body = encryption.decrypt(e.body_encrypted)
-      const htmlBody = e.html_body_encrypted ? encryption.decrypt(e.html_body_encrypted) : undefined
-      const textBody = e.text_body_encrypted ? encryption.decrypt(e.text_body_encrypted) : undefined
+      // Decrypt body with error handling
+      let body = ''
+      if (e.body_encrypted) {
+        try {
+          body = encryption.decrypt(e.body_encrypted)
+        } catch (error) {
+          console.error(`Error decrypting body for email ${e.id}:`, error)
+          // Continue with empty body
+        }
+      }
+      
+      // Decrypt HTML body with error handling
+      let htmlBody: string | undefined = undefined
+      if (e.html_body_encrypted) {
+        try {
+          htmlBody = encryption.decrypt(e.html_body_encrypted)
+        } catch (error) {
+          console.error(`Error decrypting HTML body for email ${e.id}:`, error)
+          // Continue without HTML body
+        }
+      }
+      
+      // Decrypt text body with error handling
+      let textBody: string | undefined = undefined
+      if (e.text_body_encrypted) {
+        try {
+          textBody = encryption.decrypt(e.text_body_encrypted)
+        } catch (error) {
+          console.error(`Error decrypting text body for email ${e.id}:`, error)
+          // Continue without text body
+        }
+      }
       
       return {
         id: e.id,
