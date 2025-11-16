@@ -1002,9 +1002,11 @@ export class IMAPClient {
                   createdAt: Date.now(),
                   updatedAt: Date.now()
                 }
-                console.log(`[IMAPClient.fetchEmailByUid] Email object created successfully for UID ${uid}, body length: ${email.body?.length || 0}`)
-                
-                resolveProcessing()
+                console.log(`[IMAPClient.fetchEmailByUid] Email object created from envelope fallback for UID ${uid}`)
+              }
+              
+              // Resolve the message processing promise after try/catch
+              resolveProcessing()
               })
             })
           })
