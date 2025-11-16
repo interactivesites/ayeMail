@@ -18,7 +18,7 @@
               <span v-else-if="syncProgress.folder === 'Complete'">Sync complete</span>
               <span v-else-if="syncProgress.folder">
                 <span v-if="syncProgress.total === undefined || syncProgress.total === null">Connecting to {{ syncProgress.folder }}</span>
-                <span v-else-if="syncProgress.total === 0">No emails in {{ syncProgress.folder }}</span>
+                <span v-else-if="syncProgress.total === 0">Sync complete</span>
                 <span v-else>Downloading {{ syncProgress.folder }} ({{ syncProgress.current }}/{{ syncProgress.total }})</span>
               </span>
               <span v-else>Downloading emails</span>

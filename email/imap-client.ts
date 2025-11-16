@@ -259,13 +259,36 @@ export class IMAPClient {
 
         console.log(`Opening box: logical="${folderName}", actual path="${targetFolder}"`)
 
-        this.connection!.openBox(targetFolder, true, (err, box) => {
+        // Check connection before opening box
+        if (!this.connection || this.connection.state === 'disconnected') {
+          clearTimeout(timeout)
+          reject(new Error('IMAP connection not available'))
+          return
+        }
+
+        this.connection.openBox(targetFolder, true, (err, box) => {
           if (err) {
             clearTimeout(timeout)
-            this.connection!.removeListener('error', errorHandler)
+            if (this.connection) {
+              this.connection.removeListener('error', errorHandler)
+            }
             console.error(`Error opening box ${targetFolder} (from ${folderName}):`, err)
-            console.error(`Connection state: ${this.connection!.state}`)
+            console.error(`Connection state: ${this.connection?.state || 'null'}`)
+            // Provide more context for folders starting with '@'
+            if (targetFolder.startsWith('@')) {
+              console.warn(`Note: Folder "${targetFolder}" starts with '@' - this may be a namespace folder that requires special handling`)
+            }
             reject(err)
+            return
+          }
+
+          // Check connection is still valid before proceeding
+          if (!this.connection || this.connection.state === 'disconnected') {
+            clearTimeout(timeout)
+            if (this.connection) {
+              this.connection.removeListener('error', errorHandler)
+            }
+            reject(new Error('IMAP connection lost while opening box'))
             return
           }
 
@@ -273,7 +296,9 @@ export class IMAPClient {
 
           if (!box || box.messages.total === 0) {
             clearTimeout(timeout)
-            this.connection!.removeListener('error', errorHandler)
+            if (this.connection) {
+              this.connection.removeListener('error', errorHandler)
+            }
             resolve([])
             return
           }
@@ -286,8 +311,18 @@ export class IMAPClient {
 
           const allUids: number[] = []
 
+          // Check connection again before fetch
+          if (!this.connection || this.connection.state === 'disconnected') {
+            clearTimeout(timeout)
+            if (this.connection) {
+              this.connection.removeListener('error', errorHandler)
+            }
+            reject(new Error('IMAP connection lost before fetch'))
+            return
+          }
+
           // First, fetch UIDs by fetching sequence numbers and extracting UIDs
-          const uidFetch = this.connection!.fetch(seqRange, {
+          const uidFetch = this.connection.fetch(seqRange, {
             bodies: '',
             struct: false
           })
@@ -302,7 +337,9 @@ export class IMAPClient {
 
           uidFetch.once('error', (fetchErr) => {
             clearTimeout(timeout)
-            this.connection!.removeListener('error', errorHandler)
+            if (this.connection) {
+              this.connection.removeListener('error', errorHandler)
+            }
             console.error(`Error fetching UIDs:`, fetchErr)
             reject(fetchErr)
           })
@@ -312,9 +349,21 @@ export class IMAPClient {
 
             if (allUids.length === 0) {
               clearTimeout(timeout)
-              this.connection!.removeListener('error', errorHandler)
+              if (this.connection) {
+                this.connection.removeListener('error', errorHandler)
+              }
               console.warn(`No UIDs found in ${targetFolder} despite ${box.messages.total} messages`)
               resolve([])
+              return
+            }
+
+            // Check connection again before second fetch
+            if (!this.connection || this.connection.state === 'disconnected') {
+              clearTimeout(timeout)
+              if (this.connection) {
+                this.connection.removeListener('error', errorHandler)
+              }
+              reject(new Error('IMAP connection lost before fetching emails'))
               return
             }
 
@@ -342,7 +391,7 @@ export class IMAPClient {
           const messagePromises: Promise<void>[] = []
           let fetchEnded = false
 
-          const fetch = this.connection!.fetch(uidsToFetch, {
+          const fetch = this.connection.fetch(uidsToFetch, {
             bodies: '',
             struct: true,
             envelope: true
@@ -351,7 +400,9 @@ export class IMAPClient {
             const checkComplete = () => {
               if (emailCount === totalToFetch && fetchEnded) {
                 clearTimeout(timeout)
-                this.connection!.removeListener('error', errorHandler)
+                if (this.connection) {
+                  this.connection.removeListener('error', errorHandler)
+                }
                 console.log(`Finished fetching emails from ${targetFolder}: got ${emails.length} emails out of ${totalToFetch} requested`)
                 resolve(emails)
               }
@@ -507,7 +558,9 @@ export class IMAPClient {
 
           fetch.once('error', (err) => {
             clearTimeout(timeout)
-            this.connection!.removeListener('error', errorHandler)
+            if (this.connection) {
+              this.connection.removeListener('error', errorHandler)
+            }
             console.error('IMAP fetch error:', err)
             reject(err)
           })
@@ -519,7 +572,9 @@ export class IMAPClient {
               await Promise.all(messagePromises)
               console.log(`All messages processed for ${targetFolder}: got ${emails.length} emails out of ${totalToFetch} requested`)
               clearTimeout(timeout)
-              this.connection!.removeListener('error', errorHandler)
+              if (this.connection) {
+                this.connection.removeListener('error', errorHandler)
+              }
               // Resolve with whatever we got
               resolve(emails)
             })

@@ -604,14 +604,11 @@ export class EmailStorage {
           path: folder.path,
           id: folder.id
         })
+        // Don't send progress callback for empty folders - just return silently
+        return { synced: 0, errors: 0 }
       }
 
       progressCallback?.({ folder: folder.name, current: 0, total: emails.length })
-
-      if (emails.length === 0) {
-        progressCallback?.({ folder: folder.name, current: 0, total: 0 })
-        return { synced: 0, errors: 0 }
-      }
 
       for (let i = 0; i < emails.length; i++) {
         const email = emails[i]
@@ -682,8 +679,7 @@ export class EmailStorage {
     } catch (error) {
       console.error('Error syncing folder:', error)
       errors++
-      // Send error progress update
-      progressCallback?.({ folder: folder.name, current: 0, total: 0 })
+      // Don't send progress callback on error - let the frontend handle the error from the return value
     }
 
     return { synced, errors }
@@ -753,12 +749,12 @@ export class EmailStorage {
             // Using 999999 to ensure we fetch all emails (fetchEmails treats >= 10000 as "fetch all")
             const emails = await imapClient.fetchEmails(imapFolderName, 1, 999999)
 
-            progressCallback?.({ folder: folder.name, current: 0, total: emails.length })
-
             if (emails.length === 0) {
-              progressCallback?.({ folder: folder.name, current: 0, total: 0 })
+              // Skip empty folders silently during account sync
               continue
             }
+
+            progressCallback?.({ folder: folder.name, current: 0, total: emails.length })
 
             for (let i = 0; i < emails.length; i++) {
               const email = emails[i]
