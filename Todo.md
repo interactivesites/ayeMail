@@ -1,5 +1,7 @@
 
 ## Functionality
++ Add a nice about page (interactivesites) + buy me a coffee button.
++ 
 
 - language (i18n) / - formatters (date, time, etc.) - try to get from system
 - GPG: plan, check, implement.
@@ -24,6 +26,7 @@
 - make the grid a new view. 
 - check: https://www.mailpilot.app/ 
 - 
+
 
 
 

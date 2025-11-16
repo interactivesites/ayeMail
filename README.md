@@ -80,19 +80,6 @@ This will start:
 yarn build
 ```
 
-## Configuration
-
-### OAuth2 Setup
-
-For OAuth2 authentication (Gmail, Outlook), set environment variables:
-
-```bash
-GMAIL_CLIENT_ID=your_client_id
-GMAIL_CLIENT_SECRET=your_client_secret
-OUTLOOK_CLIENT_ID=your_client_id
-OUTLOOK_CLIENT_SECRET=your_client_secret
-```
-
 ## Security Notes
 
 - Credentials are encrypted using Electron's safeStorage API

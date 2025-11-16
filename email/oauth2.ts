@@ -16,7 +16,7 @@ const OAUTH2_CONFIGS: Record<string, OAuth2Config> = {
     clientSecret: process.env.GMAIL_CLIENT_SECRET || '',
     authUrl: 'https://accounts.google.com/o/oauth2/v2/auth',
     tokenUrl: 'https://oauth2.googleapis.com/token',
-    redirectUri: 'http://localhost:5173/oauth2/callback',
+    redirectUri: 'imail://oauth2/callback',
     scopes: [
       'https://www.googleapis.com/auth/gmail.readonly',
       'https://www.googleapis.com/auth/gmail.send',
@@ -28,7 +28,7 @@ const OAUTH2_CONFIGS: Record<string, OAuth2Config> = {
     clientSecret: process.env.OUTLOOK_CLIENT_SECRET || '',
     authUrl: 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize',
     tokenUrl: 'https://login.microsoftonline.com/common/oauth2/v2.0/token',
-    redirectUri: 'http://localhost:5173/oauth2/callback',
+    redirectUri: 'imail://oauth2/callback',
     scopes: [
       'https://outlook.office.com/IMAP.AccessAsUser.All',
       'https://outlook.office.com/SMTP.Send',
@@ -45,6 +45,23 @@ export async function initiateOAuth2Flow(provider: 'gmail' | 'outlook'): Promise
   const config = OAUTH2_CONFIGS[provider]
   if (!config) {
     throw new Error(`Unsupported OAuth2 provider: ${provider}`)
+  }
+
+  // Validate that client credentials are configured
+  if (!config.clientId || !config.clientSecret) {
+    const envVarName = provider === 'gmail' 
+      ? 'GMAIL_CLIENT_ID and GMAIL_CLIENT_SECRET'
+      : 'OUTLOOK_CLIENT_ID and OUTLOOK_CLIENT_SECRET'
+    throw new Error(
+      `OAuth2 credentials not configured. Please set ${envVarName} environment variables.\n\n` +
+      `For Gmail:\n` +
+      `1. Go to https://console.cloud.google.com/\n` +
+      `2. Create a project or select an existing one\n` +
+      `3. Enable Gmail API\n` +
+      `4. Create OAuth 2.0 credentials\n` +
+      `5. Add "imail://oauth2/callback" as an authorized redirect URI\n` +
+      `6. Set GMAIL_CLIENT_ID and GMAIL_CLIENT_SECRET environment variables`
+    )
   }
 
   const state = randomBytes(16).toString('hex')
@@ -81,7 +98,12 @@ export async function initiateOAuth2Flow(provider: 'gmail' | 'outlook'): Promise
     const handleCallback = (url: string) => {
       try {
         const urlObj = new URL(url)
-        if (urlObj.pathname === '/oauth2/callback') {
+        // Handle both custom protocol (imail://) and http redirects
+        const isCallback = urlObj.protocol === 'imail:' && urlObj.pathname === '//oauth2/callback' ||
+                          urlObj.pathname === '/oauth2/callback' ||
+                          url.includes('oauth2/callback')
+        
+        if (isCallback) {
           const code = urlObj.searchParams.get('code')
           const returnedState = urlObj.searchParams.get('state')
           const error = urlObj.searchParams.get('error')

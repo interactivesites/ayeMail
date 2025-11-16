@@ -1,3 +1,8 @@
+// Load environment variables from .env file
+import { config } from 'dotenv'
+import { resolve } from 'path'
+config({ path: resolve(__dirname, '../../.env') })
+
 import { app, BrowserWindow, BrowserWindowConstructorOptions } from 'electron'
 import { join } from 'path'
 import { registerAllHandlers } from '../ipc/handlers'

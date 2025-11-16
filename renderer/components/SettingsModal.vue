@@ -25,7 +25,7 @@
                     :key="account.id"
                     class="p-3 border border-gray-200 dark:border-gray-700 rounded flex items-center justify-between dark:bg-gray-800"
                   >
-                    <div>
+                    <div class="flex-1">
                       <div class="font-medium text-gray-900 dark:text-gray-100">{{ account.name }}</div>
                       <div class="text-sm text-gray-500 dark:text-gray-400">{{ account.email }}</div>
                     </div>
