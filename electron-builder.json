@@ -1,6 +1,6 @@
 {
-  "appId": "com.imail.app",
-  "productName": "iMail",
+  "appId": "com.ayemail.app",
+  "productName": "ayeMail",
   "directories": {
     "output": "dist"
   },

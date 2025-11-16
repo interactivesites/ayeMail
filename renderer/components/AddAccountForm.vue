@@ -2,7 +2,7 @@
   <div class="fixed inset-0 bg-black bg-opacity-50 dark:bg-opacity-70 flex items-center justify-center z-50">
     <div class="bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
       <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-        <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ editingAccount ? 'Edit Account' : 'Add Account' }}</h2>
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ editingAccount ? $t('accounts.editAccount') : $t('accounts.addAccount') }}</h2>
         <button
           @click="$emit('close')"
           class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
@@ -12,41 +12,41 @@
       </div>
       <div class="flex-1 overflow-y-auto p-4 space-y-4">
         <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Account Name</label>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ $t('accounts.accountName') }}</label>
           <input
             v-model="form.name"
             type="text"
             class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-600 dark:bg-gray-800 dark:text-gray-100"
-            placeholder="My Email Account"
+            :placeholder="$t('accounts.accountNamePlaceholder')"
           />
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email Address</label>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ $t('accounts.emailAddress') }}</label>
           <input
             v-model="form.email"
             type="email"
             class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-600 dark:bg-gray-800 dark:text-gray-100"
-            placeholder="user@example.com"
+            :placeholder="$t('accounts.emailAddressPlaceholder')"
           />
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Account Type</label>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ $t('accounts.accountType') }}</label>
           <select
             v-model="form.type"
             class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-600 dark:bg-gray-800 dark:text-gray-100"
           >
-            <option value="imap">IMAP</option>
-            <option value="pop3">POP3</option>
+            <option value="imap">{{ $t('accounts.imap') }}</option>
+            <option value="pop3">{{ $t('accounts.pop3') }}</option>
           </select>
         </div>
         <div v-if="form.type === 'imap'">
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">IMAP Server</label>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ $t('accounts.imapServer') }}</label>
           <div class="flex space-x-2">
             <input
               v-model="form.imapHost"
               type="text"
               class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-600 dark:bg-gray-800 dark:text-gray-100"
-              placeholder="imap.example.com"
+              :placeholder="$t('accounts.imapServerPlaceholder')"
             />
             <input
               v-model.number="form.imapPort"
@@ -60,18 +60,18 @@
                 type="checkbox"
                 class="mr-1"
               />
-              <span class="text-sm dark:text-gray-300">SSL</span>
+              <span class="text-sm dark:text-gray-300">{{ $t('accounts.ssl') }}</span>
             </label>
           </div>
         </div>
         <div v-if="form.type === 'pop3'">
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">POP3 Server</label>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ $t('accounts.pop3Server') }}</label>
           <div class="flex space-x-2">
             <input
               v-model="form.pop3Host"
               type="text"
               class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-600 dark:bg-gray-800 dark:text-gray-100"
-              placeholder="pop3.example.com"
+              :placeholder="$t('accounts.pop3ServerPlaceholder')"
             />
             <input
               v-model.number="form.pop3Port"
@@ -85,18 +85,18 @@
                 type="checkbox"
                 class="mr-1"
               />
-              <span class="text-sm dark:text-gray-300">SSL</span>
+              <span class="text-sm dark:text-gray-300">{{ $t('accounts.ssl') }}</span>
             </label>
           </div>
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">SMTP Server</label>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ $t('accounts.smtpServer') }}</label>
           <div class="flex space-x-2">
             <input
               v-model="form.smtpHost"
               type="text"
               class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-600 dark:bg-gray-800 dark:text-gray-100"
-              placeholder="smtp.example.com"
+              :placeholder="$t('accounts.smtpServerPlaceholder')"
             />
             <input
               v-model.number="form.smtpPort"
@@ -110,19 +110,19 @@
                 type="checkbox"
                 class="mr-1"
               />
-              <span class="text-sm dark:text-gray-300">SSL</span>
+              <span class="text-sm dark:text-gray-300">{{ $t('accounts.ssl') }}</span>
             </label>
           </div>
         </div>
         <div>
           <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            Password {{ editingAccount ? '(leave blank to keep current)' : '' }}
+            {{ editingAccount ? $t('accounts.passwordLeaveBlank') : $t('accounts.password') }}
           </label>
           <input
             v-model="form.password"
             type="password"
             class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-600 dark:bg-gray-800 dark:text-gray-100"
-            :placeholder="editingAccount ? 'Leave blank to keep current password' : 'Password'"
+            :placeholder="editingAccount ? $t('accounts.passwordLeaveBlankPlaceholder') : $t('accounts.passwordPlaceholder')"
           />
         </div>
       </div>
@@ -131,14 +131,14 @@
           @click="$emit('close')"
           class="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded hover:bg-gray-300 dark:hover:bg-gray-600"
         >
-          Cancel
+          {{ $t('common.cancel') }}
         </button>
         <button
           @click="saveAccount"
           :disabled="saving"
           class="px-4 py-2 bg-primary-600 text-white rounded hover:bg-primary-700 disabled:opacity-50"
         >
-          {{ saving ? 'Saving...' : 'Save' }}
+          {{ saving ? $t('common.saving') : $t('common.save') }}
         </button>
       </div>
     </div>
@@ -147,6 +147,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 
 const props = defineProps<{
   accountId?: string
@@ -174,6 +175,7 @@ const form = ref({
   password: ''
 })
 
+const { t } = useI18n()
 const saving = ref(false)
 const editingAccount = computed(() => !!props.accountId)
 
@@ -199,7 +201,7 @@ const loadAccount = async () => {
     }
   } catch (error: any) {
     console.error('Error loading account:', error)
-    alert(`Failed to load account: ${error.message}`)
+    alert(t('accounts.failedToLoadAccount', { message: error.message }))
   }
 }
 
@@ -209,12 +211,12 @@ onMounted(() => {
 
 const saveAccount = async () => {
   if (!form.value.name || !form.value.email || !form.value.smtpHost) {
-    alert('Please fill in all required fields')
+    alert(t('accounts.fillRequiredFields'))
     return
   }
 
   if (!editingAccount.value && !form.value.password) {
-    alert('Please enter a password')
+    alert(t('accounts.enterPassword'))
     return
   }
 
@@ -258,7 +260,7 @@ const saveAccount = async () => {
       emit('added')
     }
   } catch (error: any) {
-    alert(`Failed to ${editingAccount.value ? 'update' : 'add'} account: ${error.message}`)
+    alert(editingAccount.value ? t('accounts.failedToUpdateAccount', { message: error.message }) : t('accounts.failedToAddAccount', { message: error.message }))
   } finally {
     saving.value = false
   }

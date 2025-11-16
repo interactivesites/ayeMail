@@ -14,17 +14,17 @@
         <div v-if="syncProgress.show" class="p-3 border-t border-white/10 bg-white/5">
           <div class="flex items-center justify-between mb-1">
             <span class="text-xs text-slate-200">
-              <span v-if="syncProgress.folder === 'folders'">Syncing folders</span>
-              <span v-else-if="syncProgress.folder === 'Complete'">Sync complete</span>
+              <span v-if="syncProgress.folder === 'folders'">{{ $t('sync.syncingFolders') }}</span>
+              <span v-else-if="syncProgress.folder === 'Complete'">{{ $t('sync.syncComplete') }}</span>
               <span v-else-if="syncProgress.folder">
                 <span v-if="syncProgress.total === undefined || syncProgress.total === null">
-                  <span v-if="syncProgress.current > 0">Syncing {{ syncProgress.folder }} ({{ syncProgress.current }} emails)</span>
-                  <span v-else>Connecting to {{ syncProgress.folder }}</span>
+                  <span v-if="syncProgress.current > 0">{{ $t('sync.syncingFolderWithEmails', { folder: syncProgress.folder, current: syncProgress.current }) }}</span>
+                  <span v-else>{{ $t('sync.connectingToFolder', { folder: syncProgress.folder }) }}</span>
                 </span>
-                <span v-else-if="syncProgress.total === 0">Sync complete</span>
-                <span v-else>Syncing {{ syncProgress.folder }} ({{ syncProgress.current }}/{{ syncProgress.total }})</span>
+                <span v-else-if="syncProgress.total === 0">{{ $t('sync.syncComplete') }}</span>
+                <span v-else>{{ $t('sync.syncingFolderWithCount', { folder: syncProgress.folder, current: syncProgress.current, total: syncProgress.total }) }}</span>
               </span>
-              <span v-else>Starting sync...</span>
+              <span v-else>{{ $t('sync.startingSync') }}</span>
             </span>
           </div>
           <div class="w-full bg-white/10 rounded-full h-1.5">
@@ -46,7 +46,7 @@
           <CalmMode v-if="!searchQuery" :account-id="selectedAccount?.id" :selected-email-id="selectedEmailId" @select-email="handleEmailSelect" />
           <!-- For search in grid mode, fall back to EmailList -->
           <div v-else-if="searchQuery" class="flex-1 px-2">
-            <EmailList :folder-id="''" :folder-name="'Search Results'" :selected-email-id="selectedEmailId" :account-id="selectedAccount?.id" :search-query="searchQuery" @select-email="handleEmailSelect" @drag-start="handleDragStart" @drag-end="handleDragEnd" />
+            <EmailList :folder-id="''" :folder-name="$t('email.searchResults')" :selected-email-id="selectedEmailId" :account-id="selectedAccount?.id" :search-query="searchQuery" @select-email="handleEmailSelect" @drag-start="handleDragStart" @drag-end="handleDragEnd" />
           </div>
         </template>
         <!-- List Mode: Standard list view with email viewer -->
@@ -56,7 +56,7 @@
               'border-r border-gray-200 dark:border-gray-700 flex-shrink-0',
               !isResizingMailPane ? 'transition-all duration-200' : ''
             ]" :style="{ width: mailPaneWidth + 'px' }">
-              <component v-if="selectedFolderId || searchQuery" :is="EmailList" :folder-id="searchQuery ? '' : selectedFolderId" :folder-name="searchQuery ? 'Search Results' : selectedFolderName" :selected-email-id="selectedEmailId" :account-id="selectedAccount?.id" :unified-folder-type="unifiedFolderType" :unified-folder-account-ids="unifiedFolderAccountIds" :search-query="searchQuery" @select-email="handleEmailSelect" @drag-start="handleDragStart" @drag-end="handleDragEnd" />
+              <component v-if="selectedFolderId || searchQuery" :is="EmailList" :folder-id="searchQuery ? '' : selectedFolderId" :folder-name="searchQuery ? $t('email.searchResults') : selectedFolderName" :selected-email-id="selectedEmailId" :account-id="selectedAccount?.id" :unified-folder-type="unifiedFolderType" :unified-folder-account-ids="unifiedFolderAccountIds" :search-query="searchQuery" @select-email="handleEmailSelect" @drag-start="handleDragStart" @drag-end="handleDragEnd" />
             </div>
             <div class="w-2 flex-shrink-0 cursor-col-resize relative group bg-transparent hover:bg-gray-100/50 dark:hover:bg-gray-700/50 transition-colors" role="separator" aria-orientation="vertical" aria-label="Resize email list" @mousedown.prevent="startMailResize">
               <span class="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-gray-300 dark:bg-gray-600 group-hover:bg-gray-500 dark:group-hover:bg-gray-400 transition-colors"></span>

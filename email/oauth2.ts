@@ -16,7 +16,7 @@ const OAUTH2_CONFIGS: Record<string, OAuth2Config> = {
     clientSecret: process.env.GMAIL_CLIENT_SECRET || '',
     authUrl: 'https://accounts.google.com/o/oauth2/v2/auth',
     tokenUrl: 'https://oauth2.googleapis.com/token',
-    redirectUri: 'imail://oauth2/callback',
+    redirectUri: 'ayemail://oauth2/callback',
     scopes: [
       'https://www.googleapis.com/auth/gmail.readonly',
       'https://www.googleapis.com/auth/gmail.send',
@@ -28,7 +28,7 @@ const OAUTH2_CONFIGS: Record<string, OAuth2Config> = {
     clientSecret: process.env.OUTLOOK_CLIENT_SECRET || '',
     authUrl: 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize',
     tokenUrl: 'https://login.microsoftonline.com/common/oauth2/v2.0/token',
-    redirectUri: 'imail://oauth2/callback',
+    redirectUri: 'ayemail://oauth2/callback',
     scopes: [
       'https://outlook.office.com/IMAP.AccessAsUser.All',
       'https://outlook.office.com/SMTP.Send',
@@ -59,7 +59,7 @@ export async function initiateOAuth2Flow(provider: 'gmail' | 'outlook'): Promise
       `2. Create a project or select an existing one\n` +
       `3. Enable Gmail API\n` +
       `4. Create OAuth 2.0 credentials\n` +
-      `5. Add "imail://oauth2/callback" as an authorized redirect URI\n` +
+      `5. Add "ayemail://oauth2/callback" as an authorized redirect URI\n` +
       `6. Set GMAIL_CLIENT_ID and GMAIL_CLIENT_SECRET environment variables`
     )
   }
@@ -99,7 +99,7 @@ export async function initiateOAuth2Flow(provider: 'gmail' | 'outlook'): Promise
       try {
         const urlObj = new URL(url)
         // Handle both custom protocol (imail://) and http redirects
-        const isCallback = urlObj.protocol === 'imail:' && urlObj.pathname === '//oauth2/callback' ||
+        const isCallback = urlObj.protocol === 'ayemail:' && urlObj.pathname === '//oauth2/callback' ||
                           urlObj.pathname === '/oauth2/callback' ||
                           url.includes('oauth2/callback')
         

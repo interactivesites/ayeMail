@@ -9,7 +9,7 @@ const getDbPath = () => {
   if (!existsSync(dbDir)) {
     mkdirSync(dbDir, { recursive: true })
   }
-  return join(dbDir, 'imail.db')
+  return join(dbDir, 'ayemail.db')
 }
 
 export function createDatabase(): Database.Database {

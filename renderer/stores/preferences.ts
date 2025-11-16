@@ -12,6 +12,13 @@ const THREAD_VIEW_KEY = 'threadView'
 const EXPANDED_ACCOUNTS_KEY = 'expandedAccounts'
 const EXPANDED_FOLDERS_KEY = 'expandedFolders'
 const CONFIRM_ARCHIVE_KEY = 'confirmArchive'
+const LANGUAGE_KEY = 'language'
+
+const loadLanguage = (): string => {
+  if (typeof window === 'undefined') return 'en'
+  const stored = window.localStorage.getItem(LANGUAGE_KEY)
+  return stored || 'en'
+}
 
 const loadActionLabelsPreference = () => {
   if (typeof window === 'undefined') return true
@@ -83,6 +90,14 @@ export const usePreferencesStore = defineStore('preferences', () => {
   const expandedAccounts = ref<string[]>(loadExpandedAccounts())
   const expandedFolders = ref<string[]>(loadExpandedFolders())
   const confirmArchive = ref(loadConfirmArchive())
+  const language = ref(loadLanguage())
+
+  const setLanguage = (value: string) => {
+    language.value = value
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(LANGUAGE_KEY, value)
+    }
+  }
 
   const setShowActionLabels = (value: boolean) => {
     showActionLabels.value = value
@@ -212,6 +227,8 @@ export const usePreferencesStore = defineStore('preferences', () => {
     setConfirmArchive,
     showEmailNotifications,
     setShowEmailNotifications,
+    language,
+    setLanguage,
   }
 })
 

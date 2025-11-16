@@ -20,7 +20,7 @@ function getEncryptionKey(): Buffer {
   // The key is consistent per installation but not stored in keychain
   const { app } = require('electron')
   const userDataPath = app.getPath('userData')
-  encryptionKey = crypto.scryptSync(userDataPath, 'imail-encryption-key-salt', 32)
+  encryptionKey = crypto.scryptSync(userDataPath, 'ayemail-encryption-key-salt', 32)
   
   return encryptionKey
 }

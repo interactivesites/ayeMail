@@ -1,7 +1,7 @@
 <template>
   <div class="h-full flex flex-col text-slate-100">
     <div class="p-4 border-b border-white/10 flex items-center justify-between">
-      <h2 class="text-sm font-semibold tracking-wide uppercase text-white/60">Folders</h2>
+      <h2 class="text-sm font-semibold tracking-wide uppercase text-white/60">{{ $t('folders.title') }}</h2>
       <div class="app-no-drag flex items-center space-x-1 bg-white/5 rounded-full p-0.5 shadow-inner">
         <button
           type="button"
@@ -9,7 +9,7 @@
           :aria-pressed="preferences.mailLayout === 'list'"
           class="p-1.5 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
           :class="preferences.mailLayout === 'list' ? 'bg-white text-slate-900' : 'text-white/70 hover:text-white/90'"
-          title="List view"
+          :title="$t('folders.listView')"
         >
           <ListBulletIcon class="w-4 h-4" />
         </button>
@@ -19,7 +19,7 @@
           :aria-pressed="preferences.mailLayout === 'calm' || preferences.mailLayout === 'grid'"
           class="p-1.5 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
           :class="(preferences.mailLayout === 'calm' || preferences.mailLayout === 'grid') ? 'bg-white text-slate-900' : 'text-white/70 hover:text-white/90'"
-          title="Grid / Calm Mode"
+          :title="$t('folders.gridView')"
         >
           <Squares2X2Icon class="w-4 h-4" />
         </button>
@@ -27,7 +27,7 @@
     </div>
     <div class="flex-1 overflow-y-auto">
       <div v-if="loading" class="p-4 text-center text-white/70">
-        Loading folders...
+        {{ $t('folders.loadingFolders') }}
       </div>
       <div v-else>
         <!-- Unified Folders Section -->
@@ -82,7 +82,7 @@
       </div>
     </div>
     <div class="border-t border-white/10 p-4 space-y-2">
-      <a
+      <!-- <a
         v-if="!preferences.isSupporter"
         href="https://buymeacoffee.com/interactivesites"
         target="_blank"
@@ -94,7 +94,7 @@
           <path d="M18.5 3H6c-1.1 0-2 .9-2 2v5.71c0 3.83 2.95 7.18 6.78 7.29 3.96.12 7.22-3.06 7.22-7v-1h.5c1.38 0 2.5-1.12 2.5-2.5S19.88 3 18.5 3zm-2 6v-4h2v1h.5c.28 0 .5.22.5.5s-.22.5-.5.5H16.5zm-13 0V5h10v4H5.5zM4 19h16v2H4v-2z"/>
         </svg>
         <span>Buy me a coffee</span>
-      </a>
+      </a> -->
       <button
         @click="handleAboutClick"
         class="flex items-center justify-center gap-2 w-full px-4 py-2.5 bg-white/10 hover:bg-white/15 border border-white/20 rounded-lg transition-colors text-white/80 hover:text-white text-sm font-medium"
@@ -102,7 +102,7 @@
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
         </svg>
-        <span>About</span>
+        <span>{{ $t('common.about') }}</span>
       </button>
     </div>
   </div>
@@ -130,65 +130,12 @@ const accountFolders = ref<Map<string, any[]>>(new Map())
 const loading = ref(false)
 const preferences = usePreferencesStore()
 
-// Check if user is a supporter when they click the button
-// This can be called after they complete a payment on Buy Me a Coffee
-const handleSupporterClick = () => {
-  // After payment, Buy Me a Coffee can redirect back with a token
-  // You can check for this token and mark user as supporter
-  // For now, this is a placeholder - you'll need to implement the verification
-  // based on your Buy Me a Coffee setup (webhook, redirect URL, etc.)
-  
-  // Example: Check URL params for supporter token
-  const urlParams = new URLSearchParams(window.location.search)
-  const supporterToken = urlParams.get('supporter')
-  
-  if (supporterToken) {
-    // Verify token with your backend or Buy Me a Coffee API
-    // For now, you can manually set this via localStorage or add verification logic
-    preferences.setIsSupporter(true)
-  }
-}
 
 const handleAboutClick = () => {
   emit('open-about')
 }
 
-// Check supporter status on mount
-const checkSupporterStatus = async () => {
-  // Check URL params first (for redirect-based verification)
-  const urlParams = new URLSearchParams(window.location.search)
-  const supporterToken = urlParams.get('supporter_token')
-  
-  if (supporterToken) {
-    try {
-      const result = await window.electronAPI.supporter.verifyToken(supporterToken)
-      if (result.isValid) {
-        preferences.setIsSupporter(true)
-        // Clean up URL
-        window.history.replaceState({}, '', window.location.pathname)
-        return
-      }
-    } catch (error) {
-      console.error('Error verifying supporter token:', error)
-    }
-  }
-  
-  // Check if already marked as supporter in preferences
-  if (preferences.isSupporter) {
-    return
-  }
-  
-  // Check Buy Me a Coffee API for supporter status
-  try {
-    const result = await window.electronAPI.supporter.check()
-    if (result.isSupporter) {
-      preferences.setIsSupporter(true)
-    }
-  } catch (error) {
-    console.error('Error checking supporter status:', error)
-    // Silently fail - don't show button if API check fails
-  }
-}
+
 
 interface AccountSection {
   account: any
@@ -366,7 +313,7 @@ onMounted(() => {
     loading.value = false
   })
   window.addEventListener('refresh-folders', refreshFolders)
-  checkSupporterStatus()
+
 })
 
 watch(() => props.selectedFolderId, () => {

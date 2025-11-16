@@ -9,11 +9,11 @@
         <div class="app-no-drag flex items-center space-x-3 ml-16 pl-2">
           <button @click="$emit('sync')" :disabled="syncing" class="text-gray-700 dark:text-gray-200 hover:text-gray-900 dark:hover:text-gray-100 items-center flex flex-col">
             <ArrowPathIcon class="w-5 h-5" />
-            <span v-if="preferences.showActionLabels">{{ syncing ? 'Syncing...' : 'Sync' }}</span>
+            <span v-if="preferences.showActionLabels">{{ syncing ? $t('navigation.syncing') : $t('navigation.sync') }}</span>
           </button>
           <button @click="$emit('compose')" class="text-gray-700 dark:text-gray-200 hover:text-gray-900 dark:hover:text-gray-100 items-center flex flex-col">
             <EnvelopeIcon class="w-5 h-5" />
-            <span v-if="preferences.showActionLabels">New</span>
+            <span v-if="preferences.showActionLabels">{{ $t('navigation.new') }}</span>
           </button>
         </div>
       </template>
@@ -25,25 +25,25 @@
             ? 'border-transparent text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100'
             : 'border-transparent text-gray-300 dark:text-gray-600 cursor-not-allowed'" title="Reply">
             <ArrowUturnLeftIcon class="w-5 h-5" />
-            <span v-if="preferences.showActionLabels">Reply</span>
+            <span v-if="preferences.showActionLabels">{{ $t('navigation.reply') }}</span>
           </button>
           <button type="button" @click="$emit('forward')" :disabled="!hasSelectedEmail" class="flex items-center flex-col p-2 rounded-md border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600" :class="hasSelectedEmail
             ? 'border-transparent text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100'
             : 'border-transparent text-gray-300 dark:text-gray-600 cursor-not-allowed'" title="Forward">
             <ArrowUpOnSquareIcon class="w-5 h-5" />
-            <span v-if="preferences.showActionLabels">Forward</span>
+            <span v-if="preferences.showActionLabels">{{ $t('navigation.forward') }}</span>
           </button>
           <button type="button" @click="$emit('set-reminder')" :disabled="!hasSelectedEmail" class="flex items-center flex-col p-2 rounded-md border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600" :class="hasSelectedEmail
             ? 'border-transparent text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100'
             : 'border-transparent text-gray-300 dark:text-gray-600 cursor-not-allowed'" title="Set reminder">
             <BellAlertIcon class="w-5 h-5" />
-            <span v-if="preferences.showActionLabels">Set reminder</span>
+            <span v-if="preferences.showActionLabels">{{ $t('navigation.setReminder') }}</span>
           </button>
           <button type="button" @click="$emit('delete')" :disabled="!hasSelectedEmail" class="flex items-center flex-col p-2 rounded-md border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500" :class="hasSelectedEmail
             ? 'border-transparent text-red-500 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300'
             : 'border-transparent text-gray-300 dark:text-gray-600 cursor-not-allowed'" title="Delete">
             <TrashIcon class="w-5 h-5" />
-            <span v-if="preferences.showActionLabels">Delete</span>
+            <span v-if="preferences.showActionLabels">{{ $t('common.delete') }}</span>
           </button>
         </div>
 
@@ -59,21 +59,21 @@
               type="text"
               v-model="localSearchQuery"
               @keydown.escape="handleClearSearch"
-              placeholder="Search emails..."
+              :placeholder="$t('navigation.searchEmails')"
               class="pl-10 pr-4 py-2 w-64 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-transparent dark:bg-gray-700 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
             />
             <button
               v-if="localSearchQuery"
               @click="handleClearSearch"
               class="absolute inset-y-0 right-0 pr-3 flex items-center"
-              title="Clear search"
+              :title="$t('navigation.clearSearch')"
             >
               <XMarkIcon class="h-4 w-4 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300" />
             </button>
           </div>
           <button type="button" class="flex items-center flex-col p-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" @click="$emit('open-settings')" title="Settings">
             <CogIcon class="w-5 h-5" />
-            <span v-if="preferences.showActionLabels">Settings</span>
+            <span v-if="preferences.showActionLabels">{{ $t('common.settings') }}</span>
             </button>
         </div>
       </template>
