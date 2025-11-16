@@ -1026,7 +1026,10 @@ export class IMAPClient {
             }
             
             clearTimeout(timeout)
-            this.connection!.removeListener('error', errorHandler)
+            // Safely remove error handler - connection might be null if disconnected
+            if (this.connection) {
+              this.connection.removeListener('error', errorHandler)
+            }
             console.log(`[IMAPClient.fetchEmailByUid] Message processing complete for UID ${uid}, email object: ${email ? 'created' : 'NULL'}`)
             if (!email) {
               console.warn(`[IMAPClient.fetchEmailByUid] No message received for UID ${uid} in folder ${targetFolder}. This could mean the UID doesn't exist in this folder.`)

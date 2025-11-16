@@ -572,17 +572,20 @@ export class EmailStorage {
               console.log(`Fetching body for email ${id} (UID: ${email.uid}) from folder ${imapFolderName}`)
               const fetchedEmail = await imapClient.fetchEmailByUid(imapFolderName, email.uid)
               
+              console.log(`fetchEmailByUid completed for ${id}: fetchedEmail=${!!fetchedEmail}, body=${fetchedEmail?.body?.length || 0}, html=${fetchedEmail?.htmlBody?.length || 0}, text=${fetchedEmail?.textBody?.length || 0}`)
+              
               if (!fetchedEmail) {
                 console.warn(`fetchEmailByUid returned null for email ${id} (UID: ${email.uid})`)
               } else if (!fetchedEmail.body && !fetchedEmail.htmlBody && !fetchedEmail.textBody) {
                 console.warn(`Fetched email ${id} but it has no body content (fetchedEmail exists but all body fields are empty)`)
               } else {
                 // Update the email in database with the fetched body
+                console.log(`Encrypting and updating body for email ${id}...`)
                 const bodyEncrypted = encryption.encrypt(fetchedEmail.body || '')
                 const htmlBodyEncrypted = fetchedEmail.htmlBody ? encryption.encrypt(fetchedEmail.htmlBody) : null
                 const textBodyEncrypted = fetchedEmail.textBody ? encryption.encrypt(fetchedEmail.textBody) : null
                 
-                this.db.prepare(`
+                const result = this.db.prepare(`
                   UPDATE emails SET
                     body_encrypted = ?,
                     html_body_encrypted = ?,
@@ -590,6 +593,8 @@ export class EmailStorage {
                     updated_at = ?
                   WHERE id = ?
                 `).run(bodyEncrypted, htmlBodyEncrypted, textBodyEncrypted, Date.now(), id)
+                
+                console.log(`Database update result for ${id}: changes=${result.changes}`)
                 
                 // Update the mapped email with the fetched body
                 mappedEmail.body = fetchedEmail.body || ''
