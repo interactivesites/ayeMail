@@ -81,6 +81,19 @@
         </div>
       </div>
     </div>
+    <div class="border-t border-white/10 p-4">
+      <a
+        href="https://buymeacoffee.com/interactivesites"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="flex items-center justify-center gap-2 w-full px-4 py-2.5 bg-white/10 hover:bg-white/15 border border-white/20 rounded-lg transition-colors text-white/80 hover:text-white text-sm font-medium"
+      >
+        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M18.5 3H6c-1.1 0-2 .9-2 2v5.71c0 3.83 2.95 7.18 6.78 7.29 3.96.12 7.22-3.06 7.22-7v-1h.5c1.38 0 2.5-1.12 2.5-2.5S19.88 3 18.5 3zm-2 6v-4h2v1h.5c.28 0 .5.22.5.5s-.22.5-.5.5H16.5zm-13 0V5h10v4H5.5zM4 19h16v2H4v-2z"/>
+        </svg>
+        <span>Buy me a coffee</span>
+      </a>
+    </div>
   </div>
 </template>
 
