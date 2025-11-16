@@ -49,7 +49,7 @@
   </div>
   
   <!-- Popover version - calendar only -->
-  <div v-else class="reminder-calendar-popover bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 relative" style="width: 320px; padding: 8px;">
+  <div v-else class="reminder-calendar-popover bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 relative p-3">
     <!-- Clear reminder button if reminder exists -->
     <div v-if="existingReminder" class="mb-2 flex items-center justify-between px-2">
       <span class="text-xs text-gray-600 dark:text-gray-400">Reminder set</span>
@@ -65,30 +65,50 @@
         Clear Reminder
       </button>
     </div>
-    <VueTailwindDatepicker
-      v-model="selectedDate"
-      :start-from="new Date()"
-      @update:model-value="handleDateSelect"
-      :no-input="true"
-      :as-single="true"
-      :overlay="false"
-      i18n="en"
-      :shortcuts="false"
-      :auto-apply="true"
-      :highlight-dates="highlightCurrentDay"
-      :disable-date="disablePastDates"
-    />
+    <div class="flex items-start gap-4">
+      <div class="w-40 flex flex-col gap-2 border border-dashed border-gray-200 dark:border-gray-700 rounded-lg p-2">
+        <p class="text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Quick picks</p>
+        <button
+          v-for="shortcut in quickShortcuts"
+          :key="shortcut.label"
+          type="button"
+          class="text-left text-sm px-3 py-2 rounded-md border transition-colors"
+          :class="isShortcutActive(shortcut.days)
+            ? 'border-primary-600 bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-200'
+            : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:border-primary-500 hover:text-primary-600'"
+          @click="applyShortcut(shortcut.days)"
+        >
+          {{ shortcut.label }}
+        </button>
+      </div>
+      <div class="flex-1 min-w-[320px]">
+        <VueTailwindDatepicker
+          class="w-full"
+          v-model="selectedDate"
+          :start-from="new Date()"
+          @update:model-value="handleDateSelect"
+          :no-input="true"
+          :as-single="true"
+          :overlay="false"
+          i18n="en"
+          :shortcuts="false"
+          :auto-apply="true"
+          :highlight-dates="highlightCurrentDay"
+          :disable-date="disablePastDates"
+        />
+      </div>
+    </div>
     <div v-if="saving" class="absolute inset-0 bg-white/50 dark:bg-gray-900/50 backdrop-blur-xl z-50 flex items-center justify-center rounded-lg">
       <div class="flex flex-col items-center space-y-4">
         <div class="w-12 h-12 border-4 border-primary-600 dark:border-primary-500 border-t-transparent rounded-full animate-spin"></div>
-        <p class="text-gray-700 dark:text-gray-300 text-sm font-medium">Creating reminder...</p>
+        <p class="text-gray-700 dark:text-gray-300 text-sm font-medium">Putting aside...</p>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, watch, nextTick } from 'vue'
 import VueTailwindDatepicker from 'vue-tailwind-datepicker'
 
 const props = defineProps<{
@@ -111,6 +131,12 @@ const selectedDate = ref<[Date, Date]>([new Date(), new Date()])
 const saving = ref(false)
 const clearing = ref(false)
 const existingReminder = ref<any>(null)
+const quickShortcuts = [
+  { label: 'tomorrow', days: 1 },
+  { label: 'in 3 days', days: 3 },
+  { label: 'next week', days: 7 },
+  { label: 'sometime (about 2 weeks)', days: 14 }
+]
 
 // Function to highlight the current day
 const highlightCurrentDay = (date: Date) => {
@@ -201,6 +227,37 @@ watch(selectedDate, (newValue) => {
 }, { deep: true })
 
 let isProcessing = false
+
+const isShortcutActive = (days: number): boolean => {
+  if (!selectedDate.value?.[0]) return false
+  const current = new Date(selectedDate.value[0])
+  current.setHours(0, 0, 0, 0)
+  const base = new Date()
+  base.setHours(0, 0, 0, 0)
+  base.setDate(base.getDate() + days)
+  return current.getTime() === base.getTime()
+}
+
+const applyShortcut = async (days: number) => {
+  if (saving.value || clearing.value) return
+  const base = new Date()
+  base.setHours(0, 0, 0, 0)
+  const target = new Date(base)
+  target.setDate(base.getDate() + days)
+  const tomorrow = new Date(base)
+  tomorrow.setDate(base.getDate() + 1)
+  if (target.getTime() < tomorrow.getTime()) {
+    target.setTime(tomorrow.getTime())
+  }
+  target.setHours(0, 0, 0, 0)
+  const normalizedTarget = new Date(target)
+  isProcessing = true
+  selectedDate.value = [normalizedTarget, normalizedTarget]
+  lastSelectedValue = [normalizedTarget, normalizedTarget]
+  await nextTick()
+  isProcessing = false
+  await handleDateSelect([normalizedTarget, normalizedTarget])
+}
 
 const handleDateSelect = async (value: string | string[] | Date | Date[] | any) => {
   // Prevent multiple simultaneous calls
@@ -341,7 +398,8 @@ const saveReminder = async () => {
 
 <style scoped>
 .reminder-calendar-popover {
-  min-width: 320px;
+  min-width: 520px;
+  max-width: 580px;
   min-height: 300px;
 }
 
@@ -404,4 +462,3 @@ const saveReminder = async () => {
 }
 
 </style>
-
