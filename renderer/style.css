@@ -181,3 +181,22 @@ button:disabled, a:disabled, label:disabled {
 .dark .toggle-sm::before {
   background-color: white;
 }
+
+/* Disable text selection globally */
+* {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+/* Re-enable text selection for RTE (TipTap editor) and EmailViewer */
+.prose,
+.prose *,
+.email-viewer,
+.email-viewer * {
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  user-select: text;
+}

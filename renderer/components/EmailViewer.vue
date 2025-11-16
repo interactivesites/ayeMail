@@ -1,5 +1,5 @@
 <template>
-  <div class="flex flex-col h-full">
+  <div class="email-viewer flex flex-col h-full">
     <div v-if="!props.emailId && !email" class="flex-1 flex items-center justify-center text-gray-500 dark:text-gray-400">
       Select an email to view
     </div>
