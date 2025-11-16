@@ -32,6 +32,12 @@
       <!-- Folder name -->
       <span class="text-sm font-medium truncate flex-1">{{ folder.name }}</span>
 
+      <!-- Sync loader circle -->
+      <div
+        v-if="syncingFolderId === folder.id"
+        class="w-3 h-3 border-2 border-white/60 border-t-transparent rounded-full animate-spin ml-2 flex-shrink-0"
+      ></div>
+
       <!-- Unread count badge -->
       <span v-if="folder.unread_count > 0" class="text-xs bg-white/15 text-white px-2 py-0.5 rounded-full ml-2 border border-white/20">
         {{ folder.unread_count }}
@@ -45,6 +51,7 @@
         :key="child.id"
         :folder="child"
         :selected-folder-id="selectedFolderId"
+        :syncing-folder-id="syncingFolderId"
         :level="level + 1"
         @select="$emit('select', $event)"
       />
@@ -59,6 +66,7 @@ import { usePreferencesStore } from '../stores/preferences'
 const props = defineProps<{
   folder: any
   selectedFolderId?: string
+  syncingFolderId?: string | null
   level: number
 }>()
 

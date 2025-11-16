@@ -37,6 +37,7 @@
             :key="folder.id"
             :folder="folder"
             :selected-folder-id="selectedFolderId"
+            :syncing-folder-id="syncingFolderId"
             :level="0"
             @select="handleFolderSelect"
           />
@@ -72,6 +73,7 @@
               :key="folder.id"
               :folder="folder"
               :selected-folder-id="selectedFolderId"
+              :syncing-folder-id="syncingFolderId"
               :level="0"
               @select="handleFolderSelect"
             />
@@ -91,6 +93,7 @@ import FolderTreeItem from './FolderTreeItem.vue'
 const props = defineProps<{
   accountId?: string
   selectedFolderId?: string
+  syncingFolderId?: string | null
 }>()
 
 const emit = defineEmits<{
@@ -239,11 +242,16 @@ const handleFolderSelect = (folder: any) => {
   }
   
   // For regular folders, find the account
-  let accountId: string | null = null
-  for (const [accId, folders] of accountFolders.value.entries()) {
-    if (findFolderInTree(folders, folder.id)) {
-      accountId = accId
-      break
+  // First try to get accountId from folder itself (account_id from database)
+  let accountId: string | null = folder.accountId || folder.account_id || null
+  
+  // If not found, search through folder tree
+  if (!accountId) {
+    for (const [accId, folders] of accountFolders.value.entries()) {
+      if (findFolderInTree(folders, folder.id)) {
+        accountId = accId
+        break
+      }
     }
   }
   

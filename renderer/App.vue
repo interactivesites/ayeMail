@@ -9,7 +9,7 @@
       <aside class="border-r border-white/10 dark:border-gray-700 bg-slate-900/70 dark:bg-gray-800 text-slate-100 dark:text-gray-100 backdrop-blur-2xl shadow-xl flex flex-col transition-all duration-200 flex-shrink-0" :style="{ width: sidebarWidth + 'px', minWidth: sidebarWidth + 'px', maxWidth: sidebarWidth + 'px' }">
         <MainNav mode="left" :syncing="syncing" :has-selected-email="Boolean(selectedEmailId)" @sync="syncEmails" @compose="handleCompose" />
         <div class="flex-1 overflow-hidden">
-          <FolderList :selected-folder-id="selectedFolderId" @select-folder="handleFolderSelect" />
+          <FolderList :selected-folder-id="selectedFolderId" :syncing-folder-id="currentSyncFolderId" @select-folder="handleFolderSelect" />
         </div>
         <div v-if="syncProgress.show" class="p-3 border-t border-white/10 bg-white/5">
           <div class="flex items-center justify-between mb-1">
@@ -17,18 +17,25 @@
               <span v-if="syncProgress.folder === 'folders'">Syncing folders</span>
               <span v-else-if="syncProgress.folder === 'Complete'">Sync complete</span>
               <span v-else-if="syncProgress.folder">
-                <span v-if="syncProgress.total === undefined || syncProgress.total === null">Connecting to {{ syncProgress.folder }}</span>
+                <span v-if="syncProgress.total === undefined || syncProgress.total === null">
+                  <span v-if="syncProgress.current > 0">Syncing {{ syncProgress.folder }} ({{ syncProgress.current }} emails)</span>
+                  <span v-else>Connecting to {{ syncProgress.folder }}</span>
+                </span>
                 <span v-else-if="syncProgress.total === 0">Sync complete</span>
-                <span v-else>Downloading {{ syncProgress.folder }} ({{ syncProgress.current }}/{{ syncProgress.total }})</span>
+                <span v-else>Syncing {{ syncProgress.folder }} ({{ syncProgress.current }}/{{ syncProgress.total }})</span>
               </span>
-              <span v-else>Downloading emails</span>
+              <span v-else>Starting sync...</span>
             </span>
           </div>
           <div class="w-full bg-white/10 rounded-full h-1.5">
             <div class="bg-primary-500 h-1.5 rounded-full transition-all duration-300" :style="{
-              width: syncProgress.total > 0 ? `${Math.min(100, (syncProgress.current / syncProgress.total) * 100)}%` :
-                syncProgress.total === 0 ? '100%' :
-                  '25%'
+              width: syncProgress.total !== undefined && syncProgress.total !== null && syncProgress.total > 0 
+                ? `${Math.min(100, (syncProgress.current / syncProgress.total) * 100)}%` 
+                : syncProgress.total === 0 
+                  ? '100%' 
+                  : syncProgress.current > 0
+                    ? '50%'
+                    : '25%'
             }"></div>
           </div>
         </div>
@@ -110,8 +117,10 @@ const showSettings = ref(false)
 const showReminderModal = ref(false)
 const reminderEmail = ref<any>(null)
 const syncing = ref(false)
-const syncProgress = ref({ show: false, current: 0, total: 0, folder: '' })
+const syncProgress = ref<{ show: boolean; current: number; total: number | undefined; folder: string }>({ show: false, current: 0, total: undefined, folder: '' })
 const backgroundSyncing = ref(false)
+const currentSyncFolderId = ref<string | null>(null)
+const currentSyncRemoveListener = ref<(() => void) | null>(null)
 const preferences = usePreferencesStore()
 const isGridLayout = computed(() => preferences.mailLayout === 'grid' || preferences.mailLayout === 'calm')
 const mailPaneWidth = ref(384)
@@ -228,17 +237,24 @@ const handleFolderSelect = async (folder: any) => {
   }
 
   // Handle regular folders - set account and sync
-  if (folder.accountId) {
+  // Get accountId from folder (could be accountId or account_id)
+  const accountId = folder.accountId || folder.account_id
+  
+  if (accountId && folder.id) {
     const accounts = await window.electronAPI.accounts.list()
-    selectedAccount.value = accounts.find((a: any) => a.id === folder.accountId)
+    selectedAccount.value = accounts.find((a: any) => a.id === accountId)
 
-    if (selectedAccount.value && folder.id) {
+    if (selectedAccount.value) {
       try {
         await syncEmailsForFolder(selectedAccount.value.id, folder.id)
       } catch (error) {
         console.error('Error syncing emails for folder:', error)
       }
+    } else {
+      console.warn(`Account not found for folder ${folder.id}, accountId: ${accountId}`)
     }
+  } else {
+    console.warn(`Cannot sync folder ${folder.id}: missing accountId (${accountId}) or folder.id (${folder.id})`)
   }
 }
 
@@ -386,13 +402,13 @@ const syncEmails = async () => {
 
       // Hide progress after showing completion
       setTimeout(() => {
-        syncProgress.value = { show: false, current: 0, total: 0, folder: '' }
-        syncProgress.value = { show: false, current: 0, total: 0, folder: '' }
+        syncProgress.value = { show: false, current: 0, total: undefined, folder: '' }
+        syncProgress.value = { show: false, current: 0, total: undefined, folder: '' }
         removeProgressListener()
       }, 3000)
     } else {
       alert(`Sync failed: ${result.message}`)
-      syncProgress.value = { show: false, current: 0, total: 0, folder: '' }
+      syncProgress.value = { show: false, current: 0, total: undefined, folder: '' }
       removeProgressListener()
     }
   } catch (error: any) {
@@ -406,24 +422,77 @@ const syncEmails = async () => {
 }
 
 const syncEmailsForFolder = async (accountId: string, folderId: string) => {
-  if (syncing.value) return
+  // Cancel any ongoing sync for a different folder
+  if (syncing.value && currentSyncFolderId.value !== folderId) {
+    console.log(`Cancelling sync for folder ${currentSyncFolderId.value}, starting sync for ${folderId}`)
+    // Remove progress listener for old sync
+    if (currentSyncRemoveListener.value) {
+      currentSyncRemoveListener.value()
+      currentSyncRemoveListener.value = null
+    }
+    // Note: We can't actually cancel the backend operation, but we'll ignore its results
+    syncing.value = false
+  }
+  
+  // If already syncing the same folder, don't start again
+  if (syncing.value && currentSyncFolderId.value === folderId) {
+    return
+  }
 
   syncing.value = true
-  syncProgress.value = { show: true, current: 0, total: 0, folder: '' }
+  currentSyncFolderId.value = folderId
+  
+  // Get folder name for initial display
+  let folderName = selectedFolderName.value || 'folder'
+  try {
+    const folders = await window.electronAPI.folders.list(accountId)
+    const findFolder = (folderList: any[]): any => {
+      for (const f of folderList) {
+        if (f.id === folderId) return f
+        if (f.children && f.children.length > 0) {
+          const found = findFolder(f.children)
+          if (found) return found
+        }
+      }
+      return null
+    }
+    const folder = findFolder(folders)
+    if (folder) folderName = folder.name
+  } catch (error) {
+    console.error('Error getting folder name:', error)
+  }
+  
+  syncProgress.value = { show: true, current: 0, total: undefined, folder: folderName }
 
   // Listen for progress updates
   const removeProgressListener = window.electronAPI.emails.onSyncProgress((data: any) => {
-    // console.info('Folder sync progress:', data)
+    // Only process progress updates for the current folder being synced
+    if (currentSyncFolderId.value !== folderId) {
+      console.log(`Ignoring progress update for folder ${data.folder}, current sync is for ${currentSyncFolderId.value}`)
+      return
+    }
+    console.info('Folder sync progress:', data)
     syncProgress.value = {
       show: true,
-      current: data.current,
-      total: data.total || 0,
-      folder: data.folder || ''
+      current: data.current || 0,
+      total: data.total !== undefined && data.total !== null ? data.total : undefined,
+      folder: data.folder || folderName
     }
   })
+  
+  // Store the remove listener so we can cancel it if needed
+  currentSyncRemoveListener.value = removeProgressListener
 
   try {
     const result = await window.electronAPI.emails.syncFolder(accountId, folderId)
+
+    // Check if this sync was cancelled (user selected a different folder)
+    if (currentSyncFolderId.value !== folderId) {
+      console.log(`Sync for folder ${folderId} completed but was cancelled (current: ${currentSyncFolderId.value})`)
+      removeProgressListener()
+      currentSyncRemoveListener.value = null
+      return
+    }
 
     if (result.success) {
       const syncedCount = result.synced || 0
@@ -436,24 +505,60 @@ const syncEmailsForFolder = async (accountId: string, folderId: string) => {
 
       // Refresh email list for this folder
       window.dispatchEvent(new CustomEvent('refresh-emails'))
+      
+      // Clear syncing folder ID when sync completes (emails will appear)
+      if (currentSyncFolderId.value === folderId) {
+        currentSyncFolderId.value = null
+      }
 
       // Hide progress after showing completion
       setTimeout(() => {
-        syncProgress.value = { show: false, current: 0, total: 0, folder: '' }
+        if (syncProgress.value.folder === 'Complete') {
+          syncProgress.value = { show: false, current: 0, total: undefined, folder: '' }
+        }
         removeProgressListener()
+        currentSyncRemoveListener.value = null
       }, 2000)
     } else {
-      alert(`Folder sync failed: ${result.message}`)
-      syncProgress.value = { show: false, current: 0, total: 0, folder: '' }
+      if (currentSyncFolderId.value === folderId) {
+        alert(`Folder sync failed: ${result.message}`)
+        syncProgress.value = { show: false, current: 0, total: undefined, folder: '' }
+      }
       removeProgressListener()
+      currentSyncRemoveListener.value = null
     }
   } catch (error: any) {
-    console.error('Error syncing folder:', error)
-    alert(`Error syncing folder: ${error.message}`)
-    syncProgress.value = { show: false, current: 0, total: 0, folder: '' }
+    // Only show error if this sync wasn't cancelled
+    if (currentSyncFolderId.value === folderId) {
+      console.error('Error syncing folder:', error)
+      alert(`Error syncing folder: ${error.message}`)
+      syncProgress.value = { show: false, current: 0, total: undefined, folder: '' }
+    }
     removeProgressListener()
+    currentSyncRemoveListener.value = null
   } finally {
-    syncing.value = false
+    // Only clear syncing state if this is still the current sync
+    if (currentSyncFolderId.value === folderId) {
+      syncing.value = false
+      // Don't clear currentSyncFolderId here - let it clear when emails appear
+    }
+  }
+}
+
+// Clear sync loader when emails appear in the list
+const handleEmailsLoaded = async () => {
+  // Small delay to ensure emails are actually loaded
+  await new Promise(resolve => setTimeout(resolve, 200))
+  
+  if (currentSyncFolderId.value && selectedFolderId.value === currentSyncFolderId.value) {
+    // Check if emails exist for this folder
+    try {
+      // The EmailList component will have loaded emails by now
+      // We'll clear the loader - if emails didn't load, the loader will show again on next sync
+      currentSyncFolderId.value = null
+    } catch (error) {
+      // Ignore errors
+    }
   }
 }
 
@@ -522,7 +627,14 @@ const syncOtherFoldersInBackground = async (accountId: string, folders: any[]) =
 // Track window width for responsive sidebar
 let resizeHandler: (() => void) | null = null
 
+// Listen for email refresh to clear sync loader
+const handleEmailRefresh = () => {
+  handleEmailsLoaded()
+}
+
 onMounted(async () => {
+  // Listen for email refresh events to clear sync loader
+  window.addEventListener('refresh-emails', handleEmailRefresh)
   // Initialize dark mode
   if (preferences.darkMode) {
     document.documentElement.classList.add('dark')
@@ -556,6 +668,7 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  window.removeEventListener('refresh-emails', handleEmailRefresh)
   // Cleanup resize listener
   if (resizeHandler) {
     window.removeEventListener('resize', resizeHandler)

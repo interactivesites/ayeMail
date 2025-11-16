@@ -689,6 +689,19 @@ export class EmailStorage {
         // Show connecting status
         progressCallback?.({ folder: folder.name, current: 0, total: undefined })
 
+        // Get total count before fetching emails
+        try {
+          const imapFolderName = folder.name.toUpperCase() === 'INBOX' ? 'INBOX' : folder.path
+          const status = await imapClient.getFolderStatus(imapFolderName)
+          if (status.messages > 0) {
+            // Send progress update with total count
+            progressCallback?.({ folder: folder.name, current: 0, total: status.messages })
+          }
+        } catch (statusError) {
+          console.warn(`Could not get folder status for ${folder.name}, will get total from fetch:`, statusError)
+          // Continue without total - will be set when emails are fetched
+        }
+
         const result = await this.syncFolderEmails(imapClient, accountId, folder, progressCallback)
         synced += result.synced
         errors += result.errors
