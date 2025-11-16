@@ -611,10 +611,10 @@ export class EmailStorage {
       const imapFolderName = folder.name.toUpperCase() === 'INBOX' ? 'INBOX' : folder.path
       console.log(`Fetching emails for folder: ${folder.name}, path: ${folder.path}, using IMAP name: ${imapFolderName}, id: ${folder.id}`)
 
-      // Fetch all emails (use a very large number to get all emails)
+      // Fetch email metadata only (much faster) - bodies will be loaded on demand
       // For INBOX, we want to sync all emails, not just recent ones
-      // Using 999999 to ensure we fetch all emails (fetchEmails treats >= 10000 as "fetch all")
-      const emails = await imapClient.fetchEmails(imapFolderName, 1, 999999)
+      // Using 999999 to ensure we fetch all emails (fetchEmailMetadata treats >= 10000 as "fetch all")
+      const emails = await imapClient.fetchEmailMetadata(imapFolderName, 1, 999999)
 
       console.log(`Found ${emails.length} emails in ${folder.name}`)
       if (emails.length === 0) {
@@ -875,9 +875,7 @@ export class EmailStorage {
     let body = ''
     if (dbEmail.body_encrypted && typeof dbEmail.body_encrypted === 'string' && dbEmail.body_encrypted.trim().length > 0) {
       try {
-        // Validate encrypted data format (should have 3 parts separated by :)
-        const parts = dbEmail.body_encrypted.split(':')
-        if (parts.length === 3 && parts[0].length > 0 && parts[1].length > 0 && parts[2].length > 0) {
+        if (encryption.isValidEncryptedPayload(dbEmail.body_encrypted)) {
           body = encryption.decrypt(dbEmail.body_encrypted)
         } else {
           console.warn(`Invalid encrypted body format for email ${dbEmail.id}`)
@@ -892,9 +890,7 @@ export class EmailStorage {
     let htmlBody: string | undefined = undefined
     if (dbEmail.html_body_encrypted && typeof dbEmail.html_body_encrypted === 'string' && dbEmail.html_body_encrypted.trim().length > 0) {
       try {
-        // Validate encrypted data format (should have 3 parts separated by :)
-        const parts = dbEmail.html_body_encrypted.split(':')
-        if (parts.length === 3 && parts[0].length > 0 && parts[1].length > 0 && parts[2].length > 0) {
+        if (encryption.isValidEncryptedPayload(dbEmail.html_body_encrypted)) {
           htmlBody = encryption.decrypt(dbEmail.html_body_encrypted)
         } else {
           console.warn(`Invalid encrypted htmlBody format for email ${dbEmail.id}`)
@@ -909,9 +905,7 @@ export class EmailStorage {
     let textBody: string | undefined = undefined
     if (dbEmail.text_body_encrypted && typeof dbEmail.text_body_encrypted === 'string' && dbEmail.text_body_encrypted.trim().length > 0) {
       try {
-        // Validate encrypted data format (should have 3 parts separated by :)
-        const parts = dbEmail.text_body_encrypted.split(':')
-        if (parts.length === 3 && parts[0].length > 0 && parts[1].length > 0 && parts[2].length > 0) {
+        if (encryption.isValidEncryptedPayload(dbEmail.text_body_encrypted)) {
           textBody = encryption.decrypt(dbEmail.text_body_encrypted)
         } else {
           console.warn(`Invalid encrypted textBody format for email ${dbEmail.id}`)
@@ -1022,7 +1016,85 @@ export class EmailStorage {
       return null
     }
   }
+
+  /**
+   * Fetch email bodies for emails that only have metadata
+   * This is called in the background when idle
+   */
+  async fetchEmailBodiesInBackground(accountId: string, folderId: string, limit: number = 10): Promise<number> {
+    try {
+      const account = await accountManager.getAccount(accountId)
+      if (!account || account.type !== 'imap') {
+        return 0
+      }
+
+      const folder = this.db.prepare('SELECT * FROM folders WHERE id = ? AND account_id = ?').get(folderId, accountId) as any
+      if (!folder) {
+        return 0
+      }
+
+      // Find emails without bodies (metadata only)
+      const emailsWithoutBodies = this.db.prepare(`
+        SELECT id, uid, account_id, folder_id 
+        FROM emails 
+        WHERE account_id = ? 
+          AND folder_id = ?
+          AND (body_encrypted IS NULL OR body_encrypted = '')
+          AND (html_body_encrypted IS NULL OR html_body_encrypted = '')
+          AND (text_body_encrypted IS NULL OR text_body_encrypted = '')
+        ORDER BY date DESC
+        LIMIT ?
+      `).all(accountId, folderId, limit) as any[]
+
+      if (emailsWithoutBodies.length === 0) {
+        return 0
+      }
+
+      const imapClient = getIMAPClient(account)
+      await imapClient.connect()
+
+      try {
+        const imapFolderName = folder.name.toUpperCase() === 'INBOX' ? 'INBOX' : folder.path
+        let fetched = 0
+
+        // Fetch bodies for each email
+        for (const emailRow of emailsWithoutBodies) {
+          try {
+            const fetchedEmail = await imapClient.fetchEmailByUid(imapFolderName, emailRow.uid)
+            
+            if (fetchedEmail && (fetchedEmail.body || fetchedEmail.htmlBody || fetchedEmail.textBody)) {
+              // Update the email in database with the fetched body
+              const bodyEncrypted = encryption.encrypt(fetchedEmail.body || '')
+              const htmlBodyEncrypted = fetchedEmail.htmlBody ? encryption.encrypt(fetchedEmail.htmlBody) : null
+              const textBodyEncrypted = fetchedEmail.textBody ? encryption.encrypt(fetchedEmail.textBody) : null
+              
+              this.db.prepare(`
+                UPDATE emails SET
+                  body_encrypted = ?,
+                  html_body_encrypted = ?,
+                  text_body_encrypted = ?,
+                  updated_at = ?
+                WHERE id = ?
+              `).run(bodyEncrypted, htmlBodyEncrypted, textBodyEncrypted, Date.now(), emailRow.id)
+              
+              fetched++
+              console.log(`Background: Fetched body for email ${emailRow.id}`)
+            }
+          } catch (err) {
+            console.error(`Background: Error fetching body for email ${emailRow.id}:`, err)
+            // Continue with next email
+          }
+        }
+
+        return fetched
+      } finally {
+        await imapClient.disconnect()
+      }
+    } catch (error) {
+      console.error(`Background: Error fetching email bodies for folder ${folderId}:`, error)
+      return 0
+    }
+  }
 }
 
 export const emailStorage = new EmailStorage()
-

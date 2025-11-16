@@ -8,6 +8,24 @@ import { contactManager } from '../email/contact-manager'
 import { gpgManager } from '../gpg/manager'
 import type { Account, Folder, Email, Reminder, Signature } from '../shared/types'
 
+function decryptEmailField(value: unknown, emailId: string, fieldLabel: string): string | undefined {
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    return undefined
+  }
+
+  if (!encryption.isValidEncryptedPayload(value)) {
+    console.warn(`Invalid encrypted ${fieldLabel} format for email ${emailId}`)
+    return undefined
+  }
+
+  try {
+    return encryption.decrypt(value)
+  } catch (error) {
+    console.error(`Error decrypting ${fieldLabel} for email ${emailId}:`, error)
+    return undefined
+  }
+}
+
 // Account handlers
 export function registerAccountHandlers() {
   ipcMain.handle('accounts:list', async () => {
@@ -523,55 +541,12 @@ export function registerEmailHandlers() {
     // Map to return format with decrypted body content
     const mappedEmails = emailsToReturn.map(e => {
       // Decrypt body with error handling
-      let body = ''
-      if (e.body_encrypted && typeof e.body_encrypted === 'string' && e.body_encrypted.trim().length > 0) {
-        try {
-          // Validate encrypted data format (should have 3 parts separated by :)
-          const parts = e.body_encrypted.split(':')
-          if (parts.length === 3 && parts[0].length > 0 && parts[1].length > 0 && parts[2].length > 0) {
-            body = encryption.decrypt(e.body_encrypted)
-          } else {
-            console.warn(`Invalid encrypted body format for email ${e.id}`)
-          }
-        } catch (error) {
-          console.error(`Error decrypting body for email ${e.id}:`, error)
-          // Continue with empty body
-        }
-      }
-      
-      // Decrypt HTML body with error handling
-      let htmlBody: string | undefined = undefined
-      if (e.html_body_encrypted && typeof e.html_body_encrypted === 'string' && e.html_body_encrypted.trim().length > 0) {
-        try {
-          // Validate encrypted data format (should have 3 parts separated by :)
-          const parts = e.html_body_encrypted.split(':')
-          if (parts.length === 3 && parts[0].length > 0 && parts[1].length > 0 && parts[2].length > 0) {
-            htmlBody = encryption.decrypt(e.html_body_encrypted)
-          } else {
-            console.warn(`Invalid encrypted htmlBody format for email ${e.id}`)
-          }
-        } catch (error) {
-          console.error(`Error decrypting HTML body for email ${e.id}:`, error)
-          // Continue without HTML body
-        }
-      }
-      
-      // Decrypt text body with error handling
-      let textBody: string | undefined = undefined
-      if (e.text_body_encrypted && typeof e.text_body_encrypted === 'string' && e.text_body_encrypted.trim().length > 0) {
-        try {
-          // Validate encrypted data format (should have 3 parts separated by :)
-          const parts = e.text_body_encrypted.split(':')
-          if (parts.length === 3 && parts[0].length > 0 && parts[1].length > 0 && parts[2].length > 0) {
-            textBody = encryption.decrypt(e.text_body_encrypted)
-          } else {
-            console.warn(`Invalid encrypted textBody format for email ${e.id}`)
-          }
-        } catch (error) {
-          console.error(`Error decrypting text body for email ${e.id}:`, error)
-          // Continue without text body
-        }
-      }
+      const decryptedBody = decryptEmailField(e.body_encrypted, e.id, 'body')
+      const decryptedHtmlBody = decryptEmailField(e.html_body_encrypted, e.id, 'htmlBody')
+      const decryptedTextBody = decryptEmailField(e.text_body_encrypted, e.id, 'textBody')
+      const body = decryptedBody ?? ''
+      const htmlBody = decryptedHtmlBody
+      const textBody = decryptedTextBody
       
       const threadId = e.thread_id || e.message_id
       const threadCount = threadCounts.get(threadId) || 1
@@ -803,61 +778,9 @@ export function registerEmailHandlers() {
     // Map to return format with decrypted body content
     // Ensure all values are serializable for IPC
     const mappedEmails = emails.map(e => {
-      let body: string | undefined
-      let htmlBody: string | undefined
-      let textBody: string | undefined
-      
-      // Decrypt body content with error handling
-      if (e.body_encrypted && typeof e.body_encrypted === 'string' && e.body_encrypted.trim().length > 0) {
-        try {
-          // Validate encrypted data format (should have 3 parts separated by :)
-          const parts = e.body_encrypted.split(':')
-          if (parts.length === 3 && parts[0].length > 0 && parts[1].length > 0 && parts[2].length > 0) {
-            const decrypted = encryption.decrypt(e.body_encrypted)
-            body = typeof decrypted === 'string' ? decrypted : String(decrypted)
-          } else {
-            console.warn(`Invalid encrypted body format for email ${e.id}`)
-            body = undefined
-          }
-        } catch (err) {
-          console.error(`Error decrypting body for email ${e.id}:`, err)
-          body = undefined
-        }
-      }
-      
-      if (e.html_body_encrypted && typeof e.html_body_encrypted === 'string' && e.html_body_encrypted.trim().length > 0) {
-        try {
-          // Validate encrypted data format (should have 3 parts separated by :)
-          const parts = e.html_body_encrypted.split(':')
-          if (parts.length === 3 && parts[0].length > 0 && parts[1].length > 0 && parts[2].length > 0) {
-            const decrypted = encryption.decrypt(e.html_body_encrypted)
-            htmlBody = typeof decrypted === 'string' ? decrypted : String(decrypted)
-          } else {
-            console.warn(`Invalid encrypted htmlBody format for email ${e.id}`)
-            htmlBody = undefined
-          }
-        } catch (err) {
-          console.error(`Error decrypting htmlBody for email ${e.id}:`, err)
-          htmlBody = undefined
-        }
-      }
-      
-      if (e.text_body_encrypted && typeof e.text_body_encrypted === 'string' && e.text_body_encrypted.trim().length > 0) {
-        try {
-          // Validate encrypted data format (should have 3 parts separated by :)
-          const parts = e.text_body_encrypted.split(':')
-          if (parts.length === 3 && parts[0].length > 0 && parts[1].length > 0 && parts[2].length > 0) {
-            const decrypted = encryption.decrypt(e.text_body_encrypted)
-            textBody = typeof decrypted === 'string' ? decrypted : String(decrypted)
-          } else {
-            console.warn(`Invalid encrypted textBody format for email ${e.id}`)
-            textBody = undefined
-          }
-        } catch (err) {
-          console.error(`Error decrypting textBody for email ${e.id}:`, err)
-          textBody = undefined
-        }
-      }
+      const body = decryptEmailField(e.body_encrypted, e.id, 'body')
+      const htmlBody = decryptEmailField(e.html_body_encrypted, e.id, 'htmlBody')
+      const textBody = decryptEmailField(e.text_body_encrypted, e.id, 'textBody')
       
       // Parse addresses with error handling and ensure they're plain objects
       let from: any[] = []
@@ -964,6 +887,16 @@ export function registerEmailHandlers() {
     return mappedEmails
   })
 
+  ipcMain.handle('emails:fetch-bodies-background', async (_, accountId: string, folderId: string, limit: number = 10) => {
+    try {
+      const fetched = await emailStorage.fetchEmailBodiesInBackground(accountId, folderId, limit)
+      return { success: true, fetched }
+    } catch (error: any) {
+      console.error('Error fetching email bodies in background:', error)
+      return { success: false, message: error.message, fetched: 0 }
+    }
+  })
+
   ipcMain.handle('emails:get', async (_, id: string) => {
     const email = await emailStorage.getEmail(id)
     if (!email) {
@@ -1033,56 +966,12 @@ export function registerEmailHandlers() {
     
     // Map to return format with decrypted body content
     const mappedEmails = threadEmails.map(e => {
-      // Decrypt body with error handling
-      let body = ''
-      if (e.body_encrypted && typeof e.body_encrypted === 'string' && e.body_encrypted.trim().length > 0) {
-        try {
-          // Validate encrypted data format (should have 3 parts separated by :)
-          const parts = e.body_encrypted.split(':')
-          if (parts.length === 3 && parts[0].length > 0 && parts[1].length > 0 && parts[2].length > 0) {
-            body = encryption.decrypt(e.body_encrypted)
-          } else {
-            console.warn(`Invalid encrypted body format for email ${e.id}`)
-          }
-        } catch (error) {
-          console.error(`Error decrypting body for email ${e.id}:`, error)
-          // Continue with empty body
-        }
-      }
-      
-      // Decrypt HTML body with error handling
-      let htmlBody: string | undefined = undefined
-      if (e.html_body_encrypted && typeof e.html_body_encrypted === 'string' && e.html_body_encrypted.trim().length > 0) {
-        try {
-          // Validate encrypted data format (should have 3 parts separated by :)
-          const parts = e.html_body_encrypted.split(':')
-          if (parts.length === 3 && parts[0].length > 0 && parts[1].length > 0 && parts[2].length > 0) {
-            htmlBody = encryption.decrypt(e.html_body_encrypted)
-          } else {
-            console.warn(`Invalid encrypted htmlBody format for email ${e.id}`)
-          }
-        } catch (error) {
-          console.error(`Error decrypting HTML body for email ${e.id}:`, error)
-          // Continue without HTML body
-        }
-      }
-      
-      // Decrypt text body with error handling
-      let textBody: string | undefined = undefined
-      if (e.text_body_encrypted && typeof e.text_body_encrypted === 'string' && e.text_body_encrypted.trim().length > 0) {
-        try {
-          // Validate encrypted data format (should have 3 parts separated by :)
-          const parts = e.text_body_encrypted.split(':')
-          if (parts.length === 3 && parts[0].length > 0 && parts[1].length > 0 && parts[2].length > 0) {
-            textBody = encryption.decrypt(e.text_body_encrypted)
-          } else {
-            console.warn(`Invalid encrypted textBody format for email ${e.id}`)
-          }
-        } catch (error) {
-          console.error(`Error decrypting text body for email ${e.id}:`, error)
-          // Continue without text body
-        }
-      }
+      const decryptedBody = decryptEmailField(e.body_encrypted, e.id, 'body')
+      const decryptedHtmlBody = decryptEmailField(e.html_body_encrypted, e.id, 'htmlBody')
+      const decryptedTextBody = decryptEmailField(e.text_body_encrypted, e.id, 'textBody')
+      const body = decryptedBody ?? ''
+      const htmlBody = decryptedHtmlBody
+      const textBody = decryptedTextBody
       
       return {
         id: e.id,
@@ -1888,56 +1777,12 @@ export function registerEmailHandlers() {
     
     // Map to return format with decrypted body content
     const mappedEmails = emails.map(e => {
-      // Decrypt body with error handling
-      let body = ''
-      if (e.body_encrypted && typeof e.body_encrypted === 'string' && e.body_encrypted.trim().length > 0) {
-        try {
-          // Validate encrypted data format (should have 3 parts separated by :)
-          const parts = e.body_encrypted.split(':')
-          if (parts.length === 3 && parts[0].length > 0 && parts[1].length > 0 && parts[2].length > 0) {
-            body = encryption.decrypt(e.body_encrypted)
-          } else {
-            console.warn(`Invalid encrypted body format for email ${e.id}`)
-          }
-        } catch (error) {
-          console.error(`Error decrypting body for email ${e.id}:`, error)
-          // Continue with empty body
-        }
-      }
-      
-      // Decrypt HTML body with error handling
-      let htmlBody: string | undefined = undefined
-      if (e.html_body_encrypted && typeof e.html_body_encrypted === 'string' && e.html_body_encrypted.trim().length > 0) {
-        try {
-          // Validate encrypted data format (should have 3 parts separated by :)
-          const parts = e.html_body_encrypted.split(':')
-          if (parts.length === 3 && parts[0].length > 0 && parts[1].length > 0 && parts[2].length > 0) {
-            htmlBody = encryption.decrypt(e.html_body_encrypted)
-          } else {
-            console.warn(`Invalid encrypted htmlBody format for email ${e.id}`)
-          }
-        } catch (error) {
-          console.error(`Error decrypting HTML body for email ${e.id}:`, error)
-          // Continue without HTML body
-        }
-      }
-      
-      // Decrypt text body with error handling
-      let textBody: string | undefined = undefined
-      if (e.text_body_encrypted && typeof e.text_body_encrypted === 'string' && e.text_body_encrypted.trim().length > 0) {
-        try {
-          // Validate encrypted data format (should have 3 parts separated by :)
-          const parts = e.text_body_encrypted.split(':')
-          if (parts.length === 3 && parts[0].length > 0 && parts[1].length > 0 && parts[2].length > 0) {
-            textBody = encryption.decrypt(e.text_body_encrypted)
-          } else {
-            console.warn(`Invalid encrypted textBody format for email ${e.id}`)
-          }
-        } catch (error) {
-          console.error(`Error decrypting text body for email ${e.id}:`, error)
-          // Continue without text body
-        }
-      }
+      const decryptedBody = decryptEmailField(e.body_encrypted, e.id, 'body')
+      const decryptedHtmlBody = decryptEmailField(e.html_body_encrypted, e.id, 'htmlBody')
+      const decryptedTextBody = decryptEmailField(e.text_body_encrypted, e.id, 'textBody')
+      const body = decryptedBody ?? ''
+      const htmlBody = decryptedHtmlBody
+      const textBody = decryptedTextBody
       
       return {
         id: e.id,
@@ -1982,56 +1827,12 @@ export function registerEmailHandlers() {
     `).all(accountId, limit) as any[]
     
     const mappedEmails = emails.map(e => {
-      // Decrypt body with error handling
-      let body = ''
-      if (e.body_encrypted && typeof e.body_encrypted === 'string' && e.body_encrypted.trim().length > 0) {
-        try {
-          // Validate encrypted data format (should have 3 parts separated by :)
-          const parts = e.body_encrypted.split(':')
-          if (parts.length === 3 && parts[0].length > 0 && parts[1].length > 0 && parts[2].length > 0) {
-            body = encryption.decrypt(e.body_encrypted)
-          } else {
-            console.warn(`Invalid encrypted body format for email ${e.id}`)
-          }
-        } catch (error) {
-          console.error(`Error decrypting body for email ${e.id}:`, error)
-          // Continue with empty body
-        }
-      }
-      
-      // Decrypt HTML body with error handling
-      let htmlBody: string | undefined = undefined
-      if (e.html_body_encrypted && typeof e.html_body_encrypted === 'string' && e.html_body_encrypted.trim().length > 0) {
-        try {
-          // Validate encrypted data format (should have 3 parts separated by :)
-          const parts = e.html_body_encrypted.split(':')
-          if (parts.length === 3 && parts[0].length > 0 && parts[1].length > 0 && parts[2].length > 0) {
-            htmlBody = encryption.decrypt(e.html_body_encrypted)
-          } else {
-            console.warn(`Invalid encrypted htmlBody format for email ${e.id}`)
-          }
-        } catch (error) {
-          console.error(`Error decrypting HTML body for email ${e.id}:`, error)
-          // Continue without HTML body
-        }
-      }
-      
-      // Decrypt text body with error handling
-      let textBody: string | undefined = undefined
-      if (e.text_body_encrypted && typeof e.text_body_encrypted === 'string' && e.text_body_encrypted.trim().length > 0) {
-        try {
-          // Validate encrypted data format (should have 3 parts separated by :)
-          const parts = e.text_body_encrypted.split(':')
-          if (parts.length === 3 && parts[0].length > 0 && parts[1].length > 0 && parts[2].length > 0) {
-            textBody = encryption.decrypt(e.text_body_encrypted)
-          } else {
-            console.warn(`Invalid encrypted textBody format for email ${e.id}`)
-          }
-        } catch (error) {
-          console.error(`Error decrypting text body for email ${e.id}:`, error)
-          // Continue without text body
-        }
-      }
+      const decryptedBody = decryptEmailField(e.body_encrypted, e.id, 'body')
+      const decryptedHtmlBody = decryptEmailField(e.html_body_encrypted, e.id, 'htmlBody')
+      const decryptedTextBody = decryptEmailField(e.text_body_encrypted, e.id, 'textBody')
+      const body = decryptedBody ?? ''
+      const htmlBody = decryptedHtmlBody
+      const textBody = decryptedTextBody
       
       return {
         id: e.id,
@@ -2816,4 +2617,3 @@ export function registerAllHandlers() {
   registerContactHandlers()
   registerShellHandlers()
 }
-

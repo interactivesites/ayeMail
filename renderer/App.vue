@@ -511,6 +511,11 @@ const syncEmailsForFolder = async (accountId: string, folderId: string) => {
         currentSyncFolderId.value = null
       }
 
+      // Start background body fetching after sync completes
+      if (result.success && selectedAccount.value) {
+        scheduleBackgroundBodyFetch(selectedAccount.value.id, folderId)
+      }
+
       // Hide progress after showing completion
       setTimeout(() => {
         if (syncProgress.value.folder === 'Complete') {
@@ -560,6 +565,41 @@ const handleEmailsLoaded = async () => {
       // Ignore errors
     }
   }
+}
+
+// Background body fetching - fetch email bodies when idle
+let bodyFetchTimeout: NodeJS.Timeout | null = null
+const scheduleBackgroundBodyFetch = (accountId: string, folderId: string) => {
+  // Clear any existing timeout
+  if (bodyFetchTimeout) {
+    clearTimeout(bodyFetchTimeout)
+  }
+
+  // Use requestIdleCallback with fallback
+  const requestIdleCallback = (window as any).requestIdleCallback || ((callback: (deadline?: any) => void) => {
+    setTimeout(() => callback(), 2000)
+  })
+
+  // Schedule body fetching when idle (after 3 seconds of inactivity)
+  bodyFetchTimeout = setTimeout(() => {
+    requestIdleCallback(async () => {
+      try {
+        if (selectedAccount.value && selectedAccount.value.id === accountId && selectedFolderId.value === folderId) {
+          // Only fetch if this folder is still selected
+          const result = await (window.electronAPI as any).emails.fetchBodiesBackground(accountId, folderId, 10)
+          if (result.success && result.fetched > 0) {
+            console.log(`Background: Fetched ${result.fetched} email bodies`)
+            // Refresh email list to show updated emails
+            window.dispatchEvent(new CustomEvent('refresh-emails'))
+            // Schedule next batch if there might be more
+            scheduleBackgroundBodyFetch(accountId, folderId)
+          }
+        }
+      } catch (error) {
+        console.error('Error in background body fetch:', error)
+      }
+    })
+  }, 3000) // Wait 3 seconds after sync completes
 }
 
 const handleAccountSelect = (account: any) => {

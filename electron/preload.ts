@@ -32,6 +32,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getThread: (emailId: string) => ipcRenderer.invoke('emails:getThread', emailId),
     sync: (accountId: string) => ipcRenderer.invoke('emails:sync', accountId),
     syncFolder: (accountId: string, folderId: string) => ipcRenderer.invoke('emails:sync-folder', accountId, folderId),
+    fetchBodiesBackground: (accountId: string, folderId: string, limit?: number) =>
+      ipcRenderer.invoke('emails:fetch-bodies-background', accountId, folderId, limit),
     send: (email: any) => ipcRenderer.invoke('emails:send', email),
     delete: (id: string) => ipcRenderer.invoke('emails:delete', id),
     archive: (id: string) => ipcRenderer.invoke('emails:archive', id),

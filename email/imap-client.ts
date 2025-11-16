@@ -9,6 +9,8 @@ interface ConnectionPool {
 }
 
 const connectionPool: ConnectionPool = {}
+const METADATA_HEADER_FIELDS =
+  'HEADER.FIELDS (DATE SUBJECT FROM TO CC BCC REPLY-TO MESSAGE-ID REFERENCES IN-REPLY-TO LIST-ID X-PRIORITY X-MAILER)'
 
 export class IMAPClient {
   private account: Account
@@ -227,6 +229,244 @@ export class IMAPClient {
         })
       })
     })
+  }
+
+  async fetchEmailMetadata(
+    folderName: string,
+    start: number = 1,
+    end: number = 50
+  ): Promise<Email[]> {
+    await this.ensureConnected()
+
+    return new Promise(async (resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error('IMAP fetch timeout'))
+      }, 120000) // 120 second timeout for large folders
+
+      try {
+        const errorHandler = (err: Error) => {
+          clearTimeout(timeout)
+          this.connection!.removeListener('error', errorHandler)
+          reject(err)
+        }
+        this.connection!.once('error', errorHandler)
+
+        let targetFolder = folderName
+        if (folderName.toUpperCase() === 'INBOX') {
+          targetFolder = await this.getInboxPath()
+        }
+
+        console.log(`Opening box for metadata: logical="${folderName}", actual path="${targetFolder}"`)
+
+        if (!this.connection || this.connection.state === 'disconnected') {
+          clearTimeout(timeout)
+          reject(new Error('IMAP connection not available'))
+          return
+        }
+
+        this.connection.openBox(targetFolder, true, (err, box) => {
+          if (err) {
+            clearTimeout(timeout)
+            if (this.connection) {
+              this.connection.removeListener('error', errorHandler)
+            }
+            reject(err)
+            return
+          }
+
+          if (!this.connection || this.connection.state === 'disconnected') {
+            clearTimeout(timeout)
+            if (this.connection) {
+              this.connection.removeListener('error', errorHandler)
+            }
+            reject(new Error('IMAP connection lost while opening box'))
+            return
+          }
+
+          console.log(`Opened box ${box.name} (path=${targetFolder}): total=${box.messages.total}, unseen=${box.messages.unseen}`)
+
+          if (!box || box.messages.total === 0) {
+            clearTimeout(timeout)
+            if (this.connection) {
+              this.connection.removeListener('error', errorHandler)
+            }
+            resolve([])
+            return
+          }
+
+          const totalMessages = box.messages.total || 0
+          if (totalMessages === 0) {
+            clearTimeout(timeout)
+            if (this.connection) {
+              this.connection.removeListener('error', errorHandler)
+            }
+            resolve([])
+            return
+          }
+
+          const fetchAll = end >= 10000 || end === 999999
+          const sequenceRange = fetchAll
+            ? '1:*'
+            : this.calculateSequenceRange(totalMessages, start, end)
+
+          if (!sequenceRange) {
+            clearTimeout(timeout)
+            if (this.connection) {
+              this.connection.removeListener('error', errorHandler)
+            }
+            resolve([])
+            return
+          }
+
+          console.log(`Fetching metadata from ${targetFolder} using sequence range ${sequenceRange}`)
+
+          const emails: Email[] = []
+
+          const fetch = this.connection!.seq.fetch(sequenceRange, {
+            bodies: METADATA_HEADER_FIELDS,
+            struct: true,
+            envelope: true
+          })
+
+          fetch.on('message', (msg, seqno) => {
+            let uid: number | null = null
+            let flags: string[] = []
+            let envelope: any = null
+            let headers = ''
+
+            msg.on('body', (stream) => {
+              const chunks: Buffer[] = []
+              stream.on('data', (chunk: Buffer) => chunks.push(chunk))
+              stream.once('end', () => {
+                headers = Buffer.concat(chunks).toString('utf8')
+              })
+            })
+
+            msg.on('attributes', (attrs) => {
+              uid = attrs.uid
+              flags = attrs.flags || []
+              envelope = (attrs as any).envelope
+            })
+
+            msg.once('end', () => {
+              try {
+                const email: Email = {
+                  id: `${this.account.id}-${folderName}-${uid || seqno}`,
+                  accountId: this.account.id,
+                  folderId: folderName,
+                  uid: uid || seqno,
+                  messageId: envelope?.messageId || `msg-${seqno}`,
+                  subject: envelope?.subject || `Message ${seqno}`,
+                  from: envelope?.from ? this.parseAddresses(envelope.from) : [{ address: 'unknown@example.com' }],
+                  to: envelope?.to ? this.parseAddresses(envelope.to) : [],
+                  cc: envelope?.cc ? this.parseAddresses(envelope.cc) : undefined,
+                  bcc: envelope?.bcc ? this.parseAddresses(envelope.bcc) : undefined,
+                  replyTo: envelope?.replyTo ? this.parseAddresses(envelope.replyTo) : undefined,
+                  date: envelope?.date ? new Date(envelope.date).getTime() : Date.now(),
+                  body: '',
+                  htmlBody: undefined,
+                  textBody: undefined,
+                  attachments: [],
+                  flags: flags,
+                  isRead: flags.includes('\\Seen'),
+                  isStarred: flags.includes('\\Flagged'),
+                  threadId: envelope?.inReplyTo || undefined,
+                  inReplyTo: envelope?.inReplyTo || undefined,
+                  references: envelope?.references
+                    ? (Array.isArray(envelope.references) ? envelope.references : [envelope.references])
+                    : undefined,
+                  encrypted: false,
+                  signed: false,
+                  signatureVerified: undefined,
+                  headers: headers ? this.parseHeaders(headers) : undefined,
+                  createdAt: Date.now(),
+                  updatedAt: Date.now()
+                }
+
+                emails.push(email)
+              } catch (messageErr) {
+                console.error(`Error processing metadata for seq ${seqno}:`, messageErr)
+              }
+            })
+          })
+
+          fetch.once('error', (err) => {
+            clearTimeout(timeout)
+            if (this.connection) {
+              this.connection.removeListener('error', errorHandler)
+            }
+            reject(err)
+          })
+
+          fetch.once('end', () => {
+            clearTimeout(timeout)
+            if (this.connection) {
+              this.connection.removeListener('error', errorHandler)
+            }
+            // Maintain newest-first ordering for downstream consumers
+            const sorted = emails.sort((a, b) => b.uid - a.uid)
+            console.log(`Fetched ${sorted.length} metadata entries from ${targetFolder}`)
+            resolve(sorted)
+          })
+        })
+      } catch (e) {
+        clearTimeout(timeout)
+        reject(e)
+      }
+    })
+  }
+
+  private parseHeaders(headersString: string): Record<string, string | string[]> {
+    const headers: Record<string, string | string[]> = {}
+    const lines = headersString.split('\r\n')
+    let currentKey = ''
+    let currentValue = ''
+
+    for (const line of lines) {
+      if (line.match(/^[A-Za-z0-9-]+:/)) {
+        // New header
+        if (currentKey) {
+          headers[currentKey.toLowerCase()] = currentValue.trim()
+        }
+        const colonIndex = line.indexOf(':')
+        currentKey = line.substring(0, colonIndex)
+        currentValue = line.substring(colonIndex + 1).trim()
+      } else if (line.startsWith(' ') || line.startsWith('\t')) {
+        // Continuation of previous header
+        currentValue += ' ' + line.trim()
+      }
+    }
+
+    if (currentKey) {
+      headers[currentKey.toLowerCase()] = currentValue.trim()
+    }
+
+    return headers
+  }
+
+  private calculateSequenceRange(totalMessages: number, start: number, end: number): string | null {
+    if (totalMessages <= 0) {
+      return null
+    }
+
+    const normalizedStart = Math.max(1, start)
+    const normalizedEnd = Math.max(normalizedStart, end)
+
+    if (normalizedStart > totalMessages) {
+      return null
+    }
+
+    const clampedStart = Math.min(normalizedStart, totalMessages)
+    const clampedEnd = Math.min(normalizedEnd, totalMessages)
+
+    const seqHigh = totalMessages - clampedStart + 1
+    const seqLow = Math.max(1, totalMessages - clampedEnd + 1)
+
+    if (seqHigh < seqLow) {
+      return null
+    }
+
+    return `${seqLow}:${seqHigh}`
   }
 
   async fetchEmails(
@@ -1007,4 +1247,3 @@ export class IMAPClient {
 export function getIMAPClient(account: Account): IMAPClient {
   return new IMAPClient(account)
 }
-

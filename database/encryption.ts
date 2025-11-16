@@ -127,3 +127,35 @@ export function decryptCredential(encryptedCredential: string): string {
   return decrypt(encryptedCredential)
 }
 
+export function isValidEncryptedPayload(value: string | null | undefined): boolean {
+  if (typeof value !== 'string') {
+    return false
+  }
+
+  const trimmed = value.trim()
+  if (!trimmed) {
+    return false
+  }
+
+  const parts = trimmed.split(':')
+  if (parts.length !== 3) {
+    return false
+  }
+
+  const [ivHex, tagHex, dataHex] = parts
+  const hexRegex = /^[0-9a-f]+$/i
+
+  if (ivHex.length !== IV_LENGTH * 2 || !hexRegex.test(ivHex)) {
+    return false
+  }
+
+  if (tagHex.length !== TAG_LENGTH * 2 || !hexRegex.test(tagHex)) {
+    return false
+  }
+
+  if (dataHex.length > 0 && (!hexRegex.test(dataHex) || dataHex.length % 2 !== 0)) {
+    return false
+  }
+
+  return true
+}
