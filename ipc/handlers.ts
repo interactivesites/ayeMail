@@ -1314,14 +1314,25 @@ export function registerEmailHandlers() {
         return { success: false, message: 'Account not found' }
       }
 
+      // Cancel any ongoing syncs for this account (including auto-sync)
+      emailStorage.cancelSync(accountId)
+      
+      // Also cancel any auto-sync that might be running
+      // The auto-sync uses accountId as cancellation token, so cancelling by accountId should work
+      
+      // Get inbox folder for tracking unread count
+      const db = getDatabase()
+      const inboxFolder = db.prepare(
+        "SELECT * FROM folders WHERE account_id = ? AND (LOWER(name) = 'inbox' OR LOWER(path) = 'inbox') LIMIT 1"
+      ).get(accountId) as any
+
       // Track new unread emails for notifications
       const newUnreadEmails: any[] = []
-      const db = getDatabase()
       
-      // Get count of unread emails before sync
-      const beforeUnreadCount = db.prepare(
-        'SELECT COUNT(*) as count FROM emails WHERE account_id = ? AND is_read = 0'
-      ).get(accountId) as any
+      // Get count of unread emails in inbox before sync
+      const beforeUnreadCount = inboxFolder ? db.prepare(
+        'SELECT COUNT(*) as count FROM emails WHERE folder_id = ? AND is_read = 0'
+      ).get(inboxFolder.id) as any : { count: 0 }
       const unreadBeforeSync = beforeUnreadCount?.count || 0
 
       // Progress callback
@@ -1340,13 +1351,17 @@ export function registerEmailHandlers() {
         }
       }
 
-      // Ensure folders are synced first (this is handled in syncAccount, but we can also do it here)
-      const result = await emailStorage.syncAccount(accountId, progressCallback)
+      // Sync with priority inbox - this will sync only inbox instantly
+      const cancellationToken = `manual-sync-${accountId}-${Date.now()}`
+      const result = await emailStorage.syncAccount(accountId, progressCallback, {
+        priorityInbox: true,
+        cancellationToken
+      })
       
-      // Get count of unread emails after sync
-      const afterUnreadCount = db.prepare(
-        'SELECT COUNT(*) as count FROM emails WHERE account_id = ? AND is_read = 0'
-      ).get(accountId) as any
+      // Get count of unread emails in inbox after sync
+      const afterUnreadCount = inboxFolder ? db.prepare(
+        'SELECT COUNT(*) as count FROM emails WHERE folder_id = ? AND is_read = 0'
+      ).get(inboxFolder.id) as any : { count: 0 }
       const unreadAfterSync = afterUnreadCount?.count || 0
       const newUnreadCount = unreadAfterSync - unreadBeforeSync
       

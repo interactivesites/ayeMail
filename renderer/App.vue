@@ -399,6 +399,12 @@ const handleReminderSaved = () => {
 const syncEmails = async () => {
   if (!selectedAccount.value || syncing.value) return
 
+  // Cancel any background body fetching
+  if (bodyFetchTimeout) {
+    clearTimeout(bodyFetchTimeout)
+    bodyFetchTimeout = null
+  }
+
   syncing.value = true
   syncProgress.value = { show: true, current: 0, total: 0, folder: '' }
 
@@ -427,7 +433,7 @@ const syncEmails = async () => {
     // Show initial progress
     syncProgress.value = { show: true, current: 0, total: 0, folder: '' }
 
-    // Start sync
+    // Start sync (this will cancel any ongoing syncs and prioritize inbox)
     const result = await window.electronAPI.emails.sync(selectedAccount.value.id)
 
     if (result.success) {

@@ -68,6 +68,13 @@ export class AutoSyncScheduler {
       // Sync inbox for each account (prioritized)
       for (const account of accounts) {
         try {
+          // Check if sync was cancelled for this account
+          const cancelToken = (emailStorage as any).cancellationTokens?.get(account.id)
+          if (cancelToken?.cancelled) {
+            console.log(`Auto-sync: Sync cancelled for account ${account.email}, skipping`)
+            continue
+          }
+
           console.log(`Auto-sync: Syncing inbox for account ${account.email}`)
           
           // Get inbox folder
@@ -89,6 +96,12 @@ export class AutoSyncScheduler {
           // Sync inbox folder with progress callback that tracks new emails
           const newEmailsThisFolder: any[] = []
           const progressCallback = (data: any) => {
+            // Check if sync was cancelled
+            const cancelToken = (emailStorage as any).cancellationTokens?.get(account.id)
+            if (cancelToken?.cancelled) {
+              return
+            }
+            
             // Send progress to renderer for UI updates
             if (this.mainWindow && !this.mainWindow.isDestroyed()) {
               this.mainWindow.webContents.send('emails:sync-progress', data)
