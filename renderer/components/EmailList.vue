@@ -95,7 +95,8 @@
                 'bg-primary-900 dark:bg-primary-800 text-white': selectedEmailId === email.id,
                 'hover:bg-primary-800/20 dark:hover:bg-primary-900/30': selectedEmailId !== email.id,
                 'border-l-2 border-primary-600 dark:border-primary-500': isEmailUnread(email),
-                'opacity-50': isDragging === email.id
+                'opacity-50': isDragging === email.id,
+                'busy': busyEmailIds.has(email.id)
               }"
             >
               <span
@@ -502,6 +503,9 @@ const archivePopoverRefs = new Map<string, HTMLElement>()
 const archiveArrowRefs = new Map<string, HTMLElement>()
 const archivingEmailId = ref<string | null>(null)
 
+// Track busy email IDs for immediate UI feedback
+const busyEmailIds = ref<Set<string>>(new Set())
+
 // Reminder modal state
 const showReminderModal = ref(false)
 const reminderEmail = ref<{ id: string; accountId: string } | null>(null)
@@ -820,6 +824,7 @@ const cancelArchive = () => {
 const confirmArchive = async (emailId: string) => {
   closeArchivePopover()
   archivingEmailId.value = emailId
+  busyEmailIds.value.add(emailId)
   
   try {
     const result = await window.electronAPI.emails.archive(emailId)
@@ -839,11 +844,14 @@ const confirmArchive = async (emailId: string) => {
     console.error('Error archiving email:', error)
   } finally {
     archivingEmailId.value = null
+    busyEmailIds.value.delete(emailId)
   }
 }
 
 const handleDeleteEmail = async (emailId: string) => {
   if (!emailId) return
+  
+  busyEmailIds.value.add(emailId)
   
   try {
     const result = await window.electronAPI.emails.delete(emailId)
@@ -873,11 +881,15 @@ const handleDeleteEmail = async (emailId: string) => {
     }
   } catch (error) {
     console.error('Error deleting email:', error)
+  } finally {
+    busyEmailIds.value.delete(emailId)
   }
 }
 
 const handleSpamEmail = async (emailId: string) => {
   if (!emailId) return
+  
+  busyEmailIds.value.add(emailId)
   
   try {
     const result = await window.electronAPI.emails.spam(emailId)
@@ -907,6 +919,8 @@ const handleSpamEmail = async (emailId: string) => {
     }
   } catch (error) {
     console.error('Error marking email as spam:', error)
+  } finally {
+    busyEmailIds.value.delete(emailId)
   }
 }
 
@@ -919,6 +933,8 @@ const handleUnspamEmail = async (emailId: string) => {
     return
   }
   
+  busyEmailIds.value.add(emailId)
+  
   try {
     // Get inbox folder for the account
     const folders = await window.electronAPI.folders.list(email.accountId)
@@ -926,6 +942,7 @@ const handleUnspamEmail = async (emailId: string) => {
     
     if (!inboxFolder) {
       console.error('Inbox folder not found for account:', email.accountId)
+      busyEmailIds.value.delete(emailId)
       return
     }
     
@@ -957,6 +974,8 @@ const handleUnspamEmail = async (emailId: string) => {
     }
   } catch (error) {
     console.error('Error un-spamming email:', error)
+  } finally {
+    busyEmailIds.value.delete(emailId)
   }
 }
 
@@ -1158,6 +1177,8 @@ const handleFolderSelected = async (folderId: string) => {
   
   const emailId = folderPickerEmail.value.id
   
+  busyEmailIds.value.add(emailId)
+  
   // Optimistically remove email
   const emailToRemove = emails.value.find(e => e.id === emailId)
   if (emailToRemove) {
@@ -1183,9 +1204,10 @@ const handleFolderSelected = async (folderId: string) => {
       removedEmails.value.delete(emailId)
     }
     alert(`Failed to move email: ${error.message || 'Unknown error'}`)
+  } finally {
+    busyEmailIds.value.delete(emailId)
+    closeFolderPickerPopover()
   }
-  
-  closeFolderPickerPopover()
 }
 
 // Get all emails as a flat array (for navigation)
@@ -2021,5 +2043,10 @@ onUnmounted(() => {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+.busy {
+  opacity: 0.5;
+  pointer-events: none;
 }
 </style>

@@ -127,7 +127,7 @@
     "accountName": "Kontoname",
     "accountNamePlaceholder": "Mein E-Mail-Konto",
     "emailAddress": "E-Mail-Adresse",
-    "emailAddressPlaceholder": "benutzer@beispiel.com",
+    "emailAddressPlaceholder": "ihre.email@domain.com",
     "accountType": "Kontotyp",
     "imap": "IMAP",
     "pop3": "POP3",
@@ -147,7 +147,19 @@
     "enterPassword": "Bitte geben Sie ein Passwort ein",
     "failedToLoadAccount": "Konto konnte nicht geladen werden: {message}",
     "failedToAddAccount": "Konto konnte nicht hinzugefügt werden: {message}",
-    "failedToUpdateAccount": "Konto konnte nicht aktualisiert werden: {message}"
+    "failedToUpdateAccount": "Konto konnte nicht aktualisiert werden: {message}",
+    "autoConfigSearching": "Suche nach bekannten Anbietereinstellungen...",
+    "autoConfigTesting": "Verbindung mit den gefundenen Einstellungen wird getestet...",
+    "autoConfigSuccess": "Verbindung erfolgreich.",
+    "autoConfigSuccessWithProvider": "Verbindung erfolgreich mit den {provider}-Voreinstellungen.",
+    "autoConfigNoProvider": "Für diese Domain wurden keine Voreinstellungen gefunden. Bitte nutze die erweiterten Einstellungen.",
+    "autoConfigEnterPassword": "Bitte gib dein Passwort ein, damit wir die Verbindung automatisch testen können.",
+    "autoConfigGenericError": "Die automatische Einrichtung ist fehlgeschlagen. Bitte prüfe die erweiterten Einstellungen.",
+    "testConnection": "Verbindung testen",
+    "testingConnection": "Teste...",
+    "testConnectionFailed": "Verbindungstest fehlgeschlagen. Bitte überprüfe deine Einstellungen.",
+    "accountAdded": "Konto erfolgreich hinzugefügt!",
+    "accountUpdated": "Konto erfolgreich aktualisiert!"
   },
   "signatures": {
     "selectAccount": "Konto auswählen"
@@ -213,4 +225,3 @@
     "confirmArchive": "Bestätigungsnachrichten in den Einstellungen deaktivieren"
   }
 }
-

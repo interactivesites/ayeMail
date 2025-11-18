@@ -17,7 +17,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     add: (account: any) => ipcRenderer.invoke('accounts:add', account),
     update: (id: string, account: any) => ipcRenderer.invoke('accounts:update', id, account),
     remove: (id: string) => ipcRenderer.invoke('accounts:remove', id),
-    test: (account: any) => ipcRenderer.invoke('accounts:test', account)
+    test: (account: any) => ipcRenderer.invoke('accounts:test', account),
+    probe: (account: any) => ipcRenderer.invoke('accounts:probe', account)
   },
   
   // Email operations
@@ -153,4 +154,3 @@ contextBridge.exposeInMainWorld('electronAPI', {
     openExternal: (url: string) => ipcRenderer.invoke('shell:openExternal', url)
   }
 })
-

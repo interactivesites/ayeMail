@@ -29,9 +29,8 @@
     "!**/node_modules/**/package-lock.json",
     "!**/node_modules/**/yarn.lock"
   ],
-  "asar": false,
+  "asar": true,
   "compression": "maximum",
-  "includeSubNodeModules": false,
   "mac": {
     "category": "public.app-category.productivity",
     "target": [

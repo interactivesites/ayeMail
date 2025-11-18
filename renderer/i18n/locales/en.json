@@ -127,7 +127,7 @@
     "accountName": "Account Name",
     "accountNamePlaceholder": "My Email Account",
     "emailAddress": "Email Address",
-    "emailAddressPlaceholder": "user@example.com",
+    "emailAddressPlaceholder": "your.email@domain.com",
     "accountType": "Account Type",
     "imap": "IMAP",
     "pop3": "POP3",
@@ -147,7 +147,19 @@
     "enterPassword": "Please enter a password",
     "failedToLoadAccount": "Failed to load account: {message}",
     "failedToAddAccount": "Failed to add account: {message}",
-    "failedToUpdateAccount": "Failed to update account: {message}"
+    "failedToUpdateAccount": "Failed to update account: {message}",
+    "autoConfigSearching": "Looking up provider settings...",
+    "autoConfigTesting": "Trying to connect with the detected settings...",
+    "autoConfigSuccess": "Connection successful.",
+    "autoConfigSuccessWithProvider": "Connection successful using the {provider} presets.",
+    "autoConfigNoProvider": "We couldn't find presets for this domain. You'll need to use Advanced Settings.",
+    "autoConfigEnterPassword": "Enter your password so we can try connecting automatically.",
+    "autoConfigGenericError": "Automatic setup failed. Please review the advanced settings.",
+    "testConnection": "Test Connection",
+    "testingConnection": "Testing...",
+    "testConnectionFailed": "Connection test failed. Please check your settings.",
+    "accountAdded": "Account added successfully!",
+    "accountUpdated": "Account updated successfully!"
   },
   "signatures": {
     "selectAccount": "Select Account"
@@ -213,4 +225,3 @@
     "confirmArchive": "Disable confirmation messages in Preferences"
   }
 }
-

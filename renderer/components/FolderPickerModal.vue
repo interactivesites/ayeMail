@@ -2,16 +2,16 @@
   <div
     v-if="isPopover"
     ref="modalRef"
-    class="folder-picker-popover bg-white rounded-lg shadow-xl border border-gray-200 relative"
+    class="folder-picker-popover bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 relative"
     style="width: 320px; max-height: 400px;"
     @keydown="handleKeyDown"
   >
-    <div class="p-3 border-b border-gray-200">
+    <div class="p-3 border-b border-gray-200 dark:border-gray-700">
       <div class="flex items-center justify-between mb-2">
-        <h3 class="text-sm font-semibold text-gray-900">Move to folder</h3>
+        <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Move to folder</h3>
         <button
           @click="$emit('close')"
-          class="text-gray-400 hover:text-gray-600 transition-colors"
+          class="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
           title="Close (Esc)"
         >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -24,12 +24,12 @@
         v-model="searchQuery"
         type="text"
         placeholder="Search folders..."
-        class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary-600"
+        class="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-600 dark:focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
         @keydown.enter.prevent="selectHighlightedFolder"
       />
     </div>
     <div class="overflow-y-auto max-h-[320px] p-2">
-      <div v-if="filteredFolders.length === 0" class="p-4 text-center text-gray-500 text-sm">
+      <div v-if="filteredFolders.length === 0" class="p-4 text-center text-gray-500 dark:text-gray-400 text-sm">
         No folders found
       </div>
       <div v-else>
@@ -38,13 +38,13 @@
           :key="folder.id"
           :ref="(el) => { if (el) folderRefs[index] = el as HTMLElement }"
           @click="selectFolder(folder.id)"
-          class="w-full text-left px-3 py-2 rounded hover:bg-gray-100 transition-colors text-sm"
+          class="w-full text-left px-3 py-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-sm text-gray-900 dark:text-gray-100"
           :class="{
-            'bg-primary-50 text-primary-900': highlightedIndex === index
+            'bg-primary-50 dark:bg-primary-900/30 text-primary-900 dark:text-primary-300': highlightedIndex === index
           }"
         >
           <div class="flex items-center space-x-2">
-            <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-4 h-4 text-gray-400 dark:text-gray-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
             </svg>
             <span class="truncate">{{ getFolderDisplayName(folder) }}</span>

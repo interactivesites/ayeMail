@@ -180,6 +180,11 @@ export function registerAccountHandlers() {
     const { testAccountConnection } = await import('../email/connection-tester')
     return testAccountConnection(account.id)
   })
+
+  ipcMain.handle('accounts:probe', async (_, account: any) => {
+    const { testAccountSettings } = await import('../email/connection-tester')
+    return testAccountSettings(account)
+  })
 }
 
 // Folder handlers
