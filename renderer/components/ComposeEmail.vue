@@ -25,7 +25,7 @@
             v-model="form.to"
             type="text"
             class="w-full px-3 py-2 bg-transparent border-0 border-b border-gray-300 rounded-none focus:outline-none focus:ring-0 focus:border-primary-600 transition-colors"
-            placeholder="To"
+            :placeholder="$t('email.toPlaceholder')"
           />
         </div>
         <div>
@@ -33,7 +33,7 @@
             v-model="form.cc"
             type="text"
             class="w-full px-3 py-2 bg-transparent border-0 border-b border-gray-300 rounded-none focus:outline-none focus:ring-0 focus:border-primary-600 transition-colors"
-            placeholder="CC"
+            :placeholder="$t('email.ccPlaceholder')"
           />
         </div>
         <div>
@@ -41,7 +41,7 @@
             v-model="form.subject"
             type="text"
             class="w-full px-3 py-2 bg-transparent border-0 border-b border-gray-300 rounded-none focus:outline-none focus:ring-0 focus:border-primary-600 transition-colors"
-            placeholder="Subject"
+            :placeholder="$t('email.subjectPlaceholder')"
           />
         </div>
         <div>
@@ -49,7 +49,7 @@
             v-model="form.body"
             rows="10"
             class="w-full px-3 py-2 bg-transparent border-0 rounded-none focus:outline-none focus:ring-0 focus:border-primary-600 transition-colors resize-none"
-            placeholder="Email body"
+            :placeholder="$t('email.emailBody')"
           ></textarea>
         </div>
         <div class="flex items-center space-x-4 ">

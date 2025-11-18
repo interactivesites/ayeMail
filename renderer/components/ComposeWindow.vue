@@ -16,7 +16,7 @@
         <h2 class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate min-w-0 flex-1" :title="displayTitle">{{ displayTitle }}</h2>
         <div class="border-l border-gray-300 dark:border-gray-600 h-4 mx-4 flex-shrink-0"></div>
         <div class="flex items-center space-x-2">
-          <label class="text-xs text-gray-600 dark:text-gray-300">From:</label>
+          <label class="text-xs text-gray-600 dark:text-gray-300">{{ $t('compose.from') }}</label>
           <select
             v-model="selectedAccountId"
             @change="handleAccountChange"

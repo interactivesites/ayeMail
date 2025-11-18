@@ -35,7 +35,7 @@
         </div>
         <div class="text-sm text-gray-600 dark:text-gray-300 space-y-1">
           <div>
-            <span class="font-medium">From:</span>
+            <span class="font-medium">{{ $t('email.from') }}</span>
             <span class="ml-2">
               <template v-if="email.from && (email.from as EmailAddress[]).length > 0">
                 <template v-for="(addr, index) in (email.from as EmailAddress[])" :key="index">
@@ -55,11 +55,11 @@
             </span>
           </div>
           <div v-if="email.to && email.to.length > 0">
-            <span class="font-medium">To:</span>
+            <span class="font-medium">{{ $t('email.to') }}</span>
             <span class="ml-2">{{ formatAddresses(email.to) }}</span>
           </div>
           <div v-if="email.cc && email.cc.length > 0">
-            <span class="font-medium">CC:</span>
+            <span class="font-medium">{{ $t('email.cc') }}</span>
             <span class="ml-2">{{ formatAddresses(email.cc) }}</span>
           </div>
           <div class="text-gray-500 dark:text-gray-400">
