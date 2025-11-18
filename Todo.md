@@ -13,6 +13,7 @@
 - Auto-Updater?
 
 ## Bugs
+- threads show 2x same mail
 
 
 ## UI

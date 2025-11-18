@@ -67,10 +67,33 @@
           @forward="handleForward" 
           @set-reminder="handleSetReminder" 
           @delete="handleDelete" 
-          @select-thread-email="handleEmailSelect" 
+          @select-thread-email="handleThreadEmailSelect" 
         />
       </div>
     </div>
+    
+    <!-- Reminder Modal as Popover -->
+    <Teleport to="body">
+      <div
+        v-if="showReminderModal && reminderEmail"
+        ref="reminderModalRef"
+        class="popover-panel fixed z-[9999]"
+        :style="reminderModalStyle"
+        style="pointer-events: auto;"
+      >
+        <div
+          class="popover-arrow bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700"
+          ref="reminderArrowRef"
+        ></div>
+        <ReminderModal
+          :email-id="reminderEmail.id"
+          :account-id="reminderEmail.accountId"
+          :is-popover="true"
+          @close="closeReminderPopover()"
+          @saved="handleReminderSaved"
+        />
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -83,10 +106,17 @@ import { useEmailActions } from '../composables/useEmailActions'
 import { useEmailCacheStore } from '../stores/emailCache'
 import EmailNavigation from './EmailNavigation.vue'
 import EmailViewer from './EmailViewer.vue'
+import ReminderModal from './ReminderModal.vue'
+import { computePosition, offset, shift, arrow as floatingArrow, flip } from '@floating-ui/dom'
+import type { Placement, MiddlewareData } from '@floating-ui/dom'
 
 const props = defineProps<{
   accountId?: string
   selectedEmailId?: string
+  folderId?: string
+  folderName?: string
+  unifiedFolderType?: string
+  unifiedFolderAccountIds?: string[]
 }>()
 
 const emit = defineEmits<{
@@ -105,6 +135,13 @@ const selectedEmail = ref<any>(null)
 const loadingEmail = ref(false)
 const currentFolderName = ref<string>('')
 let resizeObserver: ResizeObserver | null = null
+
+// Reminder modal state
+const showReminderModal = ref(false)
+const reminderEmail = ref<{ id: string; accountId: string } | null>(null)
+const reminderModalStyle = ref<{ top?: string; left?: string; right?: string; transform?: string }>({})
+const reminderModalRef = ref<HTMLElement | null>(null)
+const reminderArrowRef = ref<HTMLElement | null>(null)
 
 // Email actions composable
 const {
@@ -319,6 +356,11 @@ watch(() => currentIndex.value, () => {
   loadCurrentEmail()
 })
 
+// Watch for folder changes and reload emails
+watch([() => props.folderId, () => props.unifiedFolderType, () => props.unifiedFolderAccountIds], () => {
+  loadEmails()
+}, { deep: true })
+
 const handleItemClick = (index: number) => {
   // If clicking the current item, do nothing (already loaded)
   if (index === currentIndex.value) {
@@ -386,9 +428,162 @@ const handleForward = (email: any) => {
   }
 }
 
-const handleSetReminder = (email: any) => {
+const getEmailElement = (emailId: string): HTMLElement | null => {
+  return document.querySelector(`[data-email-id="${emailId}"]`) as HTMLElement | null
+}
+
+const getEmailAnchorElement = (emailId: string): HTMLElement | null => {
+  return document.querySelector(`[data-email-anchor="${emailId}"]`) as HTMLElement | null
+}
+
+const updateArrowStyles = (arrowElement: HTMLElement | null | undefined, placement: Placement, middlewareData: MiddlewareData) => {
+  if (!arrowElement || !middlewareData?.arrow) {
+    return
+  }
+
+  const { x: arrowX, y: arrowY } = middlewareData.arrow as { x?: number | null; y?: number | null }
+  const basePlacement = placement.split('-')[0] as 'top' | 'right' | 'bottom' | 'left'
+  const staticSideMap: Record<'top' | 'right' | 'bottom' | 'left', 'top' | 'right' | 'bottom' | 'left'> = {
+    top: 'bottom',
+    right: 'left',
+    bottom: 'top',
+    left: 'right'
+  }
+
+  arrowElement.style.left = ''
+  arrowElement.style.top = ''
+  arrowElement.style.right = ''
+  arrowElement.style.bottom = ''
+
+  if (arrowX != null) {
+    arrowElement.style.left = `${arrowX}px`
+  }
+  if (arrowY != null) {
+    arrowElement.style.top = `${arrowY}px`
+  }
+
+  const staticSide = staticSideMap[basePlacement]
+  if (staticSide) {
+    arrowElement.style[staticSide] = '-6px'
+  }
+}
+
+const positionFloatingElement = async ({
+  referenceElement,
+  floatingElement,
+  placement = 'right-end',
+  arrowElement,
+  styleRef
+}: {
+  referenceElement: HTMLElement
+  floatingElement: HTMLElement
+  placement?: Placement
+  arrowElement?: HTMLElement | null
+  styleRef?: typeof reminderModalStyle
+}) => {
+  const middleware = [
+    offset(12),
+    shift({ padding: 12 }),
+    flip()
+  ]
+
+  if (arrowElement) {
+    middleware.push(floatingArrow({ element: arrowElement }))
+  }
+
+  const { x, y, placement: finalPlacement, middlewareData } = await computePosition(
+    referenceElement,
+    floatingElement,
+    {
+      placement,
+      middleware
+    }
+  )
+
+  if (styleRef) {
+    styleRef.value = {
+      top: `${y}px`,
+      left: `${x}px`,
+      transform: 'none'
+    }
+  }
+
+  if (arrowElement && middlewareData?.arrow) {
+    updateArrowStyles(arrowElement, finalPlacement, middlewareData)
+  }
+}
+
+const closeReminderPopover = () => {
+  showReminderModal.value = false
+  reminderEmail.value = null
+}
+
+const handleReminderSaved = async () => {
+  closeReminderPopover()
+  // Reload emails to reflect any changes
+  await loadEmails()
+}
+
+const showReminderForEmail = async (emailId: string) => {
+  const email = mails.value.find(e => e.id === emailId)
+  if (!email || !email.accountId) {
+    console.error('Email not found or missing accountId', { emailId, email })
+    return
+  }
+  
+  reminderEmail.value = { id: emailId, accountId: email.accountId }
+  
+  // Set initial position first (centered) so modal is visible immediately
+  reminderModalStyle.value = {
+    top: '50%',
+    left: '50%',
+    transform: 'translate(-50%, -50%)'
+  }
+  
+  // Show modal first, then position it
+  showReminderModal.value = true
+  
+  // Wait for modal to render - need multiple ticks for Teleport + component mount
+  await nextTick()
+  await nextTick()
+  await nextTick()
+  
+  // Additional small delay to ensure calendar component has rendered
+  await new Promise(resolve => setTimeout(resolve, 50))
+  
+  const emailElement = getEmailElement(emailId)
+  const anchorElement = getEmailAnchorElement(emailId)
+  const modalElement = reminderModalRef.value
+  
+  const referenceElement = anchorElement || emailElement
+  
+  if (referenceElement && modalElement) {
+    try {
+      await positionFloatingElement({
+        referenceElement,
+        floatingElement: modalElement,
+        arrowElement: reminderArrowRef.value,
+        styleRef: reminderModalStyle,
+        placement: 'right-end'
+      })
+    } catch (error) {
+      console.error('Error positioning reminder modal:', error)
+      // Fallback positioning
+      const rect = referenceElement.getBoundingClientRect()
+      reminderModalStyle.value = {
+        top: `${rect.top}px`,
+        left: `${rect.right + 12}px`,
+        transform: 'none'
+      }
+    }
+  } else {
+    console.warn('Email or modal element not found, keeping centered position')
+  }
+}
+
+const handleSetReminder = async (email: any) => {
   if (!email || !email.id) return
-  setReminderForEmail(email)
+  await showReminderForEmail(email.id)
 }
 
 const handleEmailDoubleClick = async (emailId: string) => {
@@ -397,6 +592,11 @@ const handleEmailDoubleClick = async (emailId: string) => {
   } catch (error) {
     console.error('Error opening email in new window:', error)
   }
+}
+
+const handleThreadEmailSelect = (emailId: string) => {
+  // When a thread email is selected, emit the select-email event
+  emit('select-email', emailId)
 }
 
 const handleDelete = async (email: any) => {
@@ -443,7 +643,7 @@ const handleDelete = async (email: any) => {
   }
 }
 
-onMounted(async () => {
+const loadEmails = async () => {
   try {
     // Use provided accountId or get first account
     let accountId: string = props.accountId || ''
@@ -456,45 +656,95 @@ onMounted(async () => {
       accountId = accounts[0].id
     }
 
-    // Get folders for the account
-    const folders = await window.electronAPI.folders.list(accountId)
+    // Handle unified folders
+    if (props.unifiedFolderType) {
+      const accountIds = Array.isArray(props.unifiedFolderAccountIds) 
+        ? [...props.unifiedFolderAccountIds] 
+        : []
+      mails.value = await window.electronAPI.emails.listUnified(
+        String(props.unifiedFolderType),
+        accountIds,
+        0,
+        100
+      )
+      // Set folder name based on unified folder type
+      const folderNames: Record<string, string> = {
+        'inbox': 'Inbox',
+        'sent': 'Sent',
+        'drafts': 'Drafts',
+        'spam': 'Spam',
+        'trash': 'Trash',
+        'archive': 'Archive'
+      }
+      currentFolderName.value = folderNames[props.unifiedFolderType] || props.unifiedFolderType
+    } else if (props.folderId) {
+      // Regular folder - load emails
+      mails.value = await window.electronAPI.emails.list(props.folderId, 0, 100, false)
+      
+      // Get folder name
+      if (props.folderName) {
+        currentFolderName.value = props.folderName
+      } else {
+        // Fetch folder name if not provided
+        const folders = await window.electronAPI.folders.list(accountId)
+        const folder = folders.find((f: any) => f.id === props.folderId)
+        currentFolderName.value = folder?.name || 'Folder'
+      }
+    } else {
+      // Fallback to inbox if no folder specified
+      const folders = await window.electronAPI.folders.list(accountId)
+      const inboxFolder = folders.find((f: any) => f.name.toLowerCase() === 'inbox')
+      
+      if (!inboxFolder) {
+        console.warn('Inbox folder not found')
+        return
+      }
 
-    // Find the inbox folder
-    const inboxFolder = folders.find((f: any) => f.name.toLowerCase() === 'inbox')
-
-    if (!inboxFolder) {
-      console.warn('Inbox folder not found')
-      return
+      currentFolderName.value = inboxFolder.name || 'Inbox'
+      mails.value = await window.electronAPI.emails.list(inboxFolder.id, 0, 100, false)
     }
 
-    // Store folder name
-    currentFolderName.value = inboxFolder.name || 'Inbox'
-
-    // Load emails from inbox
-    mails.value = await window.electronAPI.emails.list(inboxFolder.id, 0, 100, false)
+    // Reset to first email when folder changes
+    currentIndex.value = 0
+    selectedEmail.value = null
 
     // Wait for DOM to update
     await nextTick()
 
     // Initialize positions
     updateMailPositions()
-
-    // Add resize observer to update positions on container resize
-    if (containerRef.value) {
-      resizeObserver = new ResizeObserver(() => {
-        updateMailPositions()
-      })
-      resizeObserver.observe(containerRef.value)
-    }
   } catch (error) {
-    console.error('Error loading inbox emails:', error)
+    console.error('Error loading emails:', error)
   }
+}
+
+// Handle click outside to close reminder popover
+const handleClickOutside = (event: MouseEvent) => {
+  if (showReminderModal.value && reminderModalRef.value && !reminderModalRef.value.contains(event.target as Node)) {
+    closeReminderPopover()
+  }
+}
+
+onMounted(async () => {
+  await loadEmails()
+
+  // Add resize observer to update positions on container resize
+  if (containerRef.value) {
+    resizeObserver = new ResizeObserver(() => {
+      updateMailPositions()
+    })
+    resizeObserver.observe(containerRef.value)
+  }
+  
+  // Listen for clicks outside to close reminder popover
+  document.addEventListener('click', handleClickOutside)
 })
 
 onUnmounted(() => {
   if (resizeObserver) {
     resizeObserver.disconnect()
   }
+  document.removeEventListener('click', handleClickOutside)
 })
 
 

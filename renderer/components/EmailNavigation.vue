@@ -94,7 +94,7 @@ const emit = defineEmits<{
 }>()
 
 const preferences = usePreferencesStore()
-const { composeEmail, replyToEmail, forwardEmail, setReminderForEmail, deleteEmailByObject } = useEmailActions()
+const { composeEmail, replyToEmail, forwardEmail, deleteEmailByObject } = useEmailActions()
 
 const handleCompose = () => {
   if (props.accountId) {
@@ -126,18 +126,16 @@ const handleForward = () => {
 
 const handleSetReminder = () => {
   if (props.selectedEmail) {
-    setReminderForEmail(props.selectedEmail)
+    // Just emit the event - let parent component handle showing the popover
     emit('set-reminder', props.selectedEmail)
   }
 }
 
 const handleDelete = async () => {
   if (props.selectedEmail) {
-    if (props.accountId) {
-      await deleteEmailByObject(props.selectedEmail)
-    } else {
-      emit('delete', props.selectedEmail)
-    }
+    // Always emit the event - let parent component handle the deletion
+    // This allows parent to update UI state properly
+    emit('delete', props.selectedEmail)
   }
 }
 </script>
