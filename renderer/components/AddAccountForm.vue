@@ -94,7 +94,7 @@
             @click="showAdvanced = true"
             class="text-sm text-primary-600 dark:text-primary-400 hover:underline"
           >
-            {{ $t('accounts.advancedSettings') || 'Advanced Settings' }}
+            {{ $t('accounts.advancedSettings') }}
           </button>
         </div>
 
@@ -296,7 +296,7 @@
             @click="showAdvanced = false"
             class="text-sm text-primary-600 dark:text-primary-400 hover:underline"
           >
-            {{ $t('accounts.simpleMode') || 'Simple Mode' }}
+            {{ $t('accounts.simpleMode') }}
           </button>
         </template>
       </div>
@@ -510,6 +510,7 @@ const autoConfigState = reactive({
 })
 let autoConfigTimeout: ReturnType<typeof setTimeout> | null = null
 let autoConfigRequestId = 0
+let advancedModeTimeout: ReturnType<typeof setTimeout> | null = null
 
 const resetAutoConfigState = () => {
   autoConfigState.status = 'idle'
@@ -600,8 +601,14 @@ const attemptAutoConfiguration = async () => {
   if (!hasKnownProvider) {
     autoConfigState.status = 'failed'
     autoConfigState.error = t('accounts.autoConfigNoProvider') || 'No provider preset found. Opening advanced settings.'
+    // Only switch to advanced mode after a delay to avoid jumping while user is typing
     if (form.value.password) {
-      showAdvanced.value = true
+      if (advancedModeTimeout) {
+        clearTimeout(advancedModeTimeout)
+      }
+      advancedModeTimeout = setTimeout(() => {
+        showAdvanced.value = true
+      }, 1500) // 1.5 second delay after password is entered
     }
     return
   }
@@ -631,7 +638,10 @@ const attemptAutoConfiguration = async () => {
       autoConfigState.status = 'failed'
       autoConfigState.error = result?.message || t('accounts.autoConfigGenericError') ||
         'Automatic setup failed. Opening advanced settings.'
-      showAdvanced.value = true
+      // Add a small delay before switching to advanced mode to avoid jarring UI change
+      setTimeout(() => {
+        showAdvanced.value = true
+      }, 500)
     }
   } catch (error: any) {
     if (requestId !== autoConfigRequestId) {
@@ -640,7 +650,10 @@ const attemptAutoConfiguration = async () => {
     autoConfigState.status = 'failed'
     autoConfigState.error = error?.message || t('accounts.autoConfigGenericError') ||
       'Automatic setup failed. Opening advanced settings.'
-    showAdvanced.value = true
+    // Add a small delay before switching to advanced mode to avoid jarring UI change
+    setTimeout(() => {
+      showAdvanced.value = true
+    }, 500)
   }
 }
 
@@ -660,6 +673,11 @@ watch(
   () => {
     if (editingAccount.value) {
       return
+    }
+    // Clear advanced mode timeout if password is cleared
+    if (!form.value.password && advancedModeTimeout) {
+      clearTimeout(advancedModeTimeout)
+      advancedModeTimeout = null
     }
     // Clear messages when form fields change
     errorMessage.value = ''
@@ -687,6 +705,9 @@ watch(
 onBeforeUnmount(() => {
   if (autoConfigTimeout) {
     clearTimeout(autoConfigTimeout)
+  }
+  if (advancedModeTimeout) {
+    clearTimeout(advancedModeTimeout)
   }
 })
 

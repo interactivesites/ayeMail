@@ -159,7 +159,9 @@
     "testingConnection": "Teste...",
     "testConnectionFailed": "Verbindungstest fehlgeschlagen. Bitte überprüfe deine Einstellungen.",
     "accountAdded": "Konto erfolgreich hinzugefügt!",
-    "accountUpdated": "Konto erfolgreich aktualisiert!"
+    "accountUpdated": "Konto erfolgreich aktualisiert!",
+    "advancedSettings": "Erweiterte Einstellungen",
+    "simpleMode": "Einfacher Modus"
   },
   "signatures": {
     "selectAccount": "Konto auswählen"
