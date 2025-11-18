@@ -89,6 +89,15 @@
               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-600 dark:bg-gray-800 dark:text-gray-100"
               :placeholder="editingAccount ? $t('accounts.passwordLeaveBlankPlaceholder') : $t('accounts.passwordPlaceholder')"
             />
+            <div v-if="detectedProvider === 'Gmail' && !editingAccount" class="mt-2 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded">
+              <p class="text-sm font-medium text-yellow-800 dark:text-yellow-200 mb-2">{{ $t('accounts.gmailAppPasswordHint') }}</p>
+              <button
+                @click="showGmailHelpModal = true"
+                class="text-xs text-primary-600 dark:text-primary-400 hover:underline font-medium"
+              >
+                {{ $t('accounts.showStepByStepGuide') }} →
+              </button>
+            </div>
           </div>
           <button
             @click="showAdvanced = true"
@@ -243,6 +252,15 @@
             class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-600 dark:bg-gray-800 dark:text-gray-100"
             :placeholder="editingAccount ? $t('accounts.passwordLeaveBlankPlaceholder') : $t('accounts.passwordPlaceholder')"
           />
+          <div v-if="detectedProvider === 'Gmail' && !editingAccount" class="mt-2 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded">
+            <p class="text-sm font-medium text-yellow-800 dark:text-yellow-200 mb-2">{{ $t('accounts.gmailAppPasswordHint') }}</p>
+            <button
+              @click="showGmailHelpModal = true"
+              class="text-xs text-primary-600 dark:text-primary-400 hover:underline font-medium"
+            >
+              {{ $t('accounts.showStepByStepGuide') }} →
+            </button>
+          </div>
         </div>
         <!-- From Addresses Management (only when editing) -->
         <div v-if="editingAccount && props.accountId" class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
@@ -300,6 +318,99 @@
           </button>
         </template>
       </div>
+      <!-- Gmail App Password Help Modal -->
+      <div
+        v-if="showGmailHelpModal"
+        class="fixed inset-0 bg-black bg-opacity-50 dark:bg-opacity-70 flex items-center justify-center z-[60]"
+        @click.self="showGmailHelpModal = false"
+      >
+        <div class="bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-2xl max-h-[85vh] flex flex-col">
+          <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ $t('accounts.gmailAppPasswordTitle') }}</h2>
+            <button
+              @click="showGmailHelpModal = false"
+              class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+            >
+              ✕
+            </button>
+          </div>
+          <div class="flex-1 overflow-y-auto p-6 space-y-4">
+            <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+              <p class="text-sm text-blue-800 dark:text-blue-200">
+                {{ $t('accounts.gmailAppPasswordExplanation') }}
+              </p>
+            </div>
+            
+            <div class="space-y-4">
+              <div class="flex items-start space-x-3">
+                <div class="flex-shrink-0 w-8 h-8 bg-primary-600 text-white rounded-full flex items-center justify-center font-semibold">1</div>
+                <div class="flex-1">
+                  <p class="font-medium text-gray-900 dark:text-gray-100 mb-1">{{ $t('accounts.gmailAppPasswordStep1') }}</p>
+                  <button
+                    @click="openAppPasswordPage"
+                    class="text-primary-600 dark:text-primary-400 hover:underline text-sm break-all"
+                  >
+                    https://myaccount.google.com/apppasswords
+                  </button>
+                </div>
+              </div>
+              
+              <div class="flex items-start space-x-3">
+                <div class="flex-shrink-0 w-8 h-8 bg-primary-600 text-white rounded-full flex items-center justify-center font-semibold">2</div>
+                <div class="flex-1">
+                  <p class="font-medium text-gray-900 dark:text-gray-100 mb-1">{{ $t('accounts.gmailAppPasswordStep2') }}</p>
+                  <p class="text-sm text-gray-600 dark:text-gray-400">{{ $t('accounts.gmailAppPasswordStep2Detail') }}</p>
+                </div>
+              </div>
+              
+              <div class="flex items-start space-x-3">
+                <div class="flex-shrink-0 w-8 h-8 bg-primary-600 text-white rounded-full flex items-center justify-center font-semibold">3</div>
+                <div class="flex-1">
+                  <p class="font-medium text-gray-900 dark:text-gray-100 mb-1">{{ $t('accounts.gmailAppPasswordStep3') }}</p>
+                  <p class="text-sm text-gray-600 dark:text-gray-400">{{ $t('accounts.gmailAppPasswordStep3Detail') }}</p>
+                </div>
+              </div>
+              
+              <div class="flex items-start space-x-3">
+                <div class="flex-shrink-0 w-8 h-8 bg-primary-600 text-white rounded-full flex items-center justify-center font-semibold">4</div>
+                <div class="flex-1">
+                  <p class="font-medium text-gray-900 dark:text-gray-100 mb-1">{{ $t('accounts.gmailAppPasswordStep4') }}</p>
+                  <p class="text-sm text-gray-600 dark:text-gray-400">{{ $t('accounts.gmailAppPasswordStep4Detail') }}</p>
+                </div>
+              </div>
+              
+              <div class="flex items-start space-x-3">
+                <div class="flex-shrink-0 w-8 h-8 bg-primary-600 text-white rounded-full flex items-center justify-center font-semibold">5</div>
+                <div class="flex-1">
+                  <p class="font-medium text-gray-900 dark:text-gray-100 mb-1">{{ $t('accounts.gmailAppPasswordStep5') }}</p>
+                  <p class="text-sm text-gray-600 dark:text-gray-400">{{ $t('accounts.gmailAppPasswordStep5Detail') }}</p>
+                </div>
+              </div>
+            </div>
+            
+            <div class="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 mt-4">
+              <p class="text-sm text-yellow-800 dark:text-yellow-200">
+                <strong>{{ $t('accounts.gmailAppPasswordNote') }}</strong> {{ $t('accounts.gmailAppPasswordNoteDetail') }}
+              </p>
+            </div>
+          </div>
+          <div class="p-4 border-t border-gray-200 dark:border-gray-700 flex justify-end space-x-2">
+            <button
+              @click="openAppPasswordPage"
+              class="px-4 py-2 bg-primary-600 text-white rounded hover:bg-primary-700"
+            >
+              {{ $t('accounts.openAppPasswordPage') }}
+            </button>
+            <button
+              @click="showGmailHelpModal = false"
+              class="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded hover:bg-gray-300 dark:hover:bg-gray-600"
+            >
+              {{ $t('common.close') }}
+            </button>
+          </div>
+        </div>
+      </div>
+      
       <!-- Add From Address Modal -->
       <div
         v-if="showAddFromAddress"
@@ -421,6 +532,17 @@ const successMessage = ref('')
 const fromAddresses = ref<any[]>([])
 const showAddFromAddress = ref(false)
 const newFromAddress = ref({ email: '', name: '', isDefault: false })
+const showGmailHelpModal = ref(false)
+
+const openAppPasswordPage = () => {
+  const url = 'https://myaccount.google.com/apppasswords'
+  if (window.electronAPI && window.electronAPI.shell && window.electronAPI.shell.openExternal) {
+    window.electronAPI.shell.openExternal(url)
+  } else {
+    // Fallback: open in current window if electronAPI is not available
+    window.open(url, '_blank')
+  }
+}
 
 const loadFromAddresses = async () => {
   if (!props.accountId) return
@@ -802,6 +924,13 @@ const testConnection = async () => {
   } catch (error: any) {
     errorMessage.value = error?.message || t('accounts.testConnectionFailed') || 'Connection test failed. Please check your settings.'
     successMessage.value = ''
+    
+    // Auto-open Gmail help modal if authentication fails for Gmail
+    const isGmail = form.value.email.toLowerCase().includes('@gmail.com') || 
+                    form.value.email.toLowerCase().includes('@googlemail.com')
+    if (isGmail && errorMessage.value.toLowerCase().includes('authentication')) {
+      showGmailHelpModal.value = true
+    }
   } finally {
     testingConnection.value = false
   }

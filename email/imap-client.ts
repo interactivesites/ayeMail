@@ -73,16 +73,40 @@ export class IMAPClient {
       ? await accountManager.getOAuth2Token(this.account.id)
       : null
 
+    // For OAuth2, we need to format the XOAUTH2 token properly
+    // Gmail requires: user=email\1auth=Bearer TOKEN\1\1
+    let xoauth2Token: string | undefined = undefined
+    if (oauth2Token?.accessToken) {
+      xoauth2Token = `user=${this.account.email}\x01auth=Bearer ${oauth2Token.accessToken}\x01\x01`
+    }
+
+    const isGmail = this.account.email.toLowerCase().includes('@gmail.com') || 
+                    this.account.email.toLowerCase().includes('@googlemail.com')
+
     return new Promise((resolve, reject) => {
-      this.connection = new Imap({
+      // Build IMAP config - for OAuth2, don't set password
+      const imapConfig: any = {
         user: this.account.email,
-        password: password || 'oauth2',
         host: this.account.imap.host,
         port: this.account.imap.port,
         tls: this.account.imap.secure,
-        tlsOptions: { rejectUnauthorized: true },
-        xoauth2: oauth2Token?.accessToken
-      })
+        tlsOptions: { rejectUnauthorized: true }
+      }
+
+      if (this.account.authType === 'oauth2' && xoauth2Token) {
+        // OAuth2 authentication - use xoauth2 only
+        imapConfig.xoauth2 = xoauth2Token
+        // Some IMAP libraries require a password placeholder for OAuth2
+        imapConfig.password = 'oauth2'
+      } else if (this.account.authType === 'password' && password) {
+        // Password authentication
+        imapConfig.password = password
+      } else {
+        reject(new Error('Authentication credentials not available'))
+        return
+      }
+
+      this.connection = new Imap(imapConfig)
 
       this.connection.once('ready', () => {
         connectionPool[this.account.id] = this.connection
@@ -102,7 +126,35 @@ export class IMAPClient {
       })
 
       this.connection.once('error', (err: Error) => {
-        reject(err)
+        // Provide better error messages for Gmail
+        let errorMessage = err.message
+        const errLower = err.message.toLowerCase()
+        
+        if (isGmail && this.account.authType === 'password') {
+          // Catch various forms of authentication failure
+          if (errLower.includes('authentication failed') || 
+              errLower.includes('invalid credentials') ||
+              errLower.includes('login failed') ||
+              errLower.includes('invalid password') ||
+              errLower.includes('authentication failure') ||
+              errLower.includes('wrong password') ||
+              errLower.includes('incorrect password')) {
+            errorMessage = `Gmail authentication failed. Since you have 2-Step Verification enabled, you MUST use an App Password instead of your regular Gmail password.\n\n` +
+              `Steps to fix:\n` +
+              `1. Go to https://myaccount.google.com/apppasswords\n` +
+              `2. Sign in and select "Mail" and "Other (Custom name)"\n` +
+              `3. Enter "ayeMail" as the app name\n` +
+              `4. Click "Generate" and copy the 16-character password\n` +
+              `5. Use this App Password (not your regular password) in the password field\n\n` +
+              `Note: App Passwords are required for all email clients when 2FA is enabled.`
+          } else if (errLower.includes('less secure') || errLower.includes('blocked') || errLower.includes('access denied')) {
+            errorMessage = `Gmail has blocked this login attempt. Please check:\n` +
+              `1. Enable IMAP in Gmail settings: Settings > See all settings > Forwarding and POP/IMAP > Enable IMAP\n` +
+              `2. Use an App Password (required with 2FA): https://myaccount.google.com/apppasswords\n` +
+              `3. Make sure you're using the App Password, not your regular Gmail password`
+          }
+        }
+        reject(new Error(errorMessage))
       })
 
       this.connection.connect()

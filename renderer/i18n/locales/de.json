@@ -161,7 +161,23 @@
     "accountAdded": "Konto erfolgreich hinzugefügt!",
     "accountUpdated": "Konto erfolgreich aktualisiert!",
     "advancedSettings": "Erweiterte Einstellungen",
-    "simpleMode": "Einfacher Modus"
+    "simpleMode": "Einfacher Modus",
+    "gmailAppPasswordHint": "⚠️ Mit aktivierter 2-Schritt-Verifizierung MÜSSEN Sie ein App-Passwort verwenden (nicht Ihr reguläres Passwort).",
+    "showStepByStepGuide": "Schritt-für-Schritt-Anleitung anzeigen",
+    "gmailAppPasswordTitle": "Gmail mit 2-Schritt-Verifizierung einrichten",
+    "gmailAppPasswordExplanation": "Gmail erfordert ein App-Passwort, wenn die 2-Schritt-Verifizierung aktiviert ist. Dies ist ein spezielles 16-stelliges Passwort, das Sie anstelle Ihres regulären Gmail-Passworts verwenden.",
+    "gmailAppPasswordStep1": "Klicken Sie auf die Schaltfläche unten, um die App-Passwort-Seite von Google zu öffnen",
+    "gmailAppPasswordStep2": "Melden Sie sich bei Ihrem Google-Konto an",
+    "gmailAppPasswordStep2Detail": "Sie müssen Ihre Identität bestätigen, wenn Sie dazu aufgefordert werden.",
+    "gmailAppPasswordStep3": "Wählen Sie 'Mail' und 'Andere (Benutzerdefinierter Name)'",
+    "gmailAppPasswordStep3Detail": "Wählen Sie 'Mail' als App-Typ, dann 'Andere (Benutzerdefinierter Name)' aus dem Geräte-Dropdown.",
+    "gmailAppPasswordStep4": "Geben Sie 'ayeMail' als App-Namen ein und klicken Sie auf Generieren",
+    "gmailAppPasswordStep4Detail": "Geben Sie 'ayeMail' in das Feld für den benutzerdefinierten Namen ein und klicken Sie dann auf die Schaltfläche Generieren.",
+    "gmailAppPasswordStep5": "Kopieren Sie das 16-stellige Passwort und fügen Sie es hier ein",
+    "gmailAppPasswordStep5Detail": "Google zeigt Ihnen ein 16-stelliges Passwort an. Kopieren Sie es (Sie können Leerzeichen ignorieren) und fügen Sie es in das Passwortfeld oben ein.",
+    "gmailAppPasswordNote": "Wichtig:",
+    "gmailAppPasswordNoteDetail": "Verwenden Sie dieses App-Passwort im Passwortfeld, NICHT Ihr reguläres Gmail-Passwort. App-Passwörter sind für alle E-Mail-Apps erforderlich, wenn 2FA aktiviert ist.",
+    "openAppPasswordPage": "App-Passwort-Seite öffnen"
   },
   "signatures": {
     "selectAccount": "Konto auswählen"
