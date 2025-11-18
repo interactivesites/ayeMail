@@ -1,7 +1,7 @@
 <template>
   <div class="relative h-full w-full overflow-hidden flex" ref="containerRef">
 
-    <div class="px-8 py-4">
+    <div class="absolute top-6 left-8 px-8 py-4">
       <!-- Meta: current folder / mail count -->
       <div class="flex justify-between text-sm opacity-70">
         <span class="mr-8">{{ currentFolderName }}</span>
@@ -10,28 +10,88 @@
       </div>
     </div>
 
-    <div ref="mailbox" class="relative w-full max-w-2xl h-full flex items-center" @wheel="handleWheel">
-      <div v-for="(mail, index) in mails" :key="mail.id" :ref="el => { mailRefs[index] = el as HTMLElement | null }" class="absolute w-full px-8 cursor-pointer" @click="handleItemClick(index)">
-        <div class="dark:text-white">
-          <div class="font-medium">{{ mail.subject || '(No subject)' }}</div>
-          <div class="flex justify-between text-sm opacity-70 mt-1">
-            <span>{{ formatSender(mail.from) }}</span>
-            <div class="flex gap-2">
-              <span>{{ formatDate(mail.date) }}</span>
-              <!-- Loading spinner for current item -->
-              <div v-if="index === currentIndex && loadingEmail" class="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin flex-shrink-0 opacity-70"></div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+     <div ref="mailbox" class="relative w-full max-w-2xl h-full flex items-center" @wheel="handleWheel">
+       <div v-for="(mail, index) in mails" :key="mail.id" :ref="el => { mailRefs[index] = el as HTMLElement | null }" class="absolute w-full px-8 cursor-pointer" @click="handleItemClick(index)" :data-email-id="mail.id">
+         <span
+           class="email-popover-anchor absolute top-1/2 right-3 w-0 h-0 transform -translate-y-1/2 pointer-events-none"
+           :data-email-anchor="mail.id"
+         ></span>
+         <div class="dark:text-white flex items-start gap-3">
+           <!-- Rounded Checkbox -->
+           <div class="flex-shrink-0 self-center relative">
+             <button
+               @click.stop="showArchiveConfirm(mail.id)"
+               class="w-5 h-5 rounded-full border-2 border-gray-300 dark:border-gray-600 flex items-center justify-center transition-colors hover:border-primary-600 dark:hover:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-600 focus:ring-offset-1"
+               :class="{
+                 'bg-primary-600 dark:bg-primary-500 border-primary-600 dark:border-primary-500': archiveConfirmId === mail.id,
+                 'hover:bg-gray-50 dark:hover:bg-gray-700': archiveConfirmId !== mail.id
+               }"
+               title="Archive email"
+             >
+               <svg v-if="archiveConfirmId === mail.id" class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+               </svg>
+             </button>
+             
+             <!-- Archive Confirmation Popover -->
+             <Teleport to="body">
+               <div
+                 v-if="archiveConfirmId === mail.id" 
+                 :ref="el => { if (el) archivePopoverRefs.set(mail.id, el as HTMLElement) }"
+                 class="popover-panel fixed z-50 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 p-3 min-w-[220px]"
+                 @click.stop
+               >
+                 <div
+                   class="popover-arrow bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700"
+                   :ref="el => { if (el) archiveArrowRefs.set(mail.id, el as HTMLElement) }"
+                 ></div>
+                 <div class="flex items-center gap-2 mb-3">
+                   <button
+                     @click="cancelArchive"
+                     class="px-3 py-1.5 text-sm rounded bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                   >
+                     Cancel
+                   </button>
+                   <button
+                     @click="confirmArchive(mail.id)"
+                     class="px-3 py-1.5 text-sm rounded bg-primary-600 dark:bg-primary-500 text-white hover:bg-primary-700 dark:hover:bg-primary-600 transition-colors"
+                   >
+                     Complete
+                   </button>
+                 </div>
+                 <p class="text-xs text-gray-500 dark:text-gray-400">Disable confirmation messages in Preferences</p>
+               </div>
+             </Teleport>
+           </div>
+           
+           <div class="flex-1">
+             <div class="font-medium">{{ mail.subject || '(No subject)' }}</div>
+             <div class="flex justify-between text-sm opacity-70 mt-1">
+               <span>{{ formatSender(mail.from) }}</span>
+               <div class="flex gap-2">
+                 <span>{{ formatDate(mail.date) }}</span>
+                 <!-- Loading spinner for current item -->
+                 <div v-if="index === currentIndex && loadingEmail" class="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin flex-shrink-0 opacity-70"></div>
+               </div>
+             </div>
+           </div>
+         </div>
+       </div>
+     </div>
     <div ref="mailcontent" class="flex-1 overflow-y-auto p-4">
       <div v-if="loadingEmail" class="flex items-center justify-center h-full">
         <div class="text-gray-500 dark:text-gray-400">Loading email...</div>
       </div>
       <div v-else-if="selectedEmail">
         <div v-if="selectedEmail.htmlBody" class="email-html-container">
-          <div v-html="selectedEmail.htmlBody" class="prose dark:prose-invert max-w-none"></div>
+          <iframe
+            :srcdoc="sanitizedHtml"
+            class="w-full border-0 bg-white dark:bg-gray-800"
+            style="min-height: 400px; display: block;"
+            sandbox="allow-same-origin"
+            @load="onIframeLoad"
+            ref="emailIframe"
+          ></iframe>
         </div>
         <div v-else class="whitespace-pre-wrap text-gray-900 dark:text-gray-100">
           {{ selectedEmail.textBody || selectedEmail.body || 'No content' }}
@@ -47,12 +107,15 @@
 <script setup lang="ts">
 
 import gsap from 'gsap'
-import { ref, onMounted, onUnmounted, nextTick, watch } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick, watch, computed } from 'vue'
 import { Email } from '@shared/types'
+import { useEmailActions } from '../composables/useEmailActions'
+import { checkUrlSecurity } from '../utils/url-security'
 
 const containerRef = ref<HTMLDivElement | null>(null)
 const mailbox = ref<HTMLDivElement | null>(null)
 const mailcontent = ref<HTMLDivElement | null>(null)
+const emailIframe = ref<HTMLIFrameElement | null>(null)
 const mailRefs = ref<(HTMLElement | null)[]>([])
 const mails = ref<Email[]>([])
 
@@ -62,6 +125,163 @@ const selectedEmail = ref<any>(null)
 const loadingEmail = ref(false)
 const currentFolderName = ref<string>('')
 let resizeObserver: ResizeObserver | null = null
+
+// Email actions composable
+const {
+  archiveConfirmId,
+  archivePopoverRefs,
+  archiveArrowRefs,
+  showArchiveConfirm,
+  cancelArchive,
+  archiveEmail
+} = useEmailActions()
+
+const confirmArchive = async (emailId: string) => {
+  const result = await archiveEmail(emailId)
+  if (result.success) {
+    // Remove email from list
+    const emailIndex = mails.value.findIndex(e => e.id === emailId)
+    if (emailIndex !== -1) {
+      mails.value.splice(emailIndex, 1)
+      // Adjust currentIndex if needed
+      if (currentIndex.value >= mails.value.length && mails.value.length > 0) {
+        currentIndex.value = mails.value.length - 1
+        updateMailPositions()
+      } else if (mails.value.length === 0) {
+        currentIndex.value = 0
+        selectedEmail.value = null
+      } else {
+        updateMailPositions()
+      }
+    }
+  }
+}
+
+const sanitizedHtml = computed(() => {
+  if (!selectedEmail.value?.htmlBody) return ''
+  
+  let html = selectedEmail.value.htmlBody
+  
+  // Remove <style> tags that could affect the parent page
+  html = html.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+  
+  // Remove <script> tags for security
+  html = html.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+  
+  // Check if dark mode is active
+  const isDark = document.documentElement.classList.contains('dark')
+  
+  // Wrap in a container to ensure isolation
+  // Add base styles for better rendering
+  const baseStyles = `
+    <style>
+      body {
+        margin: 0;
+        padding: 16px;
+        font-family: 'Albert Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        font-weight: 200;
+        line-height: 1.6;
+        color: ${isDark ? '#e5e7eb' : '#1f2937'};
+        background: ${isDark ? '#111827' : '#ffffff'};
+      }
+      img {
+        max-width: 100%;
+        height: auto;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+      }
+      a {
+        color: ${isDark ? '#60a5fa' : '#2563eb'};
+        text-decoration: underline;
+        cursor: pointer;
+      }
+      a:hover {
+        text-decoration: underline;
+      }
+    </style>
+  `
+  
+  return `<!DOCTYPE html><html><head>${baseStyles}</head><body>${html}</body></html>`
+})
+
+const onIframeLoad = () => {
+  // Optionally adjust iframe height to content
+  if (emailIframe.value) {
+    try {
+      const iframe = emailIframe.value
+      const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document
+      if (iframeDoc) {
+        const height = Math.max(
+          iframeDoc.body?.scrollHeight || 400,
+          iframeDoc.documentElement?.scrollHeight || 400
+        )
+        iframe.style.height = `${height}px`
+        
+        // Intercept link clicks to open externally with security checks
+        const links = iframeDoc.querySelectorAll('a[href]')
+        links.forEach((link: Element) => {
+          const anchor = link as HTMLAnchorElement
+          const originalHref = anchor.href
+          const displayText = anchor.textContent || anchor.innerText
+          
+          anchor.addEventListener('click', async (e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            
+            await handleLinkClick(originalHref, displayText)
+          })
+          
+          // Add visual indicator that link opens externally
+          anchor.style.cursor = 'pointer'
+          anchor.title = `Open ${originalHref} in browser`
+        })
+      }
+    } catch (error) {
+      // Cross-origin or other security restrictions
+      // Keep default min-height
+    }
+  }
+}
+
+const handleLinkClick = async (url: string, displayText?: string) => {
+  // Check URL security
+  const securityCheck = checkUrlSecurity(url, displayText)
+  
+  // If high risk, show warning and require confirmation
+  if (securityCheck.riskLevel === 'high' || !securityCheck.isSafe) {
+    const warningMessage = [
+      `Warning: This link may be unsafe.`,
+      ...securityCheck.warnings,
+      '',
+      `URL: ${securityCheck.actualUrl}`,
+      '',
+      'Do you want to open it anyway?'
+    ].join('\n')
+    
+    if (!confirm(warningMessage)) {
+      return
+    }
+  } else if (securityCheck.warnings.length > 0) {
+    // Medium/low risk - show info but allow proceed
+    const infoMessage = [
+      `Security Notice:`,
+      ...securityCheck.warnings,
+      '',
+      `URL: ${securityCheck.actualUrl}`,
+      '',
+      'Do you want to continue?'
+    ].join('\n')
+    
+    if (!confirm(infoMessage)) {
+      return
+    }
+  }
+  
+  // Open URL externally
+  window.electronAPI.shell.openExternal(securityCheck.actualUrl)
+}
 
 // Item spacing and sizing constants
 const BASE_SCALE = 1
@@ -283,4 +503,17 @@ onUnmounted(() => {
 
 </script>
 
-<style scoped></style>
+<style scoped>
+.popover-panel {
+  pointer-events: auto;
+}
+
+.popover-arrow {
+  width: 12px;
+  height: 12px;
+  position: absolute;
+  transform: rotate(45deg);
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+</style>
