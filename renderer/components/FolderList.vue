@@ -250,7 +250,7 @@ const unifiedFolders = computed(() => {
 
 // Unified folders to display (excluding always-favorites which are shown in favorites section)
 const displayedUnifiedFolders = computed(() => {
-  const alwaysFavoriteIds = ['unified-reminders', 'unified-aside', 'unified-spam']
+  const alwaysFavoriteIds = ['unified-all-inboxes', 'unified-reminders', 'unified-aside', 'unified-spam']
   return unifiedFolders.value.filter(folder => !alwaysFavoriteIds.includes(folder.id))
 })
 
@@ -280,8 +280,8 @@ const favoriteFolders = computed(() => {
     allFolders.push(...flattenFolders(accountFoldersList))
   })
   
-  // Always include reminders, aside, and spam in favorites section
-  const alwaysFavoriteIds = ['unified-reminders', 'unified-aside', 'unified-spam']
+  // Always include all inboxes, reminders, aside, and spam in favorites section
+  const alwaysFavoriteIds = ['unified-all-inboxes', 'unified-reminders', 'unified-aside', 'unified-spam']
   const alwaysFavorites = allFolders.filter(folder => alwaysFavoriteIds.includes(folder.id))
   
   // Add user-selected favorites (excluding always-favorites to avoid duplicates)

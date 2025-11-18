@@ -123,8 +123,9 @@ const getInitialExpanded = (): boolean => {
 const expanded = ref(getInitialExpanded())
 
 const isAlwaysFavorite = computed(() => {
-  // Reminders, Aside, and Spam are always favorites
-  return props.folder.id === 'unified-reminders' || 
+  // All Inboxes, Reminders, Aside, and Spam are always favorites
+  return props.folder.id === 'unified-all-inboxes' ||
+         props.folder.id === 'unified-reminders' || 
          props.folder.id === 'unified-aside' || 
          props.folder.id === 'unified-spam'
 })
