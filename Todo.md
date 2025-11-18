@@ -19,7 +19,8 @@
 
 ## Feat
 
-
+- Read dates create vcs
+- Auto-Create VCS for dates
 - ai to summarize, answer?
 - Folder management: rename, order, delete, create?
 

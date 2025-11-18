@@ -286,7 +286,17 @@ export class EmailStorage {
       }
     }
 
+    // Check if folder is spam before spam detection
+    const folder = this.db.prepare('SELECT name, path FROM folders WHERE id = ?').get(email.folderId) as any
+    const folderNameLower = folder?.name?.toLowerCase() || ''
+    const folderPathLower = folder?.path?.toLowerCase() || ''
+    const folderIsSpam = folderNameLower === 'spam' || 
+                         folderNameLower === 'junk' || 
+                         folderPathLower.includes('spam') || 
+                         folderPathLower.includes('junk')
+
     // Run spam detection after storing email
+    let movedToSpam = false
     try {
       const spamScore = await spamDetector.calculateSpamScore(email)
       spamDetector.updateSpamScore(id, spamScore)
@@ -294,10 +304,31 @@ export class EmailStorage {
       // Auto-move to spam folder if score exceeds threshold (0.7)
       if (spamScore >= 0.7) {
         await this.moveToSpamFolder(id, email.accountId, email.folderId)
+        movedToSpam = true
       }
     } catch (spamError) {
       // Don't fail email storage if spam detection fails
       console.error('Error in spam detection:', spamError)
+    }
+
+    // Extract contacts from non-spam emails only
+    // Skip if original folder was spam or email was moved to spam
+    if (!folderIsSpam && !movedToSpam) {
+      try {
+        const { contactManager } = await import('./contact-manager')
+        // Extract contacts from non-spam emails
+        contactManager.extractContactsFromAddresses(email.from, email.folderId)
+        contactManager.extractContactsFromAddresses(email.to, email.folderId)
+        if (email.cc) {
+          contactManager.extractContactsFromAddresses(email.cc, email.folderId)
+        }
+        if (email.bcc) {
+          contactManager.extractContactsFromAddresses(email.bcc, email.folderId)
+        }
+      } catch (contactError) {
+        // Don't fail email storage if contact extraction fails
+        console.error('Error extracting contacts from email:', contactError)
+      }
     }
 
     return id

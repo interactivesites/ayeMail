@@ -47,7 +47,10 @@
     "hardenedRuntime": true,
     "gatekeeperAssess": false,
     "entitlements": "build/entitlements.mac.plist",
-    "entitlementsInherit": "build/entitlements.mac.plist"
+    "entitlementsInherit": "build/entitlements.mac.plist",
+    "extendInfo": {
+      "NSContactsUsageDescription": "ayeMail needs access to your contacts to sync email addresses and improve autocomplete suggestions."
+    }
   },
   "win": {
     "target": [

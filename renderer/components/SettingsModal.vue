@@ -273,6 +273,43 @@
                   </div>
                 </div>
               </div>
+              <div v-if="nativeContactsAvailable">
+                <h3 class="text-md font-semibold text-gray-900 dark:text-gray-100 mb-2">Contacts Sync</h3>
+                <div class="p-3 border border-gray-200 dark:border-gray-700 rounded dark:bg-gray-800">
+                  <div class="flex items-center justify-between mb-2">
+                    <div>
+                      <p class="text-sm font-medium text-gray-900 dark:text-gray-100">Sync with System Contacts</p>
+                      <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        Import contacts from {{ isMac ? 'macOS Contacts' : 'Windows Contacts' }} to improve autocomplete suggestions.
+                      </p>
+                    </div>
+                    <button
+                      @click="syncNativeContacts"
+                      :disabled="syncingContacts"
+                      class="px-4 py-2 text-sm font-medium rounded transition-colors"
+                      :class="syncingContacts 
+                        ? 'bg-gray-400 text-white cursor-not-allowed' 
+                        : 'bg-primary-600 text-white hover:bg-primary-700'"
+                    >
+                      <span v-if="syncingContacts" class="flex items-center gap-2">
+                        <svg class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        Syncing...
+                      </span>
+                      <span v-else>Sync Now</span>
+                    </button>
+                  </div>
+                  <div v-if="syncResult" class="text-xs mt-2" :class="syncResult.success ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'">
+                    <span v-if="syncResult.success">
+                      Synced {{ syncResult.synced }} new contacts{{ syncResult.updated > 0 ? `, updated ${syncResult.updated}` : '' }}.
+                    </span>
+                    <span v-else>
+                      {{ syncResult.error || 'Sync failed' }}
+                    </span>
+                  </div>
+                </div>
+              </div>
               <div>
                 <h3 class="text-md font-semibold text-gray-900 dark:text-gray-100 mb-2">{{ $t('common.about') }}</h3>
                 <div class="p-3 border border-gray-200 dark:border-gray-700 rounded dark:bg-gray-800">
@@ -339,6 +376,10 @@ const autoSyncInterval = ref(5)
 const rebuildingFolders = ref(false)
 const rebuildProgress = ref<string>('')
 const rebuildResult = ref<{ success: boolean; message: string } | null>(null)
+const nativeContactsAvailable = ref(false)
+const syncingContacts = ref(false)
+const syncResult = ref<{ success: boolean; synced?: number; updated?: number; error?: string } | null>(null)
+const isMac = computed(() => process.platform === 'darwin')
 const { t, locale } = useI18n()
 const settingsTabs = computed(() => [
   { id: 'general', label: t('settings.general') },
@@ -527,6 +568,36 @@ const handleRebuildFolders = async () => {
   }
 }
 
+const checkNativeContactsAvailability = async () => {
+  try {
+    const result = await window.electronAPI.contacts.native.isAvailable()
+    nativeContactsAvailable.value = result.available || false
+  } catch (error) {
+    console.error('Error checking native contacts availability:', error)
+    nativeContactsAvailable.value = false
+  }
+}
+
+const syncNativeContacts = async () => {
+  syncingContacts.value = true
+  syncResult.value = null
+  try {
+    const result = await window.electronAPI.contacts.native.sync()
+    syncResult.value = result
+    // Clear result after 5 seconds
+    setTimeout(() => {
+      syncResult.value = null
+    }, 5000)
+  } catch (error: any) {
+    syncResult.value = {
+      success: false,
+      error: error.message || 'Failed to sync contacts'
+    }
+  } finally {
+    syncingContacts.value = false
+  }
+}
+
 onMounted(async () => {
   await loadAccounts()
   // Sync i18n locale with preferences on mount
@@ -544,6 +615,9 @@ onMounted(async () => {
   if (savedInterval) {
     autoSyncInterval.value = parseInt(savedInterval, 10)
   }
+  
+  // Check native contacts availability
+  await checkNativeContactsAvailability()
   
   // Auto-show add account form if prop is set (fresh start)
   if (props.autoShowAddAccount) {

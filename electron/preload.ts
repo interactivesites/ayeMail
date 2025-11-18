@@ -137,7 +137,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     search: (query: string, limit?: number) => ipcRenderer.invoke('contacts:search', query, limit),
     add: (email: string, name?: string) => ipcRenderer.invoke('contacts:add', email, name),
     list: (limit?: number) => ipcRenderer.invoke('contacts:list', limit),
-    extractFromExisting: () => ipcRenderer.invoke('contacts:extract-from-existing')
+    extractFromExisting: () => ipcRenderer.invoke('contacts:extract-from-existing'),
+    removeFromSpam: () => ipcRenderer.invoke('contacts:remove-from-spam'),
+    native: {
+      isAvailable: () => ipcRenderer.invoke('contacts:native:isAvailable'),
+      get: () => ipcRenderer.invoke('contacts:native:get'),
+      sync: () => ipcRenderer.invoke('contacts:native:sync')
+    }
   },
   
   // Window operations

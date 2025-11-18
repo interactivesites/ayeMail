@@ -16,7 +16,7 @@
     "build:mac:x64": "npm run build && electron-builder --mac --x64",
     "build:win": "npm run build && electron-builder --win",
     "build:all": "npm run build && electron-builder --mac --win",
-    "postinstall": "electron-rebuild",
+    "postinstall": "PYTHON=$(which python3.11 || which python3) electron-rebuild",
     "preview": "vite preview",
     "test": "vitest",
     "test:ui": "vitest --ui",
@@ -63,18 +63,21 @@
     "@tiptap/extension-image": "^3.10.7",
     "@tiptap/starter-kit": "^3.10.7",
     "@tiptap/vue-3": "^3.10.7",
+    "@types/xml2js": "^0.4.14",
     "better-sqlite3": "^11.7.0",
     "dayjs": "^1.11.19",
     "dotenv": "^17.2.3",
     "gsap": "^3.13.0",
     "imap": "^0.8.19",
     "mailparser": "^3.6.5",
+    "node-mac-contacts": "^1.7.2",
     "nodemailer": "^6.9.7",
     "openpgp": "^5.10.1",
     "pinia": "^3.0.4",
     "poplib": "^0.1.7",
     "vue": "^3.4.0",
     "vue-i18n": "9",
-    "vue-tailwind-datepicker": "^1.7.4"
+    "vue-tailwind-datepicker": "^1.7.4",
+    "xml2js": "^0.6.2"
   }
 }

@@ -3167,6 +3167,70 @@ export function registerContactHandlers() {
     const result = contactManager.extractContactsFromExistingEmails()
     return result
   })
+
+  ipcMain.handle('contacts:remove-from-spam', async () => {
+    const result = contactManager.removeContactsFromSpamEmails()
+    return result
+  })
+
+  // Native contacts handlers
+  ipcMain.handle('contacts:native:isAvailable', async () => {
+    try {
+      const { isNativeContactsAvailable } = await import('../contacts/native-contacts')
+      return { available: isNativeContactsAvailable() }
+    } catch (error: any) {
+      return { available: false, error: error.message }
+    }
+  })
+
+  ipcMain.handle('contacts:native:get', async () => {
+    try {
+      const { getNativeContacts } = await import('../contacts/native-contacts')
+      const contacts = await getNativeContacts()
+      return { success: true, contacts }
+    } catch (error: any) {
+      console.error('Error getting native contacts:', error)
+      return { success: false, error: error.message, contacts: [] }
+    }
+  })
+
+  ipcMain.handle('contacts:native:sync', async () => {
+    try {
+      const { getNativeContacts } = await import('../contacts/native-contacts')
+      const nativeContacts = await getNativeContacts()
+      
+      let synced = 0
+      let updated = 0
+      
+      for (const contact of nativeContacts) {
+        if (contact.email && contact.email.includes('@')) {
+          const existing = contactManager.searchRecipients(contact.email, 1)
+          if (existing.length === 0) {
+            // New contact
+            contactManager.addOrUpdateRecipient(contact.email, contact.name)
+            synced++
+          } else {
+            // Update existing if name is better
+            const existingContact = existing[0]
+            if (contact.name && (!existingContact.name || contact.name.length > existingContact.name.length)) {
+              contactManager.addOrUpdateRecipient(contact.email, contact.name)
+              updated++
+            }
+          }
+        }
+      }
+      
+      return { 
+        success: true, 
+        synced, 
+        updated, 
+        total: nativeContacts.length 
+      }
+    } catch (error: any) {
+      console.error('Error syncing native contacts:', error)
+      return { success: false, error: error.message }
+    }
+  })
 }
 
 // Shell handlers
