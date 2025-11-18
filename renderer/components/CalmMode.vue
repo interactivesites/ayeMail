@@ -133,7 +133,10 @@ const {
   archiveArrowRefs,
   showArchiveConfirm,
   cancelArchive,
-  archiveEmail
+  archiveEmail,
+  loadEmailContent,
+  preloadNearbyEmails,
+  cleanupEmailCache
 } = useEmailActions()
 
 const confirmArchive = async (emailId: string) => {
@@ -387,7 +390,11 @@ const loadCurrentEmail = async () => {
 
   loadingEmail.value = true
   try {
-    selectedEmail.value = await window.electronAPI.emails.get(mail.id)
+    // Load current email (from cache if available)
+    selectedEmail.value = await loadEmailContent(mail.id)
+    
+    // Preload nearby emails in background
+    preloadNearbyEmails(mails.value, currentIndex.value)
   } catch (error) {
     console.error('Error loading email content:', error)
     selectedEmail.value = null
@@ -399,6 +406,11 @@ const loadCurrentEmail = async () => {
 // Watch for mail changes to update refs array and positions
 watch(() => mails.value.length, async () => {
   mailRefs.value = new Array(mails.value.length).fill(null)
+  
+  // Clean up cache - remove entries for emails that no longer exist
+  const currentEmailIds = new Set(mails.value.map(m => m.id).filter(Boolean))
+  cleanupEmailCache(currentEmailIds)
+  
   await nextTick()
   updateMailPositions()
   // Load the first email automatically

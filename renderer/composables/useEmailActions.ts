@@ -4,6 +4,10 @@ import { computePosition, offset, shift, arrow as floatingArrow } from '@floatin
 import type { Placement, MiddlewareData } from '@floating-ui/dom'
 import type { Ref } from 'vue'
 
+// Shared email cache across all components
+const emailCache = new Map<string, any>()
+const CACHE_RANGE = 3 // Number of emails to cache before and after current
+
 export function useEmailActions() {
   const preferences = usePreferencesStore()
   const archiveConfirmId = ref<string | null>(null)
@@ -152,6 +156,8 @@ export function useEmailActions() {
     try {
       const result = await window.electronAPI.emails.archive(emailId)
       if (result.success) {
+        // Clear cache for archived email
+        emailCache.delete(emailId)
         // Refresh email list
         window.dispatchEvent(new CustomEvent('refresh-emails'))
         return { success: true }
@@ -176,6 +182,8 @@ export function useEmailActions() {
     try {
       const result = await window.electronAPI.emails.delete(emailId)
       if (result.success) {
+        // Clear cache for deleted email
+        emailCache.delete(emailId)
         // Refresh email list
         window.dispatchEvent(new CustomEvent('refresh-emails'))
         return { success: true }
@@ -232,6 +240,78 @@ export function useEmailActions() {
     }
   }
 
+  // Email content caching functions
+  const loadEmailContent = async (emailId: string): Promise<any | null> => {
+    // Check cache first
+    if (emailCache.has(emailId)) {
+      return emailCache.get(emailId)
+    }
+
+    // Load from API
+    try {
+      const email = await window.electronAPI.emails.get(emailId)
+      emailCache.set(emailId, email)
+      return email
+    } catch (error) {
+      console.error('Error loading email content:', error)
+      return null
+    }
+  }
+
+  const preloadNearbyEmails = async (emails: any[], centerIndex: number) => {
+    if (!emails || emails.length === 0) return
+
+    const startIndex = Math.max(0, centerIndex - CACHE_RANGE)
+    const endIndex = Math.min(emails.length - 1, centerIndex + CACHE_RANGE)
+    
+    // Preload emails in background (don't await, just fire and forget)
+    for (let i = startIndex; i <= endIndex; i++) {
+      const mail = emails[i]
+      if (mail && mail.id && !emailCache.has(mail.id)) {
+        // Load in background without blocking
+        loadEmailContent(mail.id).catch(error => {
+          console.error(`Error preloading email ${mail.id}:`, error)
+        })
+      }
+    }
+    
+    // Clean up cache entries that are too far away
+    const cacheStartIndex = Math.max(0, centerIndex - CACHE_RANGE * 2)
+    const cacheEndIndex = Math.min(emails.length - 1, centerIndex + CACHE_RANGE * 2)
+    const validEmailIds = new Set()
+    
+    for (let i = cacheStartIndex; i <= cacheEndIndex; i++) {
+      const mail = emails[i]
+      if (mail && mail.id) {
+        validEmailIds.add(mail.id)
+      }
+    }
+    
+    // Remove entries that are too far away
+    for (const [emailId] of emailCache.entries()) {
+      if (!validEmailIds.has(emailId)) {
+        emailCache.delete(emailId)
+      }
+    }
+  }
+
+  const clearEmailCache = (emailId?: string) => {
+    if (emailId) {
+      emailCache.delete(emailId)
+    } else {
+      emailCache.clear()
+    }
+  }
+
+  const cleanupEmailCache = (validEmailIds: Set<string>) => {
+    // Remove entries for emails that no longer exist
+    for (const [emailId] of emailCache.entries()) {
+      if (!validEmailIds.has(emailId)) {
+        emailCache.delete(emailId)
+      }
+    }
+  }
+
   return {
     archiveConfirmId,
     archivePopoverRefs,
@@ -243,7 +323,12 @@ export function useEmailActions() {
     archiveEmail,
     deleteEmail,
     moveToFolder,
-    spamEmail
+    spamEmail,
+    // Email caching functions
+    loadEmailContent,
+    preloadNearbyEmails,
+    clearEmailCache,
+    cleanupEmailCache
   }
 }
 
