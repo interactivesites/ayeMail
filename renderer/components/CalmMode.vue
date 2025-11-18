@@ -1,104 +1,80 @@
 <template>
-  <div class="relative h-full w-full overflow-hidden flex" ref="containerRef">
+  <div class="relative h-full w-full overflow-hidden flex flex-col" ref="containerRef">
+    <!-- Email Navigation -->
 
-    <div class="absolute top-6 left-8 px-8 py-4">
-      <!-- Meta: current folder / mail count -->
-      <div class="flex justify-between text-sm opacity-70">
-        <span class="mr-8">{{ currentFolderName }}</span>
-        <span class="text-3xl" v-if="mails.length > 0">{{ currentIndex + 1 }}/{{ mails.length }}</span>
-        <span v-else>0 emails</span>
-      </div>
-    </div>
 
-     <div ref="mailbox" class="relative w-full max-w-2xl h-full flex items-center" @wheel="handleWheel">
-       <div v-for="(mail, index) in mails" :key="mail.id" :ref="el => { mailRefs[index] = el as HTMLElement | null }" class="absolute w-full px-8 cursor-pointer" @click="handleItemClick(index)" :data-email-id="mail.id">
-         <span
-           class="email-popover-anchor absolute top-1/2 right-3 w-0 h-0 transform -translate-y-1/2 pointer-events-none"
-           :data-email-anchor="mail.id"
-         ></span>
-         <div class="dark:text-white flex items-start gap-3">
-           <!-- Rounded Checkbox -->
-           <div class="flex-shrink-0 self-center relative">
-             <button
-               @click.stop="showArchiveConfirm(mail.id)"
-               class="w-5 h-5 rounded-full border-2 border-gray-300 dark:border-gray-600 flex items-center justify-center transition-colors hover:border-primary-600 dark:hover:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-600 focus:ring-offset-1"
-               :class="{
-                 'bg-primary-600 dark:bg-primary-500 border-primary-600 dark:border-primary-500': archiveConfirmId === mail.id,
-                 'hover:bg-gray-50 dark:hover:bg-gray-700': archiveConfirmId !== mail.id
-               }"
-               title="Archive email"
-             >
-               <svg v-if="archiveConfirmId === mail.id" class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
-               </svg>
-             </button>
-             
-             <!-- Archive Confirmation Popover -->
-             <Teleport to="body">
-               <div
-                 v-if="archiveConfirmId === mail.id" 
-                 :ref="el => { if (el) archivePopoverRefs.set(mail.id, el as HTMLElement) }"
-                 class="popover-panel fixed z-50 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 p-3 min-w-[220px]"
-                 @click.stop
-               >
-                 <div
-                   class="popover-arrow bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700"
-                   :ref="el => { if (el) archiveArrowRefs.set(mail.id, el as HTMLElement) }"
-                 ></div>
-                 <div class="flex items-center gap-2 mb-3">
-                   <button
-                     @click="cancelArchive"
-                     class="px-3 py-1.5 text-sm rounded bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
-                   >
-                     Cancel
-                   </button>
-                   <button
-                     @click="confirmArchive(mail.id)"
-                     class="px-3 py-1.5 text-sm rounded bg-primary-600 dark:bg-primary-500 text-white hover:bg-primary-700 dark:hover:bg-primary-600 transition-colors"
-                   >
-                     Complete
-                   </button>
-                 </div>
-                 <p class="text-xs text-gray-500 dark:text-gray-400">Disable confirmation messages in Preferences</p>
-               </div>
-             </Teleport>
-           </div>
-           
-           <div class="flex-1">
-             <div class="font-medium">{{ mail.subject || '(No subject)' }}</div>
-             <div class="flex justify-between text-sm opacity-70 mt-1">
-               <span>{{ formatSender(mail.from) }}</span>
-               <div class="flex gap-2">
-                 <span>{{ formatDate(mail.date) }}</span>
-                 <!-- Loading spinner for current item -->
-                 <div v-if="index === currentIndex && loadingEmail" class="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin flex-shrink-0 opacity-70"></div>
-               </div>
-             </div>
-           </div>
-         </div>
-       </div>
-     </div>
-    <div ref="mailcontent" class="flex-1 overflow-y-auto p-4">
-      <div v-if="loadingEmail" class="flex items-center justify-center h-full">
-        <div class="text-gray-500 dark:text-gray-400">Loading email...</div>
-      </div>
-      <div v-else-if="selectedEmail">
-        <div v-if="selectedEmail.htmlBody" class="email-html-container">
-          <iframe
-            :srcdoc="sanitizedHtml"
-            class="w-full border-0 bg-white dark:bg-gray-800"
-            style="min-height: 400px; display: block;"
-            sandbox="allow-same-origin"
-            @load="onIframeLoad"
-            ref="emailIframe"
-          ></iframe>
+    <div class="flex-1 relative overflow-hidden flex">
+      <div class="absolute top-6 left-8 px-8 py-4 z-10">
+        <!-- Meta: current folder / mail count -->
+        <div class="flex justify-between text-sm opacity-70">
+          <span class="mr-8">{{ currentFolderName }}</span>
+          <span class="text-3xl" v-if="mails.length > 0">{{ currentIndex + 1 }}/{{ mails.length }}</span>
+          <span v-else>0 emails</span>
         </div>
-        <div v-else class="whitespace-pre-wrap text-gray-900 dark:text-gray-100">
-          {{ selectedEmail.textBody || selectedEmail.body || 'No content' }}
+        <EmailNavigation class="!ml-0 mt-4" :has-selected-email="!!selectedEmail" :selected-email="selectedEmail" :account-id="accountId" @compose="handleCompose" @reply="handleReply" @forward="handleForward" @set-reminder="handleSetReminder" @delete="handleDelete" />
+      </div>
+
+      <div ref="mailbox" class="relative w-full max-w-2xl h-full flex items-center" @wheel="handleWheel">
+        <div v-for="(mail, index) in mails" :key="mail.id" :ref="el => { mailRefs[index] = el as HTMLElement | null }" class="absolute w-full px-8 cursor-pointer" @click="handleItemClick(index)" :data-email-id="mail.id">
+          <span class="email-popover-anchor absolute top-1/2 right-3 w-0 h-0 transform -translate-y-1/2 pointer-events-none" :data-email-anchor="mail.id"></span>
+          <div class="dark:text-white flex items-start gap-3">
+            <!-- Rounded Checkbox -->
+            <div class="flex-shrink-0 self-center relative">
+              <button @click.stop="showArchiveConfirm(mail.id)" class="w-5 h-5 rounded-full border-2 border-gray-300 dark:border-gray-600 flex items-center justify-center transition-colors hover:border-primary-600 dark:hover:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-600 focus:ring-offset-1" :class="{
+                'bg-primary-600 dark:bg-primary-500 border-primary-600 dark:border-primary-500': archiveConfirmId === mail.id,
+                'hover:bg-gray-50 dark:hover:bg-gray-700': archiveConfirmId !== mail.id
+              }" title="Archive email">
+                <svg v-if="archiveConfirmId === mail.id" class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+                </svg>
+              </button>
+
+              <!-- Archive Confirmation Popover -->
+              <Teleport to="body">
+                <div v-if="archiveConfirmId === mail.id" :ref="el => { if (el) archivePopoverRefs.set(mail.id, el as HTMLElement) }" class="popover-panel fixed z-50 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 p-3 min-w-[220px]" @click.stop>
+                  <div class="popover-arrow bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700" :ref="el => { if (el) archiveArrowRefs.set(mail.id, el as HTMLElement) }"></div>
+                  <div class="flex items-center gap-2 mb-3">
+                    <button @click="cancelArchive" class="px-3 py-1.5 text-sm rounded bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">
+                      Cancel
+                    </button>
+                    <button @click="confirmArchive(mail.id)" class="px-3 py-1.5 text-sm rounded bg-primary-600 dark:bg-primary-500 text-white hover:bg-primary-700 dark:hover:bg-primary-600 transition-colors">
+                      Complete
+                    </button>
+                  </div>
+                  <p class="text-xs text-gray-500 dark:text-gray-400">Disable confirmation messages in Preferences</p>
+                </div>
+              </Teleport>
+            </div>
+
+            <div class="flex-1">
+              <div class="font-medium">{{ mail.subject || '(No subject)' }}</div>
+              <div class="flex justify-between text-sm opacity-70 mt-1">
+                <span>{{ formatSender(mail.from) }}</span>
+                <div class="flex gap-2">
+                  <span>{{ formatDate(mail.date) }}</span>
+                  <!-- Loading spinner for current item -->
+                  <div v-if="index === currentIndex && loadingEmail" class="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin flex-shrink-0 opacity-70"></div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
-      <div v-else class="text-gray-500 dark:text-gray-400 text-center mt-8">
-        Click on an email to view its content
+      <div ref="mailcontent" class="flex-1 overflow-y-auto p-4">
+        <div v-if="loadingEmail" class="flex items-center justify-center h-full">
+          <div class="text-gray-500 dark:text-gray-400">Loading email...</div>
+        </div>
+        <div v-else-if="selectedEmail">
+          <div v-if="selectedEmail.htmlBody" class="email-html-container">
+            <iframe :srcdoc="sanitizedHtml" class="w-full border-0 bg-white dark:bg-gray-800" style="min-height: 400px; display: block;" sandbox="allow-same-origin" @load="onIframeLoad" ref="emailIframe"></iframe>
+          </div>
+          <div v-else class="whitespace-pre-wrap text-gray-900 dark:text-gray-100">
+            {{ selectedEmail.textBody || selectedEmail.body || 'No content' }}
+          </div>
+        </div>
+        <div v-else class="text-gray-500 dark:text-gray-400 text-center mt-8">
+          Click on an email to view its content
+        </div>
       </div>
     </div>
   </div>
@@ -111,6 +87,16 @@ import { ref, onMounted, onUnmounted, nextTick, watch, computed } from 'vue'
 import { Email } from '@shared/types'
 import { useEmailActions } from '../composables/useEmailActions'
 import { checkUrlSecurity } from '../utils/url-security'
+import EmailNavigation from './EmailNavigation.vue'
+
+const props = defineProps<{
+  accountId?: string
+  selectedEmailId?: string
+}>()
+
+const emit = defineEmits<{
+  'select-email': [emailId: string]
+}>()
 
 const containerRef = ref<HTMLDivElement | null>(null)
 const mailbox = ref<HTMLDivElement | null>(null)
@@ -136,7 +122,12 @@ const {
   archiveEmail,
   loadEmailContent,
   preloadNearbyEmails,
-  cleanupEmailCache
+  cleanupEmailCache,
+  composeEmail,
+  replyToEmail,
+  forwardEmail,
+  setReminderForEmail,
+  deleteEmailByObject
 } = useEmailActions()
 
 const confirmArchive = async (emailId: string) => {
@@ -162,18 +153,18 @@ const confirmArchive = async (emailId: string) => {
 
 const sanitizedHtml = computed(() => {
   if (!selectedEmail.value?.htmlBody) return ''
-  
+
   let html = selectedEmail.value.htmlBody
-  
+
   // Remove <style> tags that could affect the parent page
   html = html.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-  
+
   // Remove <script> tags for security
   html = html.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-  
+
   // Check if dark mode is active
   const isDark = document.documentElement.classList.contains('dark')
-  
+
   // Wrap in a container to ensure isolation
   // Add base styles for better rendering
   const baseStyles = `
@@ -205,7 +196,7 @@ const sanitizedHtml = computed(() => {
       }
     </style>
   `
-  
+
   return `<!DOCTYPE html><html><head>${baseStyles}</head><body>${html}</body></html>`
 })
 
@@ -221,21 +212,21 @@ const onIframeLoad = () => {
           iframeDoc.documentElement?.scrollHeight || 400
         )
         iframe.style.height = `${height}px`
-        
+
         // Intercept link clicks to open externally with security checks
         const links = iframeDoc.querySelectorAll('a[href]')
         links.forEach((link: Element) => {
           const anchor = link as HTMLAnchorElement
           const originalHref = anchor.href
           const displayText = anchor.textContent || anchor.innerText
-          
+
           anchor.addEventListener('click', async (e) => {
             e.preventDefault()
             e.stopPropagation()
-            
+
             await handleLinkClick(originalHref, displayText)
           })
-          
+
           // Add visual indicator that link opens externally
           anchor.style.cursor = 'pointer'
           anchor.title = `Open ${originalHref} in browser`
@@ -251,7 +242,7 @@ const onIframeLoad = () => {
 const handleLinkClick = async (url: string, displayText?: string) => {
   // Check URL security
   const securityCheck = checkUrlSecurity(url, displayText)
-  
+
   // If high risk, show warning and require confirmation
   if (securityCheck.riskLevel === 'high' || !securityCheck.isSafe) {
     const warningMessage = [
@@ -262,7 +253,7 @@ const handleLinkClick = async (url: string, displayText?: string) => {
       '',
       'Do you want to open it anyway?'
     ].join('\n')
-    
+
     if (!confirm(warningMessage)) {
       return
     }
@@ -276,12 +267,12 @@ const handleLinkClick = async (url: string, displayText?: string) => {
       '',
       'Do you want to continue?'
     ].join('\n')
-    
+
     if (!confirm(infoMessage)) {
       return
     }
   }
-  
+
   // Open URL externally
   window.electronAPI.shell.openExternal(securityCheck.actualUrl)
 }
@@ -392,7 +383,7 @@ const loadCurrentEmail = async () => {
   try {
     // Load current email (from cache if available)
     selectedEmail.value = await loadEmailContent(mail.id)
-    
+
     // Preload nearby emails in background
     preloadNearbyEmails(mails.value, currentIndex.value)
   } catch (error) {
@@ -406,11 +397,11 @@ const loadCurrentEmail = async () => {
 // Watch for mail changes to update refs array and positions
 watch(() => mails.value.length, async () => {
   mailRefs.value = new Array(mails.value.length).fill(null)
-  
+
   // Clean up cache - remove entries for emails that no longer exist
   const currentEmailIds = new Set(mails.value.map(m => m.id).filter(Boolean))
   cleanupEmailCache(currentEmailIds)
-  
+
   await nextTick()
   updateMailPositions()
   // Load the first email automatically
@@ -461,18 +452,78 @@ const handleWheel = (event: WheelEvent) => {
   }
 }
 
+// Email action handlers
+const handleCompose = () => {
+  if (props.accountId) {
+    composeEmail(props.accountId)
+  } else {
+    // Fallback: get first account
+    window.electronAPI.accounts.list().then(accounts => {
+      if (accounts.length > 0) {
+        composeEmail(accounts[0].id)
+      }
+    })
+  }
+}
+
+const handleReply = (email: any) => {
+  if (!email || !email.id) return
+  const accountId = props.accountId || email.accountId
+  if (accountId) {
+    replyToEmail(email, accountId)
+  }
+}
+
+const handleForward = (email: any) => {
+  if (!email || !email.id) return
+  const accountId = props.accountId || email.accountId
+  if (accountId) {
+    forwardEmail(email, accountId)
+  }
+}
+
+const handleSetReminder = (email: any) => {
+  if (!email || !email.id) return
+  setReminderForEmail(email)
+}
+
+const handleDelete = async (email: any) => {
+  if (!email || !email.id) return
+  const result = await deleteEmailByObject(email)
+  if (result.success) {
+    // Remove email from list
+    const emailIndex = mails.value.findIndex(e => e.id === email.id)
+    if (emailIndex !== -1) {
+      mails.value.splice(emailIndex, 1)
+      // Adjust currentIndex if needed
+      if (currentIndex.value >= mails.value.length && mails.value.length > 0) {
+        currentIndex.value = mails.value.length - 1
+        updateMailPositions()
+      } else if (mails.value.length === 0) {
+        currentIndex.value = 0
+        selectedEmail.value = null
+      } else {
+        updateMailPositions()
+      }
+    }
+  }
+}
+
 onMounted(async () => {
   try {
-    // Get all accounts
-    const accounts = await window.electronAPI.accounts.list()
-
-    if (accounts.length === 0) {
-      console.warn('No accounts found')
-      return
+    // Use provided accountId or get first account
+    let accountId: string = props.accountId || ''
+    if (!accountId) {
+      const accounts = await window.electronAPI.accounts.list()
+      if (accounts.length === 0) {
+        console.warn('No accounts found')
+        return
+      }
+      accountId = accounts[0].id
     }
 
-    // Get folders for the first account
-    const folders = await window.electronAPI.folders.list(accounts[0].id)
+    // Get folders for the account
+    const folders = await window.electronAPI.folders.list(accountId)
 
     // Find the inbox folder
     const inboxFolder = folders.find((f: any) => f.name.toLowerCase() === 'inbox')

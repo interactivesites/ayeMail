@@ -312,6 +312,45 @@ export function useEmailActions() {
     }
   }
 
+  // Email action methods
+  const composeEmail = (accountId: string) => {
+    if (!accountId) return
+    ;(window.electronAPI as any).window.compose.create(accountId)
+  }
+
+  const replyToEmail = (email: any, accountId: string) => {
+    if (!email || !accountId || !email.id) return
+    ;(window.electronAPI as any).window.compose.create(accountId, { emailId: email.id, forward: false })
+  }
+
+  const forwardEmail = (email: any, accountId: string) => {
+    if (!email || !accountId || !email.id) return
+    ;(window.electronAPI as any).window.compose.create(accountId, { emailId: email.id, forward: true })
+  }
+
+  const setReminderForEmail = async (email: any) => {
+    if (!email || !email.id) return
+    
+    // Check if email already has a reminder
+    try {
+      await window.electronAPI.reminders.hasReminder(email.id)
+      // Still allow setting reminder, but it will update the existing one
+      // The backend will handle updating instead of creating a duplicate
+    } catch (error) {
+      console.error('Error checking for existing reminder:', error)
+    }
+
+    // Emit event to show reminder modal
+    window.dispatchEvent(new CustomEvent('show-reminder-modal', { detail: { email } }))
+  }
+
+  const deleteEmailByObject = async (email: any) => {
+    if (!email || !email.id) return { success: false }
+
+    // Use the existing deleteEmail function
+    return await deleteEmail(email.id)
+  }
+
   return {
     archiveConfirmId,
     archivePopoverRefs,
@@ -328,7 +367,13 @@ export function useEmailActions() {
     loadEmailContent,
     preloadNearbyEmails,
     clearEmailCache,
-    cleanupEmailCache
+    cleanupEmailCache,
+    // Email action methods
+    composeEmail,
+    replyToEmail,
+    forwardEmail,
+    setReminderForEmail,
+    deleteEmailByObject
   }
 }
 
