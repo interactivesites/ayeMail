@@ -92,6 +92,7 @@ import ReminderModal from './components/ReminderModal.vue'
 import MainNav from './components/MainNav.vue'
 import { usePreferencesStore } from './stores/preferences'
 import { useEmailActions } from './composables/useEmailActions'
+import { useEmailCacheStore } from './stores/emailCache'
 
 // Check if we're in compose mode
 const urlParams = new URLSearchParams(window.location.search)
@@ -127,7 +128,7 @@ const backgroundSyncing = ref(false)
 const currentSyncFolderId = ref<string | null>(null)
 const currentSyncRemoveListener = ref<(() => void) | null>(null)
 const preferences = usePreferencesStore()
-const { loadEmailContent, clearEmailCache } = useEmailActions()
+const emailCacheStore = useEmailCacheStore()
 const isGridLayout = computed(() => preferences.mailLayout === 'grid' || preferences.mailLayout === 'calm')
 const mailPaneWidth = ref(384)
 const isResizingMailPane = ref(false)
@@ -278,7 +279,7 @@ const handleEmailSelect = async (emailId: string) => {
   // Load full email details (from cache if available)
   if (emailId) {
     try {
-      selectedEmail.value = await loadEmailContent(emailId)
+      selectedEmail.value = await emailCacheStore.getEmail(emailId)
 
       // Mark as read after 3 seconds if email is unread
       if (selectedEmail.value && !selectedEmail.value.isRead) {
@@ -345,7 +346,7 @@ const handleDeleteEmail = async (email: any) => {
     if (selectedEmailId.value === email.id) {
       selectedEmailId.value = ''
       selectedEmail.value = null
-      clearEmailCache(email.id)
+      emailCacheStore.clearEmail(email.id)
     }
 
     // Refresh the email list
@@ -827,7 +828,7 @@ const handleDragActionComplete = () => {
   // Clear selected email if it was the dragged one
   if (selectedEmailId.value === draggedEmail.value?.id) {
     if (draggedEmail.value?.id) {
-      clearEmailCache(draggedEmail.value.id)
+      emailCacheStore.clearEmail(draggedEmail.value.id)
     }
     selectedEmailId.value = ''
     selectedEmail.value = null
@@ -851,7 +852,7 @@ const handleSearch = (query: string) => {
   // Clear selected email when searching
   if (query) {
     if (selectedEmailId.value) {
-      clearEmailCache(selectedEmailId.value)
+      emailCacheStore.clearEmail(selectedEmailId.value)
     }
     selectedEmailId.value = ''
     selectedEmail.value = null

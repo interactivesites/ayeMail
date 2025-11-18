@@ -133,6 +133,7 @@ import { ref, watch, computed, nextTick } from 'vue'
 import { formatDate, formatSize, formatAddresses } from '../utils/formatters'
 import { EmailAddress } from '../../shared/types'
 import { checkUrlSecurity } from '../utils/url-security'
+import { useEmailCacheStore } from '../stores/emailCache'
 import ThreadView from './ThreadView.vue'
 
 const props = defineProps<{
@@ -147,6 +148,7 @@ const emit = defineEmits<{
   'select-thread-email': [emailId: string]
 }>()
 
+const emailCacheStore = useEmailCacheStore()
 const email = ref<any>(null)
 const loading = ref(false)
 const downloading = ref<string | null>(null)
@@ -218,9 +220,9 @@ const loadEmail = async () => {
       setTimeout(() => reject(new Error('Email loading timeout')), 30000)
     )
     
-    // Race between email loading and timeout
+    // Race between email loading (from cache or API) and timeout
     email.value = await Promise.race([
-      window.electronAPI.emails.get(props.emailId),
+      emailCacheStore.getEmail(props.emailId),
       timeoutPromise
     ]) as any
     

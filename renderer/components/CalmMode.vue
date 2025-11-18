@@ -86,6 +86,7 @@ import gsap from 'gsap'
 import { ref, onMounted, onUnmounted, nextTick, watch, computed } from 'vue'
 import { Email } from '@shared/types'
 import { useEmailActions } from '../composables/useEmailActions'
+import { useEmailCacheStore } from '../stores/emailCache'
 import { checkUrlSecurity } from '../utils/url-security'
 import EmailNavigation from './EmailNavigation.vue'
 
@@ -120,15 +121,16 @@ const {
   showArchiveConfirm,
   cancelArchive,
   archiveEmail,
-  loadEmailContent,
-  preloadNearbyEmails,
-  cleanupEmailCache,
   composeEmail,
   replyToEmail,
   forwardEmail,
   setReminderForEmail,
   deleteEmailByObject
 } = useEmailActions()
+
+// Email cache store
+const emailCacheStore = useEmailCacheStore()
+const CACHE_RANGE = 3 // Number of emails to cache before and after current
 
 const confirmArchive = async (emailId: string) => {
   const result = await archiveEmail(emailId)
@@ -382,10 +384,17 @@ const loadCurrentEmail = async () => {
   loadingEmail.value = true
   try {
     // Load current email (from cache if available)
-    selectedEmail.value = await loadEmailContent(mail.id)
+    selectedEmail.value = await emailCacheStore.getEmail(mail.id)
 
     // Preload nearby emails in background
-    preloadNearbyEmails(mails.value, currentIndex.value)
+    const startIndex = Math.max(0, currentIndex.value - CACHE_RANGE)
+    const endIndex = Math.min(mails.value.length - 1, currentIndex.value + CACHE_RANGE)
+    const emailIdsToPreload = mails.value
+      .slice(startIndex, endIndex + 1)
+      .map(m => m.id)
+      .filter(Boolean) as string[]
+    
+    emailCacheStore.preloadEmails(emailIdsToPreload)
   } catch (error) {
     console.error('Error loading email content:', error)
     selectedEmail.value = null
@@ -400,7 +409,7 @@ watch(() => mails.value.length, async () => {
 
   // Clean up cache - remove entries for emails that no longer exist
   const currentEmailIds = new Set(mails.value.map(m => m.id).filter(Boolean))
-  cleanupEmailCache(currentEmailIds)
+  emailCacheStore.cleanup(currentEmailIds)
 
   await nextTick()
   updateMailPositions()
