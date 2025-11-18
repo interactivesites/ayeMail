@@ -18,7 +18,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     update: (id: string, account: any) => ipcRenderer.invoke('accounts:update', id, account),
     remove: (id: string) => ipcRenderer.invoke('accounts:remove', id),
     test: (account: any) => ipcRenderer.invoke('accounts:test', account),
-    probe: (account: any) => ipcRenderer.invoke('accounts:probe', account)
+    probe: (account: any) => ipcRenderer.invoke('accounts:probe', account),
+    fromAddresses: {
+      list: (accountId: string) => ipcRenderer.invoke('accounts:fromAddresses:list', accountId),
+      add: (accountId: string, email: string, name?: string, isDefault?: boolean) =>
+        ipcRenderer.invoke('accounts:fromAddresses:add', accountId, email, name, isDefault),
+      update: (id: string, updates: { email?: string; name?: string; isDefault?: boolean }) =>
+        ipcRenderer.invoke('accounts:fromAddresses:update', id, updates),
+      remove: (id: string) => ipcRenderer.invoke('accounts:fromAddresses:remove', id)
+    }
   },
   
   // Email operations

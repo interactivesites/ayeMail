@@ -2,6 +2,7 @@ import Database from 'better-sqlite3'
 import { join } from 'path'
 import { app } from 'electron'
 import { existsSync, mkdirSync } from 'fs'
+import { randomUUID } from 'crypto'
 
 const getDbPath = () => {
   const userDataPath = app.getPath('userData')
@@ -187,6 +188,19 @@ export function createDatabase(): Database.Database {
     CREATE INDEX IF NOT EXISTS idx_sender_folder_sender ON sender_folder_mappings(sender_email);
     CREATE INDEX IF NOT EXISTS idx_sender_folder_folder ON sender_folder_mappings(folder_id);
     CREATE INDEX IF NOT EXISTS idx_sender_folder_account_sender ON sender_folder_mappings(account_id, sender_email);
+
+    CREATE TABLE IF NOT EXISTS account_from_addresses (
+      id TEXT PRIMARY KEY,
+      account_id TEXT NOT NULL,
+      email TEXT NOT NULL,
+      name TEXT,
+      is_default INTEGER DEFAULT 0,
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE,
+      UNIQUE(account_id, email)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_account_from_addresses_account ON account_from_addresses(account_id);
   `)
   
   // Migration: Add status column if it doesn't exist
@@ -271,6 +285,43 @@ export function createDatabase(): Database.Database {
     db.exec(`CREATE INDEX IF NOT EXISTS idx_spam_greylist_block_until ON spam_greylist(block_until)`)
   } catch (error) {
     console.error('Error creating spam_greylist table:', error)
+  }
+
+  // Migration: Ensure account_from_addresses table exists and migrate existing accounts
+  try {
+    const tableInfo = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='account_from_addresses'").get()
+    if (!tableInfo) {
+      // Table doesn't exist, create it (should already be created above, but ensure it exists)
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS account_from_addresses (
+          id TEXT PRIMARY KEY,
+          account_id TEXT NOT NULL,
+          email TEXT NOT NULL,
+          name TEXT,
+          is_default INTEGER DEFAULT 0,
+          created_at INTEGER NOT NULL,
+          FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE,
+          UNIQUE(account_id, email)
+        );
+        CREATE INDEX IF NOT EXISTS idx_account_from_addresses_account ON account_from_addresses(account_id);
+      `)
+    }
+
+    // Migrate existing accounts: add their email as the default from address
+    const accounts = db.prepare('SELECT id, email, name FROM accounts').all() as any[]
+    for (const account of accounts) {
+      const existingFromAddress = db.prepare('SELECT id FROM account_from_addresses WHERE account_id = ? AND email = ?').get(account.id, account.email) as any
+      if (!existingFromAddress) {
+        const id = randomUUID()
+        const now = Date.now()
+        db.prepare(`
+          INSERT INTO account_from_addresses (id, account_id, email, name, is_default, created_at)
+          VALUES (?, ?, ?, ?, 1, ?)
+        `).run(id, account.id, account.email, account.name || null, now)
+      }
+    }
+  } catch (error) {
+    console.error('Error migrating account_from_addresses table:', error)
   }
   
   return db

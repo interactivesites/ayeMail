@@ -26,6 +26,15 @@
               {{ account.name || account.email }}
             </option>
           </select>
+          <select
+            v-if="fromAddresses.length > 0"
+            v-model="selectedFromAddressId"
+            class="text-xs px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-primary-600 focus:border-primary-600"
+          >
+            <option v-for="addr in fromAddresses" :key="addr.id" :value="addr.id">
+              {{ addr.name ? `${addr.name} <${addr.email}>` : addr.email }}
+            </option>
+          </select>
         </div>
         <div class="border-l border-gray-300 dark:border-gray-600 h-4 mx-4 flex-shrink-0"></div>
         <!-- <label class="flex items-center space-x-1.5 cursor-pointer">
@@ -405,6 +414,8 @@ const windowId = ref<number | null>(null)
 
 const accounts = ref<any[]>([])
 const selectedAccountId = ref<string>(props.accountId)
+const fromAddresses = ref<any[]>([])
+const selectedFromAddressId = ref<string>('')
 const signatures = ref<any[]>([])
 const defaultSignature = ref<any>(null)
 
@@ -514,9 +525,34 @@ const appendSignature = () => {
   }
 }
 
+const loadFromAddresses = async (accountId: string) => {
+  if (!accountId) {
+    fromAddresses.value = []
+    selectedFromAddressId.value = ''
+    return
+  }
+  try {
+    fromAddresses.value = await window.electronAPI.accounts.fromAddresses.list(accountId)
+    // Set default from address
+    const defaultAddr = fromAddresses.value.find(addr => addr.isDefault)
+    if (defaultAddr) {
+      selectedFromAddressId.value = defaultAddr.id
+    } else if (fromAddresses.value.length > 0) {
+      selectedFromAddressId.value = fromAddresses.value[0].id
+    } else {
+      selectedFromAddressId.value = ''
+    }
+  } catch (error) {
+    console.error('Error loading from addresses:', error)
+    fromAddresses.value = []
+    selectedFromAddressId.value = ''
+  }
+}
+
 // Handle account change
 const handleAccountChange = async () => {
   await loadAccountSignatures(selectedAccountId.value)
+  await loadFromAddresses(selectedAccountId.value)
   appendSignature()
 }
 
@@ -549,6 +585,9 @@ onMounted(async () => {
   
   // Load signatures for initial account
   await loadAccountSignatures(selectedAccountId.value)
+  
+  // Load from addresses for initial account
+  await loadFromAddresses(selectedAccountId.value)
   
   // Append signature if not replying
   if (!props.replyTo) {
@@ -820,8 +859,12 @@ const sendEmail = async () => {
     // Combine inline images and file attachments
     const attachmentBuffers = [...imageAttachments, ...fileAttachments]
 
+    // Get selected from address
+    const selectedFromAddress = fromAddresses.value.find(addr => addr.id === selectedFromAddressId.value)
+    
     const result = await window.electronAPI.emails.send({
       accountId: selectedAccountId.value,
+      fromAddressId: selectedFromAddressId.value || undefined,
       to: parseAddresses(form.value.to),
       cc: form.value.cc ? parseAddresses(form.value.cc) : undefined,
       subject: form.value.subject,

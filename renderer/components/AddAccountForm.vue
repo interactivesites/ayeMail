@@ -244,6 +244,54 @@
             :placeholder="editingAccount ? $t('accounts.passwordLeaveBlankPlaceholder') : $t('accounts.passwordPlaceholder')"
           />
         </div>
+        <!-- From Addresses Management (only when editing) -->
+        <div v-if="editingAccount && props.accountId" class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+          <div class="flex items-center justify-between mb-2">
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">From Email Addresses</label>
+            <button
+              @click="showAddFromAddress = true"
+              class="text-xs px-2 py-1 bg-primary-600 text-white rounded hover:bg-primary-700"
+            >
+              + Add
+            </button>
+          </div>
+          <div v-if="fromAddresses.length === 0" class="text-sm text-gray-500 dark:text-gray-400 mb-2">
+            No from addresses configured. The account email will be used.
+          </div>
+          <div v-else class="space-y-2">
+            <div
+              v-for="addr in fromAddresses"
+              :key="addr.id"
+              class="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800 rounded"
+            >
+              <div class="flex-1">
+                <div class="text-sm font-medium text-gray-900 dark:text-gray-100">
+                  {{ addr.name || addr.email }}
+                </div>
+                <div class="text-xs text-gray-500 dark:text-gray-400">{{ addr.email }}</div>
+                <span v-if="addr.isDefault" class="text-xs text-primary-600 dark:text-primary-400">(Default)</span>
+              </div>
+              <div class="flex items-center space-x-1">
+                <button
+                  @click="setDefaultFromAddress(addr.id)"
+                  v-if="!addr.isDefault"
+                  class="text-xs px-2 py-1 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-300 dark:hover:bg-gray-600"
+                  title="Set as default"
+                >
+                  Set Default
+                </button>
+                <button
+                  @click="removeFromAddress(addr.id)"
+                  class="text-xs px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700"
+                  :disabled="fromAddresses.length <= 1"
+                  title="Remove"
+                >
+                  Remove
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
           <button
             @click="showAdvanced = false"
             class="text-sm text-primary-600 dark:text-primary-400 hover:underline"
@@ -251,6 +299,60 @@
             {{ $t('accounts.simpleMode') || 'Simple Mode' }}
           </button>
         </template>
+      </div>
+      <!-- Add From Address Modal -->
+      <div
+        v-if="showAddFromAddress"
+        class="fixed inset-0 bg-black bg-opacity-50 dark:bg-opacity-70 flex items-center justify-center z-50"
+        @click.self="showAddFromAddress = false"
+      >
+        <div class="bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-md p-4">
+          <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Add From Address</h3>
+          <div class="space-y-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email</label>
+              <input
+                v-model="newFromAddress.email"
+                type="email"
+                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-600 dark:bg-gray-800 dark:text-gray-100"
+                placeholder="email@example.com"
+              />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name (optional)</label>
+              <input
+                v-model="newFromAddress.name"
+                type="text"
+                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-600 dark:bg-gray-800 dark:text-gray-100"
+                placeholder="Display Name"
+              />
+            </div>
+            <div>
+              <label class="flex items-center">
+                <input
+                  v-model="newFromAddress.isDefault"
+                  type="checkbox"
+                  class="mr-2"
+                />
+                <span class="text-sm text-gray-700 dark:text-gray-300">Set as default</span>
+              </label>
+            </div>
+          </div>
+          <div class="flex justify-end space-x-2 mt-4">
+            <button
+              @click="showAddFromAddress = false; newFromAddress = { email: '', name: '', isDefault: false }"
+              class="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded hover:bg-gray-300 dark:hover:bg-gray-600"
+            >
+              Cancel
+            </button>
+            <button
+              @click="addFromAddress"
+              class="px-4 py-2 bg-primary-600 text-white rounded hover:bg-primary-700"
+            >
+              Add
+            </button>
+          </div>
+        </div>
       </div>
       <div class="p-4 border-t border-gray-200 dark:border-gray-700 flex justify-end space-x-2">
         <button
@@ -315,6 +417,64 @@ const showAdvanced = ref(false)
 const detectedProvider = ref('')
 const errorMessage = ref('')
 const successMessage = ref('')
+
+const fromAddresses = ref<any[]>([])
+const showAddFromAddress = ref(false)
+const newFromAddress = ref({ email: '', name: '', isDefault: false })
+
+const loadFromAddresses = async () => {
+  if (!props.accountId) return
+  try {
+    fromAddresses.value = await window.electronAPI.accounts.fromAddresses.list(props.accountId)
+  } catch (error) {
+    console.error('Error loading from addresses:', error)
+  }
+}
+
+const addFromAddress = async () => {
+  if (!props.accountId || !newFromAddress.value.email) return
+  try {
+    const result = await window.electronAPI.accounts.fromAddresses.add(
+      props.accountId,
+      newFromAddress.value.email,
+      newFromAddress.value.name || undefined,
+      newFromAddress.value.isDefault
+    )
+    if (result.success) {
+      await loadFromAddresses()
+      showAddFromAddress.value = false
+      newFromAddress.value = { email: '', name: '', isDefault: false }
+    } else {
+      alert(result.message || 'Failed to add from address')
+    }
+  } catch (error: any) {
+    alert(`Error adding from address: ${error.message}`)
+  }
+}
+
+const setDefaultFromAddress = async (id: string) => {
+  if (!props.accountId) return
+  try {
+    await window.electronAPI.accounts.fromAddresses.update(id, { isDefault: true })
+    await loadFromAddresses()
+  } catch (error: any) {
+    alert(`Error setting default: ${error.message}`)
+  }
+}
+
+const removeFromAddress = async (id: string) => {
+  if (!confirm('Are you sure you want to remove this from address?')) return
+  try {
+    const result = await window.electronAPI.accounts.fromAddresses.remove(id)
+    if (result.success) {
+      await loadFromAddresses()
+    } else {
+      alert(result.message || 'Failed to remove from address')
+    }
+  } catch (error: any) {
+    alert(`Error removing from address: ${error.message}`)
+  }
+}
 
 // Provider names for display
 const providerNames: Record<string, string> = {
@@ -560,6 +720,8 @@ const loadAccount = async () => {
     // When editing, show advanced mode and mark as tested (existing account)
     showAdvanced.value = true
     connectionTested.value = true
+    // Load from addresses
+    await loadFromAddresses()
   } catch (error: any) {
     console.error('Error loading account:', error)
     errorMessage.value = t('accounts.failedToLoadAccount', { message: error.message }) || `Failed to load account: ${error.message}`

@@ -96,6 +96,19 @@ export function registerAccountHandlers() {
       now
     )
     
+    // Add default from address for new account
+    try {
+      const { randomUUID } = await import('crypto')
+      const fromAddressId = randomUUID()
+      db.prepare(`
+        INSERT INTO account_from_addresses (id, account_id, email, name, is_default, created_at)
+        VALUES (?, ?, ?, ?, 1, ?)
+      `).run(fromAddressId, id, account.email, account.name || null, now)
+    } catch (error: any) {
+      console.error('Error adding default from address:', error)
+      // Don't fail account creation if from address creation fails
+    }
+    
     return { id, ...account }
   })
 
@@ -184,6 +197,109 @@ export function registerAccountHandlers() {
   ipcMain.handle('accounts:probe', async (_, account: any) => {
     const { testAccountSettings } = await import('../email/connection-tester')
     return testAccountSettings(account)
+  })
+
+  // From addresses handlers
+  ipcMain.handle('accounts:fromAddresses:list', async (_, accountId: string) => {
+    const db = getDatabase()
+    const addresses = db.prepare('SELECT * FROM account_from_addresses WHERE account_id = ? ORDER BY is_default DESC, created_at ASC').all(accountId)
+    return addresses.map((addr: any) => ({
+      id: addr.id,
+      accountId: addr.account_id,
+      email: addr.email,
+      name: addr.name,
+      isDefault: addr.is_default === 1,
+      createdAt: addr.created_at
+    }))
+  })
+
+  ipcMain.handle('accounts:fromAddresses:add', async (_, accountId: string, email: string, name?: string, isDefault?: boolean) => {
+    const db = getDatabase()
+    const { randomUUID } = await import('crypto')
+    const id = randomUUID()
+    const now = Date.now()
+
+    // If this is set as default, unset other defaults for this account
+    if (isDefault) {
+      db.prepare('UPDATE account_from_addresses SET is_default = 0 WHERE account_id = ?').run(accountId)
+    }
+
+    try {
+      db.prepare(`
+        INSERT INTO account_from_addresses (id, account_id, email, name, is_default, created_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).run(id, accountId, email, name || null, isDefault ? 1 : 0, now)
+
+      return { success: true, id }
+    } catch (error: any) {
+      if (error.code === 'SQLITE_CONSTRAINT' && error.message.includes('UNIQUE')) {
+        return { success: false, message: 'This email address already exists for this account' }
+      }
+      throw error
+    }
+  })
+
+  ipcMain.handle('accounts:fromAddresses:update', async (_, id: string, updates: { email?: string; name?: string; isDefault?: boolean }) => {
+    const db = getDatabase()
+    const address = db.prepare('SELECT account_id FROM account_from_addresses WHERE id = ?').get(id) as any
+    if (!address) {
+      return { success: false, message: 'From address not found' }
+    }
+
+    // If setting as default, unset other defaults for this account
+    if (updates.isDefault) {
+      db.prepare('UPDATE account_from_addresses SET is_default = 0 WHERE account_id = ? AND id != ?').run(address.account_id, id)
+    }
+
+    const updatesList: string[] = []
+    const values: any[] = []
+    if (updates.email !== undefined) {
+      updatesList.push('email = ?')
+      values.push(updates.email)
+    }
+    if (updates.name !== undefined) {
+      updatesList.push('name = ?')
+      values.push(updates.name)
+    }
+    if (updates.isDefault !== undefined) {
+      updatesList.push('is_default = ?')
+      values.push(updates.isDefault ? 1 : 0)
+    }
+
+    if (updatesList.length === 0) {
+      return { success: true }
+    }
+
+    values.push(id)
+    db.prepare(`UPDATE account_from_addresses SET ${updatesList.join(', ')} WHERE id = ?`).run(...values)
+
+    return { success: true }
+  })
+
+  ipcMain.handle('accounts:fromAddresses:remove', async (_, id: string) => {
+    const db = getDatabase()
+    const address = db.prepare('SELECT account_id, is_default FROM account_from_addresses WHERE id = ?').get(id) as any
+    if (!address) {
+      return { success: false, message: 'From address not found' }
+    }
+
+    // Don't allow removing the last from address for an account
+    const count = db.prepare('SELECT COUNT(*) as count FROM account_from_addresses WHERE account_id = ?').get(address.account_id) as any
+    if (count.count <= 1) {
+      return { success: false, message: 'Cannot remove the last from address for an account' }
+    }
+
+    db.prepare('DELETE FROM account_from_addresses WHERE id = ?').run(id)
+
+    // If we removed the default, set the first remaining one as default
+    if (address.is_default === 1) {
+      const remaining = db.prepare('SELECT id FROM account_from_addresses WHERE account_id = ? ORDER BY created_at ASC LIMIT 1').get(address.account_id) as any
+      if (remaining) {
+        db.prepare('UPDATE account_from_addresses SET is_default = 1 WHERE id = ?').run(remaining.id)
+      }
+    }
+
+    return { success: true }
   })
 }
 
@@ -1263,6 +1379,26 @@ export function registerEmailHandlers() {
         return { success: false, message: 'Account not found' }
       }
 
+      // Get from address if specified
+      let fromAddress: { email: string; name?: string } | undefined
+      if (email.fromAddressId) {
+        const db = getDatabase()
+        const fromAddr = db.prepare('SELECT email, name FROM account_from_addresses WHERE id = ?').get(email.fromAddressId) as any
+        if (fromAddr) {
+          fromAddress = {
+            email: fromAddr.email,
+            name: fromAddr.name || undefined
+          }
+        }
+      }
+      // Fallback to account email if no from address specified or found
+      if (!fromAddress) {
+        fromAddress = {
+          email: account.email,
+          name: account.name || undefined
+        }
+      }
+
       // Convert attachment content from Array to Buffer if needed
       const processedAttachments = email.attachments?.map((att: any) => {
         const attachment: any = {
@@ -1281,6 +1417,7 @@ export function registerEmailHandlers() {
 
       const smtpClient = getSMTPClient(account)
       const result = await smtpClient.sendEmail({
+        from: fromAddress,
         to: email.to,
         cc: email.cc,
         bcc: email.bcc,

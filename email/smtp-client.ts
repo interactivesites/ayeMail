@@ -69,16 +69,22 @@ export class SMTPClient {
     await this.transporter.verify()
   }
 
-  async sendEmail(email: EmailToSend): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  async sendEmail(email: EmailToSend & { from?: { email: string; name?: string } }): Promise<{ success: boolean; messageId?: string; error?: string }> {
     if (!this.transporter) {
       await this.initialize()
     }
 
     try {
+      // Use provided from address or fallback to account email
+      const fromAddress = email.from || {
+        email: this.account.email,
+        name: this.account.name
+      }
+
       const mailOptions: any = {
         from: {
-          name: this.account.name,
-          address: this.account.email
+          name: fromAddress.name || fromAddress.email,
+          address: fromAddress.email
         },
         to: email.to.map(addr => addr.address).join(', '),
         subject: email.subject,
