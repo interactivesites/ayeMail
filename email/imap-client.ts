@@ -240,6 +240,8 @@ export class IMAPClient {
               const name = box.name || key
               const path = prefix ? `${prefix}${delimiter}${key}` : key
 
+              console.log(`[IMAP listFolders] Processing box: ${key}, name: ${name}, path: ${path}, delimiter: ${delimiter}, hasChildren: ${!!box.children}`)
+
               result.push({
                 name,
                 path,
@@ -248,6 +250,7 @@ export class IMAPClient {
               })
 
               if (box.children) {
+                console.log(`[IMAP listFolders] Box ${key} has children:`, Object.keys(box.children))
                 result.push(...flattenBoxes(box.children, path))
               }
             }
@@ -255,7 +258,9 @@ export class IMAPClient {
             return result
           }
 
-          resolve(flattenBoxes(boxes))
+          const folders = flattenBoxes(boxes)
+          console.log(`[IMAP listFolders] Total folders found: ${folders.length}`, folders.map(f => ({ name: f.name, path: f.path })))
+          resolve(folders)
         })
       } catch (error: any) {
         clearTimeout(timeout)

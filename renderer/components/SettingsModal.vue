@@ -467,9 +467,23 @@ const handleAccountAdded = async () => {
     if (!selectedAccountId.value) {
       selectedAccountId.value = accounts.value[0].id
     }
+    
+    // Trigger initial folder sync for the new account
+    const newAccount = accounts.value[0]
+    try {
+      console.log('Syncing folders for new account:', newAccount.id)
+      const result = await window.electronAPI.folders.syncOnly(newAccount.id)
+      console.log('Folder sync result:', result)
+    } catch (error) {
+      console.error('Error syncing folders for new account:', error)
+    }
+    
     // Emit account-selected so App.vue can update hasAccounts
-    emit('account-selected', accounts.value[0])
+    emit('account-selected', newAccount)
   }
+  
+  // Trigger folder refresh
+  window.dispatchEvent(new CustomEvent('refresh-folders'))
 }
 
 const handleAccountUpdated = () => {
