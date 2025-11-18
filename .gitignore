@@ -10,4 +10,5 @@ dist-electron
 .env.local
 coverage
 .nyc_output
+_web/
 

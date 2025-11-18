@@ -14,7 +14,7 @@
         <EmailNavigation class="!ml-0 mt-4" :has-selected-email="!!selectedEmailId" :selected-email="selectedEmail" :account-id="accountId" @compose="handleCompose" @reply="handleReply" @forward="handleForward" @set-reminder="handleSetReminder" @delete="handleDelete" />
       </div>
 
-      <div ref="mailbox" class="relative w-full max-w-2xl h-full flex items-center" @wheel="handleWheel">
+      <div ref="mailbox" class="relative w-full max-w-2xl flex-shrink-0 h-full flex items-center" @wheel="handleWheel">
         <div v-for="(mail, index) in mails" :key="mail.id" :ref="el => { mailRefs[index] = el as HTMLElement | null }" class="absolute w-full px-8 cursor-pointer" @click="handleItemClick(index)" @dblclick="handleEmailDoubleClick(mail.id)" :data-email-id="mail.id">
           <span class="email-popover-anchor absolute top-1/2 right-3 w-0 h-0 transform -translate-y-1/2 pointer-events-none" :data-email-anchor="mail.id"></span>
           <div class="dark:text-white flex items-start gap-3">
@@ -60,7 +60,7 @@
           </div>
         </div>
       </div>
-      <div ref="mailcontent" class="flex-1 overflow-hidden">
+      <div ref="mailcontent" class="flex-1 min-w-0 overflow-hidden">
         <EmailViewer 
           :email-id="selectedEmailId" 
           @reply="handleReply" 
@@ -346,14 +346,24 @@ watch(() => mails.value.length, async () => {
   await nextTick()
   updateMailPositions()
   // Load the first email automatically
-  if (mails.value.length > 0) {
+  if (mails.value.length > 0 && currentIndex.value < mails.value.length) {
     loadCurrentEmail()
+    // Emit select-email event for the first email
+    const emailId = mails.value[currentIndex.value]?.id
+    if (emailId) {
+      emit('select-email', emailId)
+    }
   }
 })
 
 // Watch for currentIndex changes to automatically load email content
 watch(() => currentIndex.value, () => {
   loadCurrentEmail()
+  // Emit select-email event to update parent
+  const emailId = mails.value[currentIndex.value]?.id
+  if (emailId) {
+    emit('select-email', emailId)
+  }
 })
 
 // Watch for folder changes and reload emails
@@ -362,12 +372,17 @@ watch([() => props.folderId, () => props.unifiedFolderType, () => props.unifiedF
 }, { deep: true })
 
 const handleItemClick = (index: number) => {
-  // If clicking the current item, do nothing (already loaded)
+  // If clicking the current item, still emit select-email to ensure parent is updated
   if (index === currentIndex.value) {
+    const emailId = mails.value[index]?.id
+    if (emailId) {
+      emit('select-email', emailId)
+    }
     return
   }
 
   // If clicking a different item, move it to center
+  // The watch on currentIndex will emit the select-email event
   if (isScrolling.value) return
 
   isScrolling.value = true
@@ -390,6 +405,7 @@ const handleWheel = (event: WheelEvent) => {
   if (newIndex !== currentIndex.value) {
     isScrolling.value = true
     currentIndex.value = newIndex
+    // The watch on currentIndex will emit the select-email event
     updateMailPositions()
 
     setTimeout(() => {
