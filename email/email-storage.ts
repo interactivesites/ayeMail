@@ -85,7 +85,14 @@ export class EmailStorage {
     const threadId = email.threadId || await calculateThreadId(email)
     
     const existing = this.db.prepare(`
-      SELECT id FROM emails WHERE account_id = ? AND folder_id = ? AND uid = ?
+      SELECT
+        id,
+        body_encrypted,
+        html_body_encrypted,
+        text_body_encrypted,
+        headers_encrypted
+      FROM emails
+      WHERE account_id = ? AND folder_id = ? AND uid = ?
     `).get(email.accountId, email.folderId, email.uid) as any
 
     if (existing) {
@@ -93,11 +100,24 @@ export class EmailStorage {
       const existingId = existing.id
       const now = Date.now()
       
-      // Encrypt body - always update body fields to ensure they're set
-      const bodyEncrypted = encryption.encrypt(email.body || '')
-      const htmlBodyEncrypted = email.htmlBody ? encryption.encrypt(email.htmlBody) : null
-      const textBodyEncrypted = email.textBody ? encryption.encrypt(email.textBody) : null
-      const headersEncrypted = email.headers ? encryption.encrypt(JSON.stringify(email.headers)) : null
+      // Only overwrite body fields when real content is provided to avoid nuking stored bodies
+      const hasBodyContent = typeof email.body === 'string' && email.body.trim().length > 0
+      const hasHtmlContent = typeof email.htmlBody === 'string' && email.htmlBody.trim().length > 0
+      const hasTextContent = typeof email.textBody === 'string' && email.textBody.trim().length > 0
+      const hasHeaders = email.headers && Object.keys(email.headers).length > 0
+
+      const bodyEncrypted = hasBodyContent
+        ? encryption.encrypt(email.body || '')
+        : existing.body_encrypted
+      const htmlBodyEncrypted = hasHtmlContent
+        ? (email.htmlBody ? encryption.encrypt(email.htmlBody) : null)
+        : existing.html_body_encrypted
+      const textBodyEncrypted = hasTextContent
+        ? (email.textBody ? encryption.encrypt(email.textBody) : null)
+        : existing.text_body_encrypted
+      const headersEncrypted = hasHeaders
+        ? encryption.encrypt(JSON.stringify(email.headers))
+        : existing.headers_encrypted
       
       this.db.prepare(`
         UPDATE emails SET
