@@ -213,7 +213,16 @@ const unifiedFolders = computed(() => {
     }
   }
   
-  // Aside folder (unified) - for reminder emails grouped by reminder date
+  // Reminders folder (unified) - for reminder emails grouped by reminder date
+  folders.push({
+    id: 'unified-reminders',
+    name: 'Reminders',
+    accountId: null,
+    isUnified: true,
+    unread_count: 0
+  })
+  
+  // Aside folder (unified) - show all archived emails from all accounts
   folders.push({
     id: 'unified-aside',
     name: 'Aside',
@@ -228,8 +237,12 @@ const unifiedFolders = computed(() => {
 const accountSections = computed((): AccountSection[] => {
   return accounts.value.map(account => {
     const folders = accountFolders.value.get(account.id) || []
-    // Filter out inbox from account folders since it's in unified section
-    const filteredFolders = folders.filter((f: any) => f.name.toLowerCase() !== 'inbox')
+    // Filter out inbox and aside from account folders since they're in unified section
+    let filteredFolders = folders.filter((f: any) => 
+      f.name.toLowerCase() !== 'inbox' && 
+      f.name.toLowerCase() !== 'aside' &&
+      !f.path?.toLowerCase().includes('aside')
+    )
     
     // Calculate unread count for account
     const unreadCount = folders.reduce((sum: number, f: any) => sum + (f.unread_count || 0), 0)
@@ -305,7 +318,7 @@ const toggleAccount = (accountId: string) => {
   preferences.toggleExpandedAccount(accountId)
 }
 
-const handleFolderSelect = (folder: any) => {
+const handleFolderSelect = async (folder: any) => {
   // If it's a unified folder child (like individual inbox), find the actual folder
   if (folder.isUnifiedChild && folder.accountId) {
     const accountFoldersList = accountFolders.value.get(folder.accountId) || []

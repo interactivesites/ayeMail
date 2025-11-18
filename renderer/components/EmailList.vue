@@ -304,6 +304,19 @@
                   </button>
                   <button
                     v-if="email.accountId"
+                    @click.stop="handleMoveToAside(email.id)"
+                    class="p-1 transition-colors"
+                    :class="selectedEmailId === email.id 
+                      ? 'text-white/80 hover:text-white' 
+                      : 'text-gray-500 hover:text-gray-700'"
+                    title="Move to Aside (A)"
+                  >
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    </svg>
+                  </button>
+                  <button
+                    v-if="email.accountId"
                     @click.stop="showFolderPickerForEmail(email.id)"
                     class="p-1 transition-colors"
                     :class="selectedEmailId === email.id 
@@ -1052,7 +1065,7 @@ const handleDeleteAllEmails = async () => {
 const handleReminderSaved = async () => {
   closeReminderPopover()
   
-  // Refresh the email list to reflect the move to Aside folder
+  // Refresh the email list to reflect the move to Reminders folder
   await loadEmails()
 }
 
@@ -1178,6 +1191,79 @@ const showFolderPickerForEmail = async (emailId: string) => {
         transform: 'none'
       }
     }
+  }
+}
+
+const handleMoveToAside = async (emailId: string) => {
+  const email = getAllEmailsFlat().find(e => e.id === emailId)
+  if (!email || !email.accountId) {
+    console.error('Email not found or missing accountId', { emailId, email })
+    return
+  }
+  
+  busyEmailIds.value.add(emailId)
+  
+  // Optimistically remove email
+  const emailToRemove = emails.value.find(e => e.id === emailId)
+  if (emailToRemove) {
+    // Get flat list before filtering to find next email
+    const flatEmails = getAllEmailsFlat()
+    const currentIndex = flatEmails.findIndex(e => e.id === emailId)
+    
+    removedEmails.value.set(emailId, emailToRemove)
+    emails.value = emails.value.filter(e => e.id !== emailId)
+    
+    // Update selection if moved email was selected
+    if (props.selectedEmailId === emailId) {
+      const remainingEmails = getAllEmailsFlat()
+      if (remainingEmails.length > 0) {
+        // Select next email, or previous if at end
+        const nextIndex = currentIndex < remainingEmails.length ? currentIndex : remainingEmails.length - 1
+        emit('select-email', remainingEmails[nextIndex].id)
+      } else {
+        emit('select-email', '')
+      }
+    }
+  }
+  
+  try {
+    // Find or create Aside folder for this account
+    const folders = await window.electronAPI.folders.list(email.accountId)
+    const flattenFolders = (folderList: any[]): any[] => {
+      const result: any[] = []
+      for (const folder of folderList) {
+        result.push(folder)
+        if (folder.children && folder.children.length > 0) {
+          result.push(...flattenFolders(folder.children))
+        }
+      }
+      return result
+    }
+    const allFolders = flattenFolders(folders)
+    let asideFolder = allFolders.find((f: any) => 
+      f.name.toLowerCase() === 'aside' || f.path?.toLowerCase().includes('aside')
+    )
+    
+    // If Aside folder doesn't exist, create it
+    if (!asideFolder) {
+      asideFolder = await window.electronAPI.folders.create(email.accountId, 'Aside')
+    }
+    
+    if (asideFolder) {
+      await window.electronAPI.emails.moveToFolder(emailId, asideFolder.id)
+      // Refresh email list
+      window.dispatchEvent(new CustomEvent('refresh-emails'))
+    }
+  } catch (error: any) {
+    console.error('Error moving email to Aside folder:', error)
+    // Restore email on error
+    if (emailToRemove) {
+      removedEmails.value.delete(emailId)
+      emails.value.push(emailToRemove)
+      emails.value.sort((a, b) => (b.date || 0) - (a.date || 0))
+    }
+  } finally {
+    busyEmailIds.value.delete(emailId)
   }
 }
 
@@ -1384,6 +1470,14 @@ const handleKeyDown = (event: KeyboardEvent) => {
         handleSpamEmail(props.selectedEmailId)
       }
       break
+    case 'a':
+    case 'A':
+      if (props.selectedEmailId) {
+        event.preventDefault()
+        event.stopPropagation()
+        handleMoveToAside(props.selectedEmailId)
+      }
+      break
     case 'm':
     case 'M':
       if (props.selectedEmailId) {
@@ -1416,7 +1510,7 @@ const loadEmails = async () => {
     // Handle unified folders
     if (props.unifiedFolderType) {
       // Ensure we pass a plain array, not a Vue ref
-      // For Aside folder, unifiedFolderAccountIds is empty array, which is valid
+      // For Reminders folder, unifiedFolderAccountIds is empty array, which is valid
       const accountIds = Array.isArray(props.unifiedFolderAccountIds) 
         ? [...props.unifiedFolderAccountIds] 
         : []
@@ -1497,7 +1591,7 @@ const getGroupHeader = (key: string, emails: any[], isFutureDate: boolean = fals
                      date.getDate() === tomorrow.getDate()
 
   // Handle future dates (reminders) with relative labels
-  // For Aside folder, always use relative labels for reminders (even if overdue)
+  // For Reminders folder, always use relative labels for reminders (even if overdue)
   if (isFutureDate) {
     if (key.startsWith('day-')) {
       if (isToday) {
@@ -1638,15 +1732,15 @@ const groupedEmails = computed(() => {
     return []
   }
 
-  // Check if we're viewing Aside folder (reminder emails) - group by reminder date instead of email date
-  const isAsideFolder = props.unifiedFolderType === 'aside'
+  // Check if we're viewing Reminders folder (reminder emails) - group by reminder date instead of email date
+  const isRemindersFolder = props.unifiedFolderType === 'reminders'
 
   // Group emails by date key
   const groups = new Map<string, any[]>()
   
   emails.value.forEach(email => {
-    // For Aside folder, use reminder_due_date if available, otherwise fall back to email date
-    const dateToUse = isAsideFolder && email.reminder_due_date ? email.reminder_due_date : email.date
+    // For Reminders folder, use reminder_due_date if available, otherwise fall back to email date
+    const dateToUse = isRemindersFolder && email.reminder_due_date ? email.reminder_due_date : email.date
     const key = getDateKey(dateToUse)
     if (!groups.has(key)) {
       groups.set(key, [])
@@ -1656,8 +1750,8 @@ const groupedEmails = computed(() => {
 
   // Convert to array and sort by date
   const groupArray = Array.from(groups.entries()).map(([key, groupEmails]) => {
-    // For Aside folder, sort by reminder date (earliest first), otherwise by email date (newest first)
-    if (isAsideFolder) {
+    // For Reminders folder, sort by reminder date (earliest first), otherwise by email date (newest first)
+    if (isRemindersFolder) {
       groupEmails.sort((a, b) => {
         const aDate = a.reminder_due_date || a.date
         const bDate = b.reminder_due_date || b.date
@@ -1667,19 +1761,19 @@ const groupedEmails = computed(() => {
       groupEmails.sort((a, b) => b.date - a.date) // Newest first
     }
     
-    // Use reminder date for header if available in Aside folder
+    // Use reminder date for header if available in Reminders folder
     const headerEmails = groupEmails.map(e => ({
       ...e,
-      date: isAsideFolder && e.reminder_due_date ? e.reminder_due_date : e.date
+      date: isRemindersFolder && e.reminder_due_date ? e.reminder_due_date : e.date
     }))
     // Check if this group contains future dates (reminders)
-    // For Aside folder, always use relative labels for reminders (even if overdue)
-    const hasReminderDate = isAsideFolder && headerEmails[0]?.reminder_due_date
+    // For Reminders folder, always use relative labels for reminders (even if overdue)
+    const hasReminderDate = isRemindersFolder && headerEmails[0]?.reminder_due_date
     const isFutureDate = hasReminderDate ? true : false
     const header = getGroupHeader(key, headerEmails, isFutureDate)
     
-    // Use reminder date for sorting if available in Aside folder
-    const sortDate = isAsideFolder && groupEmails[0]?.reminder_due_date 
+    // Use reminder date for sorting if available in Reminders folder
+    const sortDate = isRemindersFolder && groupEmails[0]?.reminder_due_date 
       ? groupEmails[0].reminder_due_date 
       : groupEmails[0]?.date || 0
     
@@ -1692,8 +1786,8 @@ const groupedEmails = computed(() => {
     }
   })
 
-  // Sort groups: for Aside folder, earliest reminder first; otherwise newest first
-  if (isAsideFolder) {
+  // Sort groups: for Reminders folder, earliest reminder first; otherwise newest first
+  if (isRemindersFolder) {
     groupArray.sort((a, b) => a.sortDate - b.sortDate) // Earliest first
   } else {
     groupArray.sort((a, b) => b.sortDate - a.sortDate) // Newest first
@@ -1895,10 +1989,6 @@ const handleDragEnd = () => {
 const getEmailShortcuts = async (email: any): Promise<Array<{ key: string; label: string; action: string }>> => {
   const shortcuts: Array<{ key: string; label: string; action: string }> = []
   
-  // Always available
-  shortcuts.push({ key: '↑', label: '↑', action: 'Previous email' })
-  shortcuts.push({ key: '↓', label: '↓', action: 'Next email' })
-  
   // Only if email has accountId
   if (email?.accountId) {
     if (!isSpamFolder.value) {
@@ -1907,6 +1997,7 @@ const getEmailShortcuts = async (email: any): Promise<Array<{ key: string; label
     }
     
     shortcuts.push({ key: 'T', label: 'T', action: 'Set reminder' })
+    shortcuts.push({ key: 'A', label: 'A', action: 'Move to Aside' })
     
     // Check if account is IMAP for move to folder
     try {
@@ -1936,16 +2027,17 @@ const getEmailShortcutsSync = (email: any): Array<{ key: string; label: string; 
   
   // Return basic shortcuts synchronously, will be updated async
   const shortcuts: Array<{ key: string; label: string; action: string }> = []
-  shortcuts.push({ key: '↑', label: '↑', action: 'Previous email' })
-  shortcuts.push({ key: '↓', label: '↓', action: 'Next email' })
+  // shortcuts.push({ key: '↑', label: '↑', action: 'Previous email' })
+  // shortcuts.push({ key: '↓', label: '↓', action: 'Next email' })
   
   if (email.accountId) {
+    shortcuts.push({ key: 'A', label: 'A', action: 'Move aside' })
+    shortcuts.push({ key: 'T', label: 'T', action: 'Set reminder' })
+    shortcuts.push({ key: 'M', label: 'M', action: 'Move to folder' })
     if (!isSpamFolder.value) {
       shortcuts.push({ key: 'Space', label: 'Space', action: 'Archive' })
       shortcuts.push({ key: 'S', label: 'S', action: 'Mark spam' })
     }
-    shortcuts.push({ key: 'T', label: 'T', action: 'Set reminder' })
-    shortcuts.push({ key: 'M', label: 'M', action: 'Move to folder' })
   }
   
   shortcuts.push({ key: 'Delete', label: 'Delete', action: 'Delete' })

@@ -128,7 +128,7 @@ const selectedFolderId = ref<string>('')
 const selectedFolderName = ref<string>('')
 const selectedEmailId = ref<string>('')
 const selectedEmail = ref<any>(null)
-const unifiedFolderType = ref<string | null>(null) // 'all-inboxes', 'aside'
+const unifiedFolderType = ref<string | null>(null) // 'all-inboxes', 'reminders', 'aside', 'spam'
 const unifiedFolderAccountIds = ref<string[]>([]) // For unified folders that need account context
 const showSettings = ref(false)
 const hasAccounts = ref(false)
@@ -248,10 +248,10 @@ const handleFolderSelect = async (folder: any) => {
       unifiedFolderAccountIds.value = accounts.map((a: any) => a.id)
       // For unified spam, we'll load emails from all spam folders from today
       // The EmailList component will handle this
-    } else if (folder.id === 'unified-aside') {
-      unifiedFolderType.value = 'aside'
-      // Aside shows reminder emails from all accounts, grouped by reminder date
-      // Clean up any duplicate reminders when opening the aside folder
+    } else if (folder.id === 'unified-reminders') {
+      unifiedFolderType.value = 'reminders'
+      // Reminders shows reminder emails from all accounts, grouped by reminder date
+      // Clean up any duplicate reminders when opening the reminders folder
       try {
         await window.electronAPI.reminders.cleanupDuplicates()
       } catch (error) {
@@ -259,6 +259,11 @@ const handleFolderSelect = async (folder: any) => {
       }
       // No account IDs needed - reminders are unified across all accounts
       unifiedFolderAccountIds.value = []
+    } else if (folder.id === 'unified-aside') {
+      unifiedFolderType.value = 'aside'
+      // Aside shows all archived emails from all accounts
+      const accounts = await window.electronAPI.accounts.list()
+      unifiedFolderAccountIds.value = accounts.map((a: any) => a.id)
     }
     return // Unified folders don't need syncing
   }

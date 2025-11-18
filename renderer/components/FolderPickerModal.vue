@@ -19,6 +19,17 @@
           </svg>
         </button>
       </div>
+      <button
+        @click="selectAsideFolder"
+        class="w-full mb-2 px-3 py-2 text-sm text-left rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800"
+      >
+        <div class="flex items-center space-x-2">
+          <svg class="w-4 h-4 text-gray-400 dark:text-gray-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+          </svg>
+          <span class="font-medium">Aside</span>
+        </div>
+      </button>
       <input
         ref="searchInputRef"
         v-model="searchQuery"
@@ -129,6 +140,34 @@ const filteredFolders = computed(() => {
 const selectFolder = (folderId: string) => {
   emit('folder-selected', folderId)
   emit('close')
+}
+
+const selectAsideFolder = async () => {
+  // Find or create Aside folder
+  const folders = await window.electronAPI.folders.list(props.accountId)
+  const flattenFolders = (folderList: any[]): any[] => {
+    const result: any[] = []
+    for (const folder of folderList) {
+      result.push(folder)
+      if (folder.children && folder.children.length > 0) {
+        result.push(...flattenFolders(folder.children))
+      }
+    }
+    return result
+  }
+  const allFolders = flattenFolders(folders)
+  let asideFolder = allFolders.find((f: any) => 
+    f.name.toLowerCase() === 'aside' || f.path?.toLowerCase().includes('aside')
+  )
+  
+  // If Aside folder doesn't exist, create it
+  if (!asideFolder) {
+    asideFolder = await window.electronAPI.folders.create(props.accountId, 'Aside')
+  }
+  
+  if (asideFolder) {
+    selectFolder(asideFolder.id)
+  }
 }
 
 const selectHighlightedFolder = () => {

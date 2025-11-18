@@ -374,22 +374,44 @@ export function registerFolderHandlers() {
   ipcMain.handle('folders:create', async (_, accountId: string, name: string) => {
     const db = getDatabase()
     const account = await accountManager.getAccount(accountId)
-    if (!account || account.type !== 'imap') {
-      throw new Error('Account not found or not IMAP')
+    if (!account) {
+      throw new Error('Account not found')
     }
 
-    const imapClient = getIMAPClient(account)
-    await imapClient.connect()
-    await imapClient.createFolder(name)
-    await imapClient.disconnect()
+    // Check if folder already exists
+    const existing = db.prepare(`
+      SELECT * FROM folders 
+      WHERE account_id = ? AND (LOWER(name) = ? OR LOWER(path) = ?)
+    `).get(accountId, name.toLowerCase(), name.toLowerCase()) as any
 
+    if (existing) {
+      return existing
+    }
+
+    // For IMAP accounts, create folder on server
+    if (account.type === 'imap') {
+      const imapClient = getIMAPClient(account)
+      await imapClient.connect()
+      try {
+        await imapClient.createFolder(name)
+      } catch (error: any) {
+        // If folder already exists on server, that's fine
+        if (!error.message?.includes('already exists') && !error.message?.includes('EXISTS')) {
+          await imapClient.disconnect()
+          throw error
+        }
+      }
+      await imapClient.disconnect()
+    }
+
+    // Create folder in database (for both IMAP and non-IMAP accounts)
     const id = randomUUID()
     const now = Date.now()
     
     db.prepare(`
-      INSERT INTO folders (id, account_id, name, path, subscribed, created_at, updated_at)
-      VALUES (?, ?, ?, ?, 1, ?, ?)
-    `).run(id, accountId, name, name, now, now)
+      INSERT INTO folders (id, account_id, name, path, subscribed, attributes, created_at, updated_at)
+      VALUES (?, ?, ?, ?, 1, ?, ?, ?)
+    `).run(id, accountId, name, name, JSON.stringify([]), now, now)
     
     return { id, accountId, name, path: name, subscribed: true }
   })
@@ -790,7 +812,7 @@ export function registerEmailHandlers() {
         LIMIT ? OFFSET ?
       `
       params = [...folderIds, limit, offset]
-    } else if (type === 'aside') {
+    } else if (type === 'reminders') {
       // Get emails that have reminders (use subquery to prevent duplicates if multiple reminders exist)
       // Get the earliest reminder for each email - grouped by reminder date
       query = `
@@ -808,6 +830,36 @@ export function registerEmailHandlers() {
         LIMIT ? OFFSET ?
       `
       params = [limit, offset]
+    } else if (type === 'aside') {
+      // Get all Archive folders for the specified accounts (or all accounts if empty)
+      // Aside folder shows all archived emails unified
+      let archiveFoldersQuery = `
+        SELECT id FROM folders 
+        WHERE (LOWER(name) = 'archive' OR LOWER(path) LIKE '%archive%')
+      `
+      let archiveFoldersParams: any[] = []
+      
+      if (accountIds.length > 0) {
+        archiveFoldersQuery += ` AND account_id IN (${accountIds.map(() => '?').join(',')})`
+        archiveFoldersParams = [...accountIds]
+      }
+      
+      const archiveFolders = db.prepare(archiveFoldersQuery).all(...archiveFoldersParams) as any[]
+      
+      const folderIds = archiveFolders.map(f => f.id)
+      if (folderIds.length === 0) {
+        return []
+      }
+
+      query = `
+        SELECT emails.*,
+          (SELECT COUNT(*) FROM attachments WHERE email_id = emails.id) as attachmentCount
+        FROM emails
+        WHERE folder_id IN (${folderIds.map(() => '?').join(',')})
+        ORDER BY date DESC
+        LIMIT ? OFFSET ?
+      `
+      params = [...folderIds, limit, offset]
     } else if (type === 'spam') {
       // Get all spam/junk folders for the specified accounts (or all accounts if empty)
       let spamFoldersQuery = `
@@ -2314,46 +2366,46 @@ export function registerReminderHandlers() {
     }
     const originalFolderId = email.folder_id
 
-    // Find or create Aside folder
-    let asideFolder = db.prepare(`
+    // Find or create Reminders folder
+    let remindersFolder = db.prepare(`
       SELECT * FROM folders 
-      WHERE account_id = ? AND (LOWER(name) = 'aside' OR LOWER(path) LIKE '%aside%')
+      WHERE account_id = ? AND (LOWER(name) = 'reminders' OR LOWER(path) LIKE '%reminders%')
       LIMIT 1
     `).get(reminder.accountId) as any
 
-    if (!asideFolder) {
-      // Try to find or create Aside folder on IMAP server
+    if (!remindersFolder) {
+      // Try to find or create Reminders folder on IMAP server
       const account = await accountManager.getAccount(reminder.accountId)
       if (account && account.type === 'imap') {
         try {
           const imapClient = getIMAPClient(account)
           await imapClient.connect()
           const folders = await imapClient.listFolders()
-          let asideFolderOnServer = folders.find(
-            f => f.name.toLowerCase() === 'aside' || f.path.toLowerCase().includes('aside')
+          let remindersFolderOnServer = folders.find(
+            f => f.name.toLowerCase() === 'reminders' || f.path.toLowerCase().includes('reminders')
           )
 
-          // If Aside folder doesn't exist on server, create it
-          if (!asideFolderOnServer) {
+          // If Reminders folder doesn't exist on server, create it
+          if (!remindersFolderOnServer) {
             try {
-              await imapClient.createFolder('Aside')
+              await imapClient.createFolder('Reminders')
               // Re-list folders to get the newly created folder
               const updatedFolders = await imapClient.listFolders()
-              asideFolderOnServer = updatedFolders.find(
-                f => f.name.toLowerCase() === 'aside' || f.path.toLowerCase().includes('aside')
+              remindersFolderOnServer = updatedFolders.find(
+                f => f.name.toLowerCase() === 'reminders' || f.path.toLowerCase().includes('reminders')
               )
             } catch (createError) {
-              console.error('Error creating Aside folder on IMAP server:', createError)
+              console.error('Error creating Reminders folder on IMAP server:', createError)
               // Continue to create local folder
             }
           }
 
-          if (asideFolderOnServer) {
+          if (remindersFolderOnServer) {
             // Check if folder exists in DB
-            asideFolder = db.prepare('SELECT * FROM folders WHERE account_id = ? AND path = ?')
-              .get(reminder.accountId, asideFolderOnServer.path) as any
+            remindersFolder = db.prepare('SELECT * FROM folders WHERE account_id = ? AND path = ?')
+              .get(reminder.accountId, remindersFolderOnServer.path) as any
             
-            if (!asideFolder) {
+            if (!remindersFolder) {
               // Create folder in DB
               const folderId = randomUUID()
               const now = Date.now()
@@ -2363,24 +2415,24 @@ export function registerReminderHandlers() {
               `).run(
                 folderId,
                 reminder.accountId,
-                asideFolderOnServer.name,
-                asideFolderOnServer.path,
-                JSON.stringify(asideFolderOnServer.attributes),
+                remindersFolderOnServer.name,
+                remindersFolderOnServer.path,
+                JSON.stringify(remindersFolderOnServer.attributes),
                 now,
                 now
               )
-              asideFolder = { id: folderId, path: asideFolderOnServer.path }
+              remindersFolder = { id: folderId, path: remindersFolderOnServer.path }
             }
           }
 
           await imapClient.disconnect()
         } catch (error) {
-          console.error('Error finding/creating Aside folder:', error)
+          console.error('Error finding/creating Reminders folder:', error)
         }
       }
 
-      // If still no aside folder, create a local one (for non-IMAP accounts or as fallback)
-      if (!asideFolder) {
+      // If still no reminders folder, create a local one (for non-IMAP accounts or as fallback)
+      if (!remindersFolder) {
         const folderId = randomUUID()
         const now = Date.now()
         db.prepare(`
@@ -2389,45 +2441,45 @@ export function registerReminderHandlers() {
         `).run(
           folderId,
           reminder.accountId,
-          'Aside',
-          'Aside',
+          'Reminders',
+          'Reminders',
           JSON.stringify([]),
           now,
           now
         )
-        asideFolder = { id: folderId, path: 'Aside' }
+        remindersFolder = { id: folderId, path: 'Reminders' }
       }
     }
 
-    // Move email to Aside folder
-    // Check if email already exists in aside folder with same account_id and uid
-    const existingAsideEmail = db.prepare(`
+    // Move email to Reminders folder
+    // Check if email already exists in reminders folder with same account_id and uid
+    const existingRemindersEmail = db.prepare(`
       SELECT id FROM emails 
       WHERE account_id = ? AND folder_id = ? AND uid = ? AND id != ?
-    `).get(reminder.accountId, asideFolder.id, email.uid, reminder.emailId) as any
+    `).get(reminder.accountId, remindersFolder.id, email.uid, reminder.emailId) as any
 
-    if (existingAsideEmail) {
-      // Email already exists in aside folder, just delete the current one
+    if (existingRemindersEmail) {
+      // Email already exists in reminders folder, just delete the current one
       db.prepare('DELETE FROM emails WHERE id = ?').run(reminder.emailId)
     } else {
-      // Move email to Aside folder
+      // Move email to Reminders folder
       try {
         db.prepare(`
           UPDATE emails 
           SET folder_id = ?, updated_at = ?
           WHERE id = ?
-        `).run(asideFolder.id, now, reminder.emailId)
+        `).run(remindersFolder.id, now, reminder.emailId)
       } catch (updateError: any) {
-        // Handle UNIQUE constraint violation - email might have been synced to aside
+        // Handle UNIQUE constraint violation - email might have been synced to reminders
         if (updateError?.code === 'SQLITE_CONSTRAINT' || updateError?.message?.includes('UNIQUE constraint')) {
-          // Check if email exists in aside folder now
-          const asideEmail = db.prepare(`
+          // Check if email exists in reminders folder now
+          const remindersEmail = db.prepare(`
             SELECT id FROM emails 
             WHERE account_id = ? AND folder_id = ? AND uid = ?
-          `).get(reminder.accountId, asideFolder.id, email.uid) as any
+          `).get(reminder.accountId, remindersFolder.id, email.uid) as any
           
-          if (asideEmail) {
-            // Email already in aside, delete the duplicate
+          if (remindersEmail) {
+            // Email already in reminders, delete the duplicate
             db.prepare('DELETE FROM emails WHERE id = ?').run(reminder.emailId)
           } else {
             // Re-throw if it's a different constraint error
@@ -2448,25 +2500,25 @@ export function registerReminderHandlers() {
         
         // Get current folder path
         const currentFolder = db.prepare('SELECT path FROM folders WHERE id = ?').get(email.folder_id) as any
-        // Get aside folder path from database (should have the correct server path)
-        const asideFolderFromDb = db.prepare('SELECT path FROM folders WHERE id = ?').get(asideFolder.id) as any
-        const asidePath = asideFolderFromDb?.path || asideFolder.path || 'Aside'
+        // Get reminders folder path from database (should have the correct server path)
+        const remindersFolderFromDb = db.prepare('SELECT path FROM folders WHERE id = ?').get(remindersFolder.id) as any
+        const remindersPath = remindersFolderFromDb?.path || remindersFolder.path || 'Reminders'
         
-        if (currentFolder && asidePath) {
-          // Ensure Aside folder exists on server before moving
+        if (currentFolder && remindersPath) {
+          // Ensure Reminders folder exists on server before moving
           // Try to create it if it doesn't exist (idempotent - won't error if it exists)
           try {
-            await imapClient.createFolder(asidePath)
+            await imapClient.createFolder(remindersPath)
           } catch (createError: any) {
             // If folder already exists, that's fine - continue
             if (createError && !createError.message?.includes('already exists') && !createError.message?.includes('EXISTS')) {
-              console.warn('Aside folder may already exist or creation failed:', createError.message)
+              console.warn('Reminders folder may already exist or creation failed:', createError.message)
             }
           }
 
           // Use IMAP MOVE command if available, otherwise COPY + DELETE
           const currentPath = currentFolder.path === 'INBOX' ? 'INBOX' : currentFolder.path
-          await imapClient.moveEmail(email.uid, currentPath, asidePath)
+          await imapClient.moveEmail(email.uid, currentPath, remindersPath)
         }
         
         await imapClient.disconnect()
@@ -2616,7 +2668,7 @@ export function registerReminderHandlers() {
             const imapClient = getIMAPClient(account)
             await imapClient.connect()
             
-            // Get current folder (Aside) and original folder paths
+            // Get current folder (Reminders) and original folder paths
             const currentFolder = db.prepare('SELECT path FROM folders WHERE id = ?').get(email.folder_id) as any
             const originalFolder = db.prepare('SELECT path FROM folders WHERE id = ?').get(originalFolderId) as any
             

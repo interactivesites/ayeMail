@@ -23,8 +23,23 @@
       <!-- Spacer for non-expandable items -->
       <div v-else class="mr-2 w-4 h-4"></div>
 
-      <!-- Folder icon -->
-      <svg class="w-4 h-4 mr-2 text-white/70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <!-- Folder icon - Calendar for Reminders, folder for others -->
+      <svg 
+        v-if="folder.id === 'unified-reminders' || folder.name === 'Reminders'"
+        class="w-4 h-4 mr-2 text-white/70" 
+        fill="none" 
+        stroke="currentColor" 
+        viewBox="0 0 24 24"
+      >
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+      </svg>
+      <svg 
+        v-else
+        class="w-4 h-4 mr-2 text-white/70" 
+        fill="none" 
+        stroke="currentColor" 
+        viewBox="0 0 24 24"
+      >
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2-2z"></path>
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5a2 2 0 012-2h4a2 2 0 012 2v2H8V5z"></path>
       </svg>

@@ -1,6 +1,6 @@
 
 ## Functionality
-- unify email viewer, open on dblclick (mail list)
+
 - image resizing in mail (attachments)
 - bg image
 - Add / remove inbox folders to favourites (top in Folder list)
