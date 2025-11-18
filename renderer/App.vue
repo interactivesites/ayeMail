@@ -228,6 +228,13 @@ const handleFolderSelect = async (folder: any) => {
       unifiedFolderAccountIds.value = accounts.map((a: any) => a.id)
       // For unified all inboxes, we'll load emails from all inboxes
       // The EmailList component will handle this
+    } else if (folder.id === 'unified-spam') {
+      unifiedFolderType.value = 'spam'
+      // Get all account IDs that have spam folders
+      const accounts = await window.electronAPI.accounts.list()
+      unifiedFolderAccountIds.value = accounts.map((a: any) => a.id)
+      // For unified spam, we'll load emails from all spam folders from today
+      // The EmailList component will handle this
     } else if (folder.id === 'unified-aside') {
       unifiedFolderType.value = 'aside'
       // Aside shows reminder emails from all accounts, grouped by reminder date

@@ -129,6 +129,7 @@ const accounts = ref<any[]>([])
 const accountFolders = ref<Map<string, any[]>>(new Map())
 const loading = ref(false)
 const preferences = usePreferencesStore()
+const hasSpamToday = ref(false)
 
 
 const handleAboutClick = () => {
@@ -176,6 +177,42 @@ const unifiedFolders = computed(() => {
     })
   }
   
+  // Spam folder (unified) - show spam from all accounts, only if spam received today
+  if (hasSpamToday.value) {
+    const spamFolders: any[] = []
+    let totalSpamUnread = 0
+    
+    accounts.value.forEach(account => {
+      const accountFoldersList = accountFolders.value.get(account.id) || []
+      const spam = accountFoldersList.find((f: any) => 
+        f.name.toLowerCase() === 'spam' || 
+        f.name.toLowerCase() === 'junk' ||
+        f.path?.toLowerCase().includes('spam') ||
+        f.path?.toLowerCase().includes('junk')
+      )
+      if (spam) {
+        spamFolders.push({
+          ...spam,
+          accountId: account.id,
+          name: `Spam (${account.email})`,
+          isUnifiedChild: true
+        })
+        totalSpamUnread += spam.unread_count || 0
+      }
+    })
+    
+    if (spamFolders.length > 0) {
+      folders.push({
+        id: 'unified-spam',
+        name: 'Spam',
+        accountId: null,
+        isUnified: true,
+        unread_count: totalSpamUnread,
+        children: spamFolders
+      })
+    }
+  }
+  
   // Aside folder (unified) - for reminder emails grouped by reminder date
   folders.push({
     id: 'unified-aside',
@@ -206,6 +243,15 @@ const accountSections = computed((): AccountSection[] => {
   })
 })
 
+const checkSpamToday = async () => {
+  try {
+    hasSpamToday.value = await window.electronAPI.folders.hasSpamToday()
+  } catch (error) {
+    console.error('Error checking spam today:', error)
+    hasSpamToday.value = false
+  }
+}
+
 const loadAllAccounts = async () => {
   try {
     accounts.value = await window.electronAPI.accounts.list()
@@ -214,6 +260,9 @@ const loadAllAccounts = async () => {
     for (const account of accounts.value) {
       await loadAccountFolders(account.id)
     }
+    
+    // Check if spam folders have emails from today
+    await checkSpamToday()
     
     // Auto-expand account if it has selected folder
     if (props.selectedFolderId) {
@@ -313,7 +362,7 @@ onMounted(() => {
     loading.value = false
   })
   window.addEventListener('refresh-folders', refreshFolders)
-
+  window.addEventListener('refresh-emails', checkSpamToday)
 })
 
 watch(() => props.selectedFolderId, () => {
@@ -335,6 +384,7 @@ watch(() => props.selectedFolderId, () => {
 
 onUnmounted(() => {
   window.removeEventListener('refresh-folders', refreshFolders)
+  window.removeEventListener('refresh-emails', checkSpamToday)
 })
 </script>
 

@@ -1,8 +1,10 @@
 
 ## Functionality
-- ✅ delete mails -> moved to trash folder (implemented)
+
 - image resizing in mail (attachments)
 - bg image
+- Add / remove inbox folders to favourites (top in Folder list)
+- change aside folder icon to calendar. Refactor to 'reminders'
 - language (i18n) / - formatters (date, time, etc.) - try to get from system
 
 

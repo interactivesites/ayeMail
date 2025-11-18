@@ -83,7 +83,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     subscribe: (accountId: string, name: string, subscribed: boolean) => 
       ipcRenderer.invoke('folders:subscribe', accountId, name, subscribed),
     getLearned: (accountId: string, senderEmail: string) => 
-      ipcRenderer.invoke('folders:get-learned', accountId, senderEmail)
+      ipcRenderer.invoke('folders:get-learned', accountId, senderEmail),
+    hasSpamToday: () => ipcRenderer.invoke('folders:hasSpamToday')
   },
   
   // Reminders

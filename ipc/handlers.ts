@@ -484,6 +484,39 @@ export function registerFolderHandlers() {
       lastMovedAt: m.last_moved_at
     }))
   })
+
+  // Check if spam folders have emails from today
+  ipcMain.handle('folders:hasSpamToday', async () => {
+    const db = getDatabase()
+    
+    // Get start of today (midnight) in milliseconds
+    const now = Date.now()
+    const today = new Date(now)
+    today.setHours(0, 0, 0, 0)
+    const startOfToday = today.getTime()
+    
+    // Find all spam/junk folders
+    const spamFolders = db.prepare(`
+      SELECT id FROM folders 
+      WHERE (LOWER(name) = 'spam' OR LOWER(name) = 'junk' OR LOWER(path) LIKE '%spam%' OR LOWER(path) LIKE '%junk%')
+    `).all() as any[]
+    
+    if (spamFolders.length === 0) {
+      return false
+    }
+    
+    const folderIds = spamFolders.map(f => f.id)
+    
+    // Check if any spam folder has emails from today
+    const hasSpamToday = db.prepare(`
+      SELECT COUNT(*) as count FROM emails 
+      WHERE folder_id IN (${folderIds.map(() => '?').join(',')})
+      AND date >= ?
+      LIMIT 1
+    `).get(...folderIds, startOfToday) as any
+    
+    return (hasSpamToday?.count || 0) > 0
+  })
 }
 
 // Email handlers
@@ -775,6 +808,42 @@ export function registerEmailHandlers() {
         LIMIT ? OFFSET ?
       `
       params = [limit, offset]
+    } else if (type === 'spam') {
+      // Get all spam/junk folders for the specified accounts (or all accounts if empty)
+      let spamFoldersQuery = `
+        SELECT id FROM folders 
+        WHERE (LOWER(name) = 'spam' OR LOWER(name) = 'junk' OR LOWER(path) LIKE '%spam%' OR LOWER(path) LIKE '%junk%')
+      `
+      let spamFoldersParams: any[] = []
+      
+      if (accountIds.length > 0) {
+        spamFoldersQuery += ` AND account_id IN (${accountIds.map(() => '?').join(',')})`
+        spamFoldersParams = [...accountIds]
+      }
+      
+      const spamFolders = db.prepare(spamFoldersQuery).all(...spamFoldersParams) as any[]
+      
+      const folderIds = spamFolders.map(f => f.id)
+      if (folderIds.length === 0) {
+        return []
+      }
+
+      // Get start of today (midnight) in milliseconds
+      const now = Date.now()
+      const today = new Date(now)
+      today.setHours(0, 0, 0, 0)
+      const startOfToday = today.getTime()
+
+      query = `
+        SELECT emails.*,
+          (SELECT COUNT(*) FROM attachments WHERE email_id = emails.id) as attachmentCount
+        FROM emails
+        WHERE folder_id IN (${folderIds.map(() => '?').join(',')})
+        AND date >= ?
+        ORDER BY date DESC
+        LIMIT ? OFFSET ?
+      `
+      params = [...folderIds, startOfToday, limit, offset]
     } else {
       return []
     }
