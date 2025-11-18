@@ -2911,6 +2911,12 @@ export function registerWindowHandlers() {
     return { success: true }
   })
 
+  ipcMain.handle('window:email-viewer:create', async (_, emailId: string) => {
+    const { createEmailViewerWindow } = await import('../electron/main')
+    createEmailViewerWindow(emailId)
+    return { success: true }
+  })
+
   ipcMain.handle('window:set-title', async (_, windowId: number, title: string) => {
     const window = BrowserWindow.fromId(windowId)
     if (window) {

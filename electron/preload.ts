@@ -139,6 +139,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.invoke('window:compose:create', accountId, replyTo),
       close: (windowId?: number) => ipcRenderer.invoke('window:compose:close', windowId)
     },
+    emailViewer: {
+      create: (emailId: string) => 
+        ipcRenderer.invoke('window:email-viewer:create', emailId)
+    },
     minimize: (windowId?: string) => ipcRenderer.invoke('window:minimize', windowId),
     maximize: (windowId?: string) => ipcRenderer.invoke('window:maximize', windowId),
     close: (windowId?: string) => ipcRenderer.invoke('window:close', windowId),

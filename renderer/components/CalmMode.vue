@@ -11,11 +11,11 @@
           <span class="text-3xl" v-if="mails.length > 0">{{ currentIndex + 1 }}/{{ mails.length }}</span>
           <span v-else>0 emails</span>
         </div>
-        <EmailNavigation class="!ml-0 mt-4" :has-selected-email="!!selectedEmail" :selected-email="selectedEmail" :account-id="accountId" @compose="handleCompose" @reply="handleReply" @forward="handleForward" @set-reminder="handleSetReminder" @delete="handleDelete" />
+        <EmailNavigation class="!ml-0 mt-4" :has-selected-email="!!selectedEmailId" :selected-email="selectedEmail" :account-id="accountId" @compose="handleCompose" @reply="handleReply" @forward="handleForward" @set-reminder="handleSetReminder" @delete="handleDelete" />
       </div>
 
       <div ref="mailbox" class="relative w-full max-w-2xl h-full flex items-center" @wheel="handleWheel">
-        <div v-for="(mail, index) in mails" :key="mail.id" :ref="el => { mailRefs[index] = el as HTMLElement | null }" class="absolute w-full px-8 cursor-pointer" @click="handleItemClick(index)" :data-email-id="mail.id">
+        <div v-for="(mail, index) in mails" :key="mail.id" :ref="el => { mailRefs[index] = el as HTMLElement | null }" class="absolute w-full px-8 cursor-pointer" @click="handleItemClick(index)" @dblclick="handleEmailDoubleClick(mail.id)" :data-email-id="mail.id">
           <span class="email-popover-anchor absolute top-1/2 right-3 w-0 h-0 transform -translate-y-1/2 pointer-events-none" :data-email-anchor="mail.id"></span>
           <div class="dark:text-white flex items-start gap-3">
             <!-- Rounded Checkbox -->
@@ -60,34 +60,17 @@
           </div>
         </div>
       </div>
-      <div ref="mailcontent" class="flex-1 overflow-y-auto p-4">
-        <div v-if="loadingEmail" class="flex items-center justify-center h-full">
-          <div class="text-gray-500 dark:text-gray-400">Loading email...</div>
-        </div>
-        <div v-else-if="selectedEmail">
-          <div v-if="selectedEmail.htmlBody" class="email-html-container">
-            <iframe :srcdoc="sanitizedHtml" class="w-full border-0 bg-white dark:bg-gray-800" style="min-height: 400px; display: block;" sandbox="allow-same-origin" @load="onIframeLoad" ref="emailIframe"></iframe>
-          </div>
-          <div v-else class="whitespace-pre-wrap text-gray-900 dark:text-gray-100">
-            {{ selectedEmail.textBody || selectedEmail.body || 'No content' }}
-          </div>
-        </div>
-        <div v-else class="text-gray-500 dark:text-gray-400 text-center mt-8">
-          Click on an email to view its content
-        </div>
+      <div ref="mailcontent" class="flex-1 overflow-hidden">
+        <EmailViewer 
+          :email-id="selectedEmailId" 
+          @reply="handleReply" 
+          @forward="handleForward" 
+          @set-reminder="handleSetReminder" 
+          @delete="handleDelete" 
+          @select-thread-email="handleEmailSelect" 
+        />
       </div>
     </div>
-    
-    <!-- Link Preview Popover -->
-    <LinkPreviewPopover
-      :show="showLinkPreview"
-      :url="linkPreviewUrl"
-      :display-text="linkPreviewDisplayText"
-      :reference-element="linkPreviewReferenceElement"
-      :iframe-element="emailIframe"
-      @open="handleLinkPreviewOpen"
-      @close="handleLinkPreviewClose"
-    />
   </div>
 </template>
 
@@ -98,10 +81,8 @@ import { ref, onMounted, onUnmounted, nextTick, watch, computed } from 'vue'
 import { Email } from '@shared/types'
 import { useEmailActions } from '../composables/useEmailActions'
 import { useEmailCacheStore } from '../stores/emailCache'
-import { checkUrlSecurity } from '../utils/url-security'
-import { filterTrackingPixels } from '../utils/tracking-pixel-filter'
 import EmailNavigation from './EmailNavigation.vue'
-import LinkPreviewPopover from './LinkPreviewPopover.vue'
+import EmailViewer from './EmailViewer.vue'
 
 const props = defineProps<{
   accountId?: string
@@ -115,7 +96,6 @@ const emit = defineEmits<{
 const containerRef = ref<HTMLDivElement | null>(null)
 const mailbox = ref<HTMLDivElement | null>(null)
 const mailcontent = ref<HTMLDivElement | null>(null)
-const emailIframe = ref<HTMLIFrameElement | null>(null)
 const mailRefs = ref<(HTMLElement | null)[]>([])
 const mails = ref<Email[]>([])
 
@@ -125,12 +105,6 @@ const selectedEmail = ref<any>(null)
 const loadingEmail = ref(false)
 const currentFolderName = ref<string>('')
 let resizeObserver: ResizeObserver | null = null
-
-// Link preview popover state
-const showLinkPreview = ref(false)
-const linkPreviewUrl = ref('')
-const linkPreviewDisplayText = ref('')
-const linkPreviewReferenceElement = ref<HTMLElement | null>(null)
 
 // Email actions composable
 const {
@@ -150,6 +124,11 @@ const {
 // Email cache store
 const emailCacheStore = useEmailCacheStore()
 const CACHE_RANGE = 3 // Number of emails to cache before and after current
+
+// Computed property for selectedEmailId
+const selectedEmailId = computed(() => {
+  return props.selectedEmailId || (mails.value[currentIndex.value]?.id)
+})
 
 const confirmArchive = async (emailId: string) => {
   const result = await archiveEmail(emailId)
@@ -194,122 +173,6 @@ const confirmArchive = async (emailId: string) => {
   }
 }
 
-const sanitizedHtml = computed(() => {
-  if (!selectedEmail.value?.htmlBody) return ''
-
-  let html = selectedEmail.value.htmlBody
-
-  // Remove <style> tags that could affect the parent page
-  html = html.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-
-  // Remove <script> tags for security
-  html = html.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-
-  // Filter out tracking pixels
-  html = filterTrackingPixels(html)
-
-  // Check if dark mode is active
-  const isDark = document.documentElement.classList.contains('dark')
-
-  // Wrap in a container to ensure isolation
-  // Add base styles for better rendering
-  const baseStyles = `
-    <style>
-      body {
-        margin: 0;
-        padding: 16px;
-        font-family: 'Albert Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-        font-weight: 200;
-        line-height: 1.6;
-        color: ${isDark ? '#e5e7eb' : '#1f2937'};
-        background: ${isDark ? '#111827' : '#ffffff'};
-      }
-      img {
-        max-width: 100%;
-        height: auto;
-      }
-      table {
-        border-collapse: collapse;
-        width: 100%;
-      }
-      a {
-        color: ${isDark ? '#60a5fa' : '#2563eb'};
-        text-decoration: underline;
-        cursor: pointer;
-      }
-      a:hover {
-        text-decoration: underline;
-      }
-    </style>
-  `
-
-  return `<!DOCTYPE html><html><head>${baseStyles}</head><body>${html}</body></html>`
-})
-
-const onIframeLoad = () => {
-  // Optionally adjust iframe height to content
-  if (emailIframe.value) {
-    try {
-      const iframe = emailIframe.value
-      const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document
-      if (iframeDoc) {
-        const height = Math.max(
-          iframeDoc.body?.scrollHeight || 400,
-          iframeDoc.documentElement?.scrollHeight || 400
-        )
-        iframe.style.height = `${height}px`
-
-        // Intercept link clicks to open externally with security checks
-        const links = iframeDoc.querySelectorAll('a[href]')
-        links.forEach((link: Element) => {
-          const anchor = link as HTMLAnchorElement
-          const originalHref = anchor.href
-          const displayText = anchor.textContent || anchor.innerText
-
-          anchor.addEventListener('click', async (e) => {
-            e.preventDefault()
-            e.stopPropagation()
-
-            // Store reference element for popover positioning
-            linkPreviewReferenceElement.value = anchor
-            linkPreviewUrl.value = originalHref
-            linkPreviewDisplayText.value = displayText
-            showLinkPreview.value = true
-          })
-
-          // Add visual indicator that link opens externally
-          anchor.style.cursor = 'pointer'
-          anchor.title = `Open ${originalHref} in browser`
-        })
-      }
-    } catch (error) {
-      // Cross-origin or other security restrictions
-      // Keep default min-height
-    }
-  }
-}
-
-const handleLinkPreviewOpen = async (url: string) => {
-  // Check URL security
-  const securityCheck = checkUrlSecurity(url, linkPreviewDisplayText.value)
-  
-  // Open the URL externally
-  try {
-    await window.electronAPI.shell.openExternal(securityCheck.actualUrl)
-  } catch (error: any) {
-    console.error('Error opening external URL:', error)
-    alert(`Failed to open URL: ${error.message || 'Unknown error'}`)
-  }
-  
-  // Close popover
-  showLinkPreview.value = false
-  linkPreviewReferenceElement.value = null
-}
-
-const handleLinkPreviewClose = () => {
-  showLinkPreview.value = false
-  linkPreviewReferenceElement.value = null
-}
 
 // Item spacing and sizing constants
 const BASE_SCALE = 1
@@ -526,6 +389,14 @@ const handleForward = (email: any) => {
 const handleSetReminder = (email: any) => {
   if (!email || !email.id) return
   setReminderForEmail(email)
+}
+
+const handleEmailDoubleClick = async (emailId: string) => {
+  try {
+    await window.electronAPI.window.emailViewer.create(emailId)
+  } catch (error) {
+    console.error('Error opening email in new window:', error)
+  }
 }
 
 const handleDelete = async (email: any) => {

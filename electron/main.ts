@@ -17,6 +17,7 @@ declare const __dirname: string
 
 let mainWindow: BrowserWindow | null = null
 const composeWindows = new Set<BrowserWindow>()
+const emailViewerWindows = new Set<BrowserWindow>()
 const isMac = process.platform === 'darwin'
 
 function createWindow() {
@@ -193,6 +194,81 @@ export function getAllComposeWindows(): BrowserWindow[] {
 }
 
 export { createComposeWindow }
+
+function createEmailViewerWindow(emailId: string) {
+  const windowOptions: BrowserWindowConstructorOptions = {
+    width: 1000,
+    height: 800,
+    minWidth: 800,
+    minHeight: 600,
+    frame: false,
+    backgroundColor: isMac ? '#00000000' : '#ffffff',
+    transparent: isMac,
+    show: false, // Don't show until ready
+    webPreferences: {
+      preload: join(__dirname, 'preload.js'),
+      nodeIntegration: false,
+      contextIsolation: true,
+      sandbox: false
+    }
+  }
+
+  if (isMac) {
+    Object.assign(windowOptions, {
+      vibrancy: 'under-window',
+      visualEffectState: 'active'
+    })
+  }
+
+  const emailViewerWindow = new BrowserWindow(windowOptions)
+  emailViewerWindows.add(emailViewerWindow)
+
+  if (isMac) {
+    emailViewerWindow.setVibrancy('under-window')
+    emailViewerWindow.setBackgroundColor('#00000000')
+  }
+
+  // Prevent white/black flash during load
+  emailViewerWindow.once('ready-to-show', () => {
+    emailViewerWindow.show()
+  })
+
+  // Prevent navigation to file:// URLs
+  emailViewerWindow.webContents.on('will-navigate', (event, url) => {
+    if (url.startsWith('file://')) {
+      event.preventDefault()
+    }
+  })
+
+  // Prevent new window from opening files
+  emailViewerWindow.webContents.setWindowOpenHandler(() => {
+    return { action: 'deny' }
+  })
+
+  // Store email ID in window
+  ;(emailViewerWindow as any).emailId = emailId
+
+  const isDev = !app.isPackaged
+  
+  if (isDev) {
+    emailViewerWindow.loadURL(`http://localhost:5173?emailViewer=true&emailId=${emailId}`)
+  } else {
+    const indexPath = join(app.getAppPath(), 'dist', 'index.html')
+    emailViewerWindow.loadFile(indexPath, { query: { emailViewer: 'true', emailId } }).catch((err) => {
+      console.error('Failed to load index.html:', err)
+      const fallbackPath = join(__dirname, '../../dist/index.html')
+      emailViewerWindow.loadFile(fallbackPath, { query: { emailViewer: 'true', emailId } })
+    })
+  }
+
+  emailViewerWindow.on('closed', () => {
+    emailViewerWindows.delete(emailViewerWindow)
+  })
+  
+  return emailViewerWindow
+}
+
+export { createEmailViewerWindow }
 
 app.whenReady().then(async () => {
   // Initialize database

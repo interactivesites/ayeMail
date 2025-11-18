@@ -86,6 +86,7 @@
               :data-email-id="email.id"
               draggable="true"
               @click="$emit('select-email', email.id)"
+              @dblclick="handleEmailDoubleClick(email.id)"
               @dragstart="handleDragStart($event, email)"
               @dragend="handleDragEnd"
               @mouseenter="handleEmailMouseEnter(email.id)"
@@ -572,6 +573,14 @@ const getEmailElement = (emailId: string): HTMLElement | null => {
 
 const getEmailAnchorElement = (emailId: string): HTMLElement | null => {
   return document.querySelector(`[data-email-anchor="${emailId}"]`) as HTMLElement | null
+}
+
+const handleEmailDoubleClick = async (emailId: string) => {
+  try {
+    await window.electronAPI.window.emailViewer.create(emailId)
+  } catch (error) {
+    console.error('Error opening email in new window:', error)
+  }
 }
 
 const normalizeSyncedEmail = (incoming: any) => {

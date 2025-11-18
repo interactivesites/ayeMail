@@ -1,6 +1,8 @@
 <template>
   <!-- As composer mode is open, show the compose window -->
   <ComposeWindow v-if="isComposeMode" :account-id="composeAccountId" :reply-to="composeReplyTo" />
+  <!-- As email viewer mode is open, show the email viewer window -->
+  <EmailViewerWindow v-else-if="isEmailViewerMode" />
   <!-- As composer mode is not open, show the main app -->
   <div v-else class="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
 
@@ -86,6 +88,7 @@ import CalmMode from './components/CalmMode.vue'
 import EmailViewer from './components/EmailViewer.vue'
 import EmailDropZone from './components/EmailDropZone.vue'
 import ComposeWindow from './components/ComposeWindow.vue'
+import EmailViewerWindow from './components/EmailViewerWindow.vue'
 import SettingsModal from './components/SettingsModal.vue'
 import AboutModal from './components/AboutModal.vue'
 import ReminderModal from './components/ReminderModal.vue'
@@ -94,9 +97,10 @@ import { usePreferencesStore } from './stores/preferences'
 import { useEmailActions } from './composables/useEmailActions'
 import { useEmailCacheStore } from './stores/emailCache'
 
-// Check if we're in compose mode
+// Check if we're in compose mode or email viewer mode
 const urlParams = new URLSearchParams(window.location.search)
 const isComposeMode = ref(urlParams.get('compose') === 'true')
+const isEmailViewerMode = ref(urlParams.get('emailViewer') === 'true')
 const composeAccountId = ref(urlParams.get('accountId') || '')
 const composeReplyTo = ref<any>(null)
 

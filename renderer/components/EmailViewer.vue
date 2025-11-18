@@ -10,6 +10,19 @@
       </div>
     </div>
     <div v-else-if="email" class="flex flex-col h-full">
+      <!-- Email Navigation - shown in window mode -->
+      <div v-if="showNavigation" class="p-4 border-b border-gray-200 dark:border-gray-700">
+        <EmailNavigation 
+          :has-selected-email="!!email" 
+          :selected-email="email" 
+          :account-id="accountId" 
+          @compose="handleCompose" 
+          @reply="handleReply" 
+          @forward="handleForward" 
+          @set-reminder="handleSetReminder" 
+          @delete="handleDelete" 
+        />
+      </div>
       <div class="p-4 border-b border-gray-200 dark:border-gray-700">
         <div class="flex items-start justify-between mb-2">
           <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ email.subject || '(No subject)' }}</h2>
@@ -148,12 +161,16 @@ import { filterTrackingPixels } from '../utils/tracking-pixel-filter'
 import { useEmailCacheStore } from '../stores/emailCache'
 import ThreadView from './ThreadView.vue'
 import LinkPreviewPopover from './LinkPreviewPopover.vue'
+import EmailNavigation from './EmailNavigation.vue'
 
 const props = defineProps<{
   emailId?: string
+  showNavigation?: boolean
+  accountId?: string
 }>()
 
 const emit = defineEmits<{
+  'compose': []
   'reply': [email: any]
   'forward': [email: any]
   'set-reminder': [email: any]
@@ -450,6 +467,34 @@ const handleComposeToAddress = (address: string) => {
   
   // Open compose window with the email address pre-filled
   window.electronAPI.window.compose.create(email.value.accountId, composeData)
+}
+
+const handleCompose = () => {
+  emit('compose')
+}
+
+const handleReply = () => {
+  if (email.value) {
+    emit('reply', email.value)
+  }
+}
+
+const handleForward = () => {
+  if (email.value) {
+    emit('forward', email.value)
+  }
+}
+
+const handleSetReminder = () => {
+  if (email.value) {
+    emit('set-reminder', email.value)
+  }
+}
+
+const handleDelete = () => {
+  if (email.value) {
+    emit('delete', email.value)
+  }
 }
 
 watch(() => props.emailId, (newId, oldId) => {
