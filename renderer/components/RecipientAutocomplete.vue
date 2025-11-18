@@ -8,12 +8,12 @@
       <span
         v-for="(tag, index) in tags"
         :key="index"
-        class="inline-flex items-center gap-1.5 px-2.5 py-1 bg-primary-50 text-primary-700 rounded-md text-sm border border-primary-200"
+        class="inline-flex items-center gap-1.5 px-2.5 py-1 bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 rounded-md text-sm border border-primary-200 dark:border-primary-700"
       >
         <span>{{ tag }}</span>
         <button
           @click="removeTag(index)"
-          class="hover:bg-primary-100 rounded-full p-0.5 transition-colors"
+          class="hover:bg-primary-100 dark:hover:bg-primary-800 rounded-full p-0.5 transition-colors"
           type="button"
           :aria-label="`Remove ${tag}`"
         >
@@ -38,6 +38,7 @@
         @update:model-value="handleInputUpdate"
         @select="handleSelect"
         @keydown="handleKeydown"
+        @blur="handleBlur"
       />
     </div>
   </div>
@@ -55,7 +56,7 @@ const props = withDefaults(defineProps<{
 }>(), {
   placeholder: 'To',
   maxResults: 10,
-  inputClass: 'w-full px-3 py-2 bg-transparent border-0 border-b border-gray-300 rounded-none focus:outline-none focus:ring-0 focus:border-primary-600 transition-colors'
+  inputClass: 'w-full px-3 py-2 bg-transparent border-0 border-b border-gray-300 dark:border-gray-600 rounded-none focus:outline-none focus:ring-0 focus:border-primary-600 dark:focus:border-primary-500 transition-colors dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500'
 })
 
 const emit = defineEmits<{
@@ -66,15 +67,17 @@ const containerRef = ref<HTMLElement | null>(null)
 const contacts = ref<Array<{ email: string; name: string | null }>>([])
 const currentInput = ref('')
 const currentQuery = ref('')
+const isInternalUpdate = ref(false)
+const actualTags = ref<string[]>([]) // Track only confirmed tags (not current input)
 
-// Parse modelValue into tags array
+// Parse modelValue into tags array (excluding current input)
 const parseTags = (value: string): string[] => {
   if (!value || !value.trim()) return []
   return value.split(',').map(t => t.trim()).filter(t => t.length > 0)
 }
 
-// Tags from modelValue
-const tags = computed(() => parseTags(props.modelValue))
+// Tags to display (only confirmed tags, not current input)
+const tags = computed(() => actualTags.value)
 
 // Format contacts for autocomplete
 const contactItems = computed(() => {
@@ -102,16 +105,30 @@ const loadContacts = async (query: string = '') => {
   }
 }
 
-const updateModelValue = () => {
-  const allTags = [...tags.value]
+const getModelValue = (): string => {
+  let value = actualTags.value.join(', ')
+  // Include current input if it has text (even if not yet added as a tag)
   if (currentInput.value.trim()) {
-    // Don't add current input if it's being typed
+    if (value) {
+      value += ', ' + currentInput.value.trim()
+    } else {
+      value = currentInput.value.trim()
+    }
   }
-  emit('update:modelValue', allTags.join(', '))
+  return value
+}
+
+const updateModelValue = () => {
+  const value = getModelValue()
+  isInternalUpdate.value = true
+  emit('update:modelValue', value)
 }
 
 const handleInputUpdate = (value: string) => {
   currentInput.value = value
+  
+  // Update modelValue to include current input so send button can be enabled
+  updateModelValue()
   
   // Load contacts based on current input
   if (value.trim().length >= 2) {
@@ -125,16 +142,19 @@ const addTag = (tagValue: string) => {
   if (!tagValue || !tagValue.trim()) return
   
   const trimmedTag = tagValue.trim()
-  const currentTags = [...tags.value]
   
   // Check if tag already exists
-  if (!currentTags.includes(trimmedTag)) {
-    currentTags.push(trimmedTag)
-    emit('update:modelValue', currentTags.join(', '))
+  if (!actualTags.value.includes(trimmedTag)) {
+    actualTags.value.push(trimmedTag)
   }
   
   // Clear input
   currentInput.value = ''
+  
+  // Update modelValue with tags only (no current input since it's cleared)
+  isInternalUpdate.value = true
+  emit('update:modelValue', actualTags.value.join(', '))
+  
   loadContacts('')
 }
 
@@ -144,8 +164,8 @@ const handleSelect = (item: any) => {
 }
 
 const handleKeydown = (event: KeyboardEvent) => {
-  // Handle comma or enter to add tag
-  if (event.key === ',' || event.key === 'Enter') {
+  // Handle comma, space, or enter to add tag
+  if (event.key === ',' || event.key === 'Enter' || event.key === ' ') {
     if (currentInput.value.trim()) {
       event.preventDefault()
       addTag(currentInput.value)
@@ -157,41 +177,86 @@ const handleKeydown = (event: KeyboardEvent) => {
   }
 }
 
+const handleBlur = () => {
+  // Add current input as tag when field loses focus
+  if (currentInput.value.trim()) {
+    addTag(currentInput.value)
+  }
+}
+
 const removeTag = (index: number) => {
-  const newTags = [...tags.value]
-  newTags.splice(index, 1)
-  emit('update:modelValue', newTags.join(', '))
+  actualTags.value.splice(index, 1)
+  // Calculate new value: tags + current input
+  const value = getModelValue()
+  isInternalUpdate.value = true
+  emit('update:modelValue', value)
 }
 
 // Watch for external changes to modelValue
 watch(() => props.modelValue, (newValue) => {
-  const parsedTags = parseTags(newValue)
-  // If the last part doesn't match current input, it might be a new tag
-  const lastPart = parsedTags[parsedTags.length - 1] || ''
+  // Skip if this is our own update
+  if (isInternalUpdate.value) {
+    isInternalUpdate.value = false
+    return
+  }
   
-  // Only update input if it's different from what we have
-  if (lastPart !== currentInput.value && parsedTags.length > tags.value.length) {
-    // New tag was added externally, clear input
+  if (!newValue || !newValue.trim()) {
+    // If modelValue is empty, clear everything
+    actualTags.value = []
     currentInput.value = ''
+    loadContacts('')
+    return
+  }
+  
+  // Split by comma to get all parts
+  const parts = newValue.split(',').map(p => p.trim()).filter(p => p)
+  
+  // Check if this matches our current state (tags + currentInput)
+  const expectedValue = getModelValue()
+  if (expectedValue === newValue.trim()) {
+    // This matches our current state, no need to update
+    return
+  }
+  
+  // External update - separate tags from current input
+  // The last part might be the current input (if it's not a confirmed tag)
+  const allParts = parseTags(newValue)
+  const lastPart = parts[parts.length - 1] || ''
+  
+  // Check if tags changed by comparing with actualTags
+  const newTags = allParts.slice(0, -1) // All but last are confirmed tags
+  const isLastPartTag = allParts.length > 0 && allParts[allParts.length - 1] && 
+                        (actualTags.value.includes(lastPart) || newTags.includes(lastPart))
+  
+  if (isLastPartTag || allParts.length === 1) {
+    // Last part is a tag (or only one part exists), all parts are tags
+    actualTags.value = allParts
+    currentInput.value = ''
+  } else {
+    // Last part is current input
+    actualTags.value = newTags
+    currentInput.value = lastPart
   }
   
   // Reload contacts if there's a query part
-  const queryPart = newValue.split(',').pop()?.trim() || ''
-  if (queryPart && queryPart !== currentQuery.value && queryPart.length >= 2) {
-    loadContacts(queryPart)
-  } else if (!queryPart) {
+  if (currentInput.value && currentInput.value.length >= 2) {
+    loadContacts(currentInput.value)
+  } else {
     loadContacts('')
   }
-})
+}, { immediate: true })
 
 onMounted(() => {
   loadContacts('')
   
-  // Initialize currentInput if modelValue has a trailing comma or partial input
-  const parts = props.modelValue.split(',')
-  const lastPart = parts[parts.length - 1]?.trim()
-  if (lastPart && !tags.value.includes(lastPart)) {
-    currentInput.value = lastPart
+  // Initialize from modelValue if it exists
+  if (props.modelValue && props.modelValue.trim()) {
+    const parts = props.modelValue.split(',').map(p => p.trim()).filter(p => p)
+    if (parts.length > 0) {
+      // For initialization, treat all parts as tags (no current input)
+      actualTags.value = parts
+      currentInput.value = ''
+    }
   }
 })
 </script>
