@@ -204,6 +204,7 @@ const sanitizedHtml = computed(() => {
 
 const loadEmail = async () => {
   if (!props.emailId) {
+    // Clear email content when emailId is empty/null
     email.value = null
     threadEmails.value = []
     loading.value = false

@@ -276,30 +276,35 @@ const handleEmailSelect = async (emailId: string) => {
     markAsReadTimeout = null
   }
 
-  // Load full email details (from cache if available)
-  if (emailId) {
-    try {
-      selectedEmail.value = await emailCacheStore.getEmail(emailId)
+  // Clear content view if emailId is empty
+  if (!emailId) {
+    selectedEmail.value = null
+    return
+  }
 
-      // Mark as read after 3 seconds if email is unread
-      if (selectedEmail.value && !selectedEmail.value.isRead) {
-        markAsReadTimeout = setTimeout(async () => {
-          try {
-            await window.electronAPI.emails.markRead(emailId, true)
-            // Update local state
-            if (selectedEmail.value) {
-              selectedEmail.value.isRead = true
-            }
-            // Refresh email list to update read status
-            window.dispatchEvent(new CustomEvent('refresh-emails'))
-          } catch (error) {
-            console.error('Error marking email as read:', error)
+  // Load full email details (from cache if available)
+  try {
+    selectedEmail.value = await emailCacheStore.getEmail(emailId)
+
+    // Mark as read after 3 seconds if email is unread
+    if (selectedEmail.value && !selectedEmail.value.isRead) {
+      markAsReadTimeout = setTimeout(async () => {
+        try {
+          await window.electronAPI.emails.markRead(emailId, true)
+          // Update local state
+          if (selectedEmail.value) {
+            selectedEmail.value.isRead = true
           }
-        }, 3000) // 3 seconds delay
-      }
-    } catch (error) {
-      console.error('Error loading email:', error)
+          // Refresh email list to update read status
+          window.dispatchEvent(new CustomEvent('refresh-emails'))
+        } catch (error) {
+          console.error('Error marking email as read:', error)
+        }
+      }, 3000) // 3 seconds delay
     }
+  } catch (error) {
+    console.error('Error loading email:', error)
+    selectedEmail.value = null
   }
 }
 
@@ -343,13 +348,18 @@ const handleDeleteEmail = async (email: any) => {
 
   try {
     await window.electronAPI.emails.delete(email.id)
+    
+    // Clear cache
+    emailCacheStore.clearEmail(email.id)
+    
+    // Clear content view immediately if this email was selected
     if (selectedEmailId.value === email.id) {
-      selectedEmailId.value = ''
       selectedEmail.value = null
-      emailCacheStore.clearEmail(email.id)
+      // Don't clear selectedEmailId here - let EmailList handle selecting next email
+      // EmailList will emit select-email event after refresh
     }
 
-    // Refresh the email list
+    // Refresh the email list - EmailList will handle selecting next email if needed
     window.dispatchEvent(new CustomEvent('refresh-emails'))
   } catch (error: any) {
     console.error('Error deleting email:', error)
@@ -728,8 +738,17 @@ const handleSettingsClose = () => {
 let resizeHandler: (() => void) | null = null
 
 // Listen for email refresh to clear sync loader
-const handleEmailRefresh = () => {
+const handleEmailRefresh = async () => {
   handleEmailsLoaded()
+  
+  // After refresh, check if selectedEmailId still exists
+  // If not, EmailList should have already selected the next one
+  // But if selectedEmailId is set but email doesn't exist, clear it
+  if (selectedEmailId.value && selectedEmail.value === null) {
+    // Email was deleted/removed, EmailList should handle selection
+    // But if we still have selectedEmailId set, clear it to empty content view
+    selectedEmailId.value = ''
+  }
 }
 
 onMounted(async () => {

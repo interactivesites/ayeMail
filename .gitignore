@@ -8,4 +8,6 @@ dist-electron
 *.db-wal
 .env
 .env.local
+coverage
+.nyc_output
 

@@ -135,18 +135,40 @@ const CACHE_RANGE = 3 // Number of emails to cache before and after current
 const confirmArchive = async (emailId: string) => {
   const result = await archiveEmail(emailId)
   if (result.success) {
+    // Clear content view if this email was selected
+    if (selectedEmail.value?.id === emailId) {
+      selectedEmail.value = null
+    }
+    
     // Remove email from list
     const emailIndex = mails.value.findIndex(e => e.id === emailId)
     if (emailIndex !== -1) {
       mails.value.splice(emailIndex, 1)
-      // Adjust currentIndex if needed
-      if (currentIndex.value >= mails.value.length && mails.value.length > 0) {
-        currentIndex.value = mails.value.length - 1
-        updateMailPositions()
-      } else if (mails.value.length === 0) {
+      
+      // Adjust currentIndex and select next email if available
+      if (mails.value.length === 0) {
         currentIndex.value = 0
         selectedEmail.value = null
+      } else if (currentIndex.value >= mails.value.length) {
+        // Was at end, select last email
+        currentIndex.value = mails.value.length - 1
+        updateMailPositions()
+        // Load the new current email
+        await nextTick()
+        loadCurrentEmail()
+      } else if (emailIndex === currentIndex.value) {
+        // Archived the current email, select the one at same index (which is now the next one)
+        // currentIndex stays the same, but now points to next email
+        updateMailPositions()
+        // Load the new current email
+        await nextTick()
+        loadCurrentEmail()
+      } else if (emailIndex < currentIndex.value) {
+        // Archived email before current, adjust index
+        currentIndex.value = currentIndex.value - 1
+        updateMailPositions()
       } else {
+        // Archived email after current, no index change needed
         updateMailPositions()
       }
     }
@@ -500,18 +522,40 @@ const handleDelete = async (email: any) => {
   if (!email || !email.id) return
   const result = await deleteEmailByObject(email)
   if (result.success) {
+    // Clear content view if this email was selected
+    if (selectedEmail.value?.id === email.id) {
+      selectedEmail.value = null
+    }
+    
     // Remove email from list
     const emailIndex = mails.value.findIndex(e => e.id === email.id)
     if (emailIndex !== -1) {
       mails.value.splice(emailIndex, 1)
-      // Adjust currentIndex if needed
-      if (currentIndex.value >= mails.value.length && mails.value.length > 0) {
-        currentIndex.value = mails.value.length - 1
-        updateMailPositions()
-      } else if (mails.value.length === 0) {
+      
+      // Adjust currentIndex and select next email if available
+      if (mails.value.length === 0) {
         currentIndex.value = 0
         selectedEmail.value = null
+      } else if (currentIndex.value >= mails.value.length) {
+        // Was at end, select last email
+        currentIndex.value = mails.value.length - 1
+        updateMailPositions()
+        // Load the new current email
+        await nextTick()
+        loadCurrentEmail()
+      } else if (emailIndex === currentIndex.value) {
+        // Deleted the current email, select the one at same index (which is now the next one)
+        // currentIndex stays the same, but now points to next email
+        updateMailPositions()
+        // Load the new current email
+        await nextTick()
+        loadCurrentEmail()
+      } else if (emailIndex < currentIndex.value) {
+        // Deleted email before current, adjust index
+        currentIndex.value = currentIndex.value - 1
+        updateMailPositions()
       } else {
+        // Deleted email after current, no index change needed
         updateMailPositions()
       }
     }

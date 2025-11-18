@@ -1182,11 +1182,23 @@ const handleFolderSelected = async (folderId: string) => {
   // Optimistically remove email
   const emailToRemove = emails.value.find(e => e.id === emailId)
   if (emailToRemove) {
+    // Get flat list before filtering to find next email
+    const flatEmails = getAllEmailsFlat()
+    const currentIndex = flatEmails.findIndex(e => e.id === emailId)
+    
     removedEmails.value.set(emailId, emailToRemove)
     emails.value = emails.value.filter(e => e.id !== emailId)
     
+    // Update selection if moved email was selected
     if (props.selectedEmailId === emailId) {
-      emit('select-email', '')
+      const remainingEmails = getAllEmailsFlat()
+      if (remainingEmails.length > 0) {
+        // Select next email, or previous if at end
+        const nextIndex = currentIndex < remainingEmails.length ? currentIndex : remainingEmails.length - 1
+        emit('select-email', remainingEmails[nextIndex].id)
+      } else {
+        emit('select-email', '')
+      }
     }
   }
   
@@ -1681,12 +1693,35 @@ const groupedEmails = computed(() => {
   return groupArray
 })
 
-const refreshEmails = () => {
+const refreshEmails = async () => {
   // Clear removed emails cache on refresh since we're getting fresh data
   removedEmails.value.clear()
   pendingSyncedEmails.value = []
   shortcutsCache.clear() // Clear shortcuts cache
-  loadEmails()
+  
+  // Store current selected email ID before refresh
+  const previousSelectedId = props.selectedEmailId
+  
+  await loadEmails()
+  
+  // After refresh, check if selected email still exists
+  // This handles cases where email was removed externally (e.g., from EmailViewer or another component)
+  // Note: EmailList's own delete handlers already handle selection, so this is a fallback
+  if (previousSelectedId) {
+    await nextTick()
+    const flatEmails = getAllEmailsFlat()
+    const emailStillExists = flatEmails.some(e => e.id === previousSelectedId)
+    
+    if (!emailStillExists) {
+      if (flatEmails.length > 0) {
+        // Selected email was removed externally, select the first email
+        emit('select-email', flatEmails[0].id)
+      } else {
+        // No emails left, clear selection
+        emit('select-email', '')
+      }
+    }
+  }
 }
 
 const handleRemoveEmailOptimistic = (event: CustomEvent) => {
@@ -1694,14 +1729,25 @@ const handleRemoveEmailOptimistic = (event: CustomEvent) => {
   const emailToRemove = emails.value.find(e => e.id === emailId)
   
   if (emailToRemove) {
+    // Get flat list before filtering to find next email
+    const flatEmails = getAllEmailsFlat()
+    const currentIndex = flatEmails.findIndex(e => e.id === emailId)
+    
     // Store email for potential restoration
     removedEmails.value.set(emailId, emailToRemove)
     // Remove from list immediately
     emails.value = emails.value.filter(e => e.id !== emailId)
     
-    // Clear selection if removed email was selected
+    // Update selection if removed email was selected
     if (props.selectedEmailId === emailId) {
-      emit('select-email', '')
+      const remainingEmails = getAllEmailsFlat()
+      if (remainingEmails.length > 0) {
+        // Select next email, or previous if at end
+        const nextIndex = currentIndex < remainingEmails.length ? currentIndex : remainingEmails.length - 1
+        emit('select-email', remainingEmails[nextIndex].id)
+      } else {
+        emit('select-email', '')
+      }
     }
   }
 }
