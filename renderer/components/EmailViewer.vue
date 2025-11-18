@@ -125,6 +125,17 @@
         </div>
       </div>
     </div>
+    
+    <!-- Link Preview Popover -->
+    <LinkPreviewPopover
+      :show="showLinkPreview"
+      :url="linkPreviewUrl"
+      :display-text="linkPreviewDisplayText"
+      :reference-element="linkPreviewReferenceElement"
+      :iframe-element="emailIframe"
+      @open="handleLinkPreviewOpen"
+      @close="handleLinkPreviewClose"
+    />
   </div>
 </template>
 
@@ -133,8 +144,10 @@ import { ref, watch, computed, nextTick } from 'vue'
 import { formatDate, formatSize, formatAddresses } from '../utils/formatters'
 import { EmailAddress } from '../../shared/types'
 import { checkUrlSecurity } from '../utils/url-security'
+import { filterTrackingPixels } from '../utils/tracking-pixel-filter'
 import { useEmailCacheStore } from '../stores/emailCache'
 import ThreadView from './ThreadView.vue'
+import LinkPreviewPopover from './LinkPreviewPopover.vue'
 
 const props = defineProps<{
   emailId?: string
@@ -156,6 +169,12 @@ const emailIframe = ref<HTMLIFrameElement | null>(null)
 const threadEmails = ref<any[]>([])
 const loadingThread = ref(false)
 
+// Link preview popover state
+const showLinkPreview = ref(false)
+const linkPreviewUrl = ref('')
+const linkPreviewDisplayText = ref('')
+const linkPreviewReferenceElement = ref<HTMLElement | null>(null)
+
 const sanitizedHtml = computed(() => {
   if (!email.value?.htmlBody) return ''
   
@@ -166,6 +185,9 @@ const sanitizedHtml = computed(() => {
   
   // Remove <script> tags for security
   html = html.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+  
+  // Filter out tracking pixels
+  html = filterTrackingPixels(html)
   
   // Wrap in a container to ensure isolation
   // Add base styles for better rendering
@@ -344,7 +366,12 @@ const onIframeLoad = () => {
             e.preventDefault()
             e.stopPropagation()
             
-            await handleLinkClick(originalHref, displayText)
+            // Store reference element and iframe for popover positioning
+            // We need both to calculate correct position (iframe element for offset)
+            linkPreviewReferenceElement.value = anchor
+            linkPreviewUrl.value = originalHref
+            linkPreviewDisplayText.value = displayText
+            showLinkPreview.value = true
           })
           
           // Add visual indicator that link opens externally
@@ -359,39 +386,9 @@ const onIframeLoad = () => {
   }
 }
 
-const handleLinkClick = async (url: string, displayText?: string) => {
+const handleLinkPreviewOpen = async (url: string) => {
   // Check URL security
-  const securityCheck = checkUrlSecurity(url, displayText)
-  
-  // If high risk, show warning and require confirmation
-  if (securityCheck.riskLevel === 'high' || !securityCheck.isSafe) {
-    const warningMessage = [
-      `Warning: This link may be unsafe.`,
-      ...securityCheck.warnings,
-      '',
-      `URL: ${securityCheck.actualUrl}`,
-      '',
-      'Do you want to open it anyway?'
-    ].join('\n')
-    
-    if (!confirm(warningMessage)) {
-      return
-    }
-  } else if (securityCheck.warnings.length > 0) {
-    // Medium/low risk - show info but allow proceed
-    const infoMessage = [
-      `Security Notice:`,
-      ...securityCheck.warnings,
-      '',
-      `URL: ${securityCheck.actualUrl}`,
-      '',
-      'Do you want to continue?'
-    ].join('\n')
-    
-    if (!confirm(infoMessage)) {
-      return
-    }
-  }
+  const securityCheck = checkUrlSecurity(url, linkPreviewDisplayText.value)
   
   // Open the URL externally
   try {
@@ -400,6 +397,15 @@ const handleLinkClick = async (url: string, displayText?: string) => {
     console.error('Error opening external URL:', error)
     alert(`Failed to open URL: ${error.message || 'Unknown error'}`)
   }
+  
+  // Close popover
+  showLinkPreview.value = false
+  linkPreviewReferenceElement.value = null
+}
+
+const handleLinkPreviewClose = () => {
+  showLinkPreview.value = false
+  linkPreviewReferenceElement.value = null
 }
 
 const formatTextWithLinks = (text: string): string => {

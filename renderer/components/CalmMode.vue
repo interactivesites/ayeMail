@@ -77,6 +77,17 @@
         </div>
       </div>
     </div>
+    
+    <!-- Link Preview Popover -->
+    <LinkPreviewPopover
+      :show="showLinkPreview"
+      :url="linkPreviewUrl"
+      :display-text="linkPreviewDisplayText"
+      :reference-element="linkPreviewReferenceElement"
+      :iframe-element="emailIframe"
+      @open="handleLinkPreviewOpen"
+      @close="handleLinkPreviewClose"
+    />
   </div>
 </template>
 
@@ -88,7 +99,9 @@ import { Email } from '@shared/types'
 import { useEmailActions } from '../composables/useEmailActions'
 import { useEmailCacheStore } from '../stores/emailCache'
 import { checkUrlSecurity } from '../utils/url-security'
+import { filterTrackingPixels } from '../utils/tracking-pixel-filter'
 import EmailNavigation from './EmailNavigation.vue'
+import LinkPreviewPopover from './LinkPreviewPopover.vue'
 
 const props = defineProps<{
   accountId?: string
@@ -112,6 +125,12 @@ const selectedEmail = ref<any>(null)
 const loadingEmail = ref(false)
 const currentFolderName = ref<string>('')
 let resizeObserver: ResizeObserver | null = null
+
+// Link preview popover state
+const showLinkPreview = ref(false)
+const linkPreviewUrl = ref('')
+const linkPreviewDisplayText = ref('')
+const linkPreviewReferenceElement = ref<HTMLElement | null>(null)
 
 // Email actions composable
 const {
@@ -186,6 +205,9 @@ const sanitizedHtml = computed(() => {
   // Remove <script> tags for security
   html = html.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
 
+  // Filter out tracking pixels
+  html = filterTrackingPixels(html)
+
   // Check if dark mode is active
   const isDark = document.documentElement.classList.contains('dark')
 
@@ -248,7 +270,11 @@ const onIframeLoad = () => {
             e.preventDefault()
             e.stopPropagation()
 
-            await handleLinkClick(originalHref, displayText)
+            // Store reference element for popover positioning
+            linkPreviewReferenceElement.value = anchor
+            linkPreviewUrl.value = originalHref
+            linkPreviewDisplayText.value = displayText
+            showLinkPreview.value = true
           })
 
           // Add visual indicator that link opens externally
@@ -263,42 +289,26 @@ const onIframeLoad = () => {
   }
 }
 
-const handleLinkClick = async (url: string, displayText?: string) => {
+const handleLinkPreviewOpen = async (url: string) => {
   // Check URL security
-  const securityCheck = checkUrlSecurity(url, displayText)
-
-  // If high risk, show warning and require confirmation
-  if (securityCheck.riskLevel === 'high' || !securityCheck.isSafe) {
-    const warningMessage = [
-      `Warning: This link may be unsafe.`,
-      ...securityCheck.warnings,
-      '',
-      `URL: ${securityCheck.actualUrl}`,
-      '',
-      'Do you want to open it anyway?'
-    ].join('\n')
-
-    if (!confirm(warningMessage)) {
-      return
-    }
-  } else if (securityCheck.warnings.length > 0) {
-    // Medium/low risk - show info but allow proceed
-    const infoMessage = [
-      `Security Notice:`,
-      ...securityCheck.warnings,
-      '',
-      `URL: ${securityCheck.actualUrl}`,
-      '',
-      'Do you want to continue?'
-    ].join('\n')
-
-    if (!confirm(infoMessage)) {
-      return
-    }
+  const securityCheck = checkUrlSecurity(url, linkPreviewDisplayText.value)
+  
+  // Open the URL externally
+  try {
+    await window.electronAPI.shell.openExternal(securityCheck.actualUrl)
+  } catch (error: any) {
+    console.error('Error opening external URL:', error)
+    alert(`Failed to open URL: ${error.message || 'Unknown error'}`)
   }
+  
+  // Close popover
+  showLinkPreview.value = false
+  linkPreviewReferenceElement.value = null
+}
 
-  // Open URL externally
-  window.electronAPI.shell.openExternal(securityCheck.actualUrl)
+const handleLinkPreviewClose = () => {
+  showLinkPreview.value = false
+  linkPreviewReferenceElement.value = null
 }
 
 // Item spacing and sizing constants
