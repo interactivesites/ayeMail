@@ -11,6 +11,7 @@ const DARK_MODE_KEY = 'darkMode'
 const THREAD_VIEW_KEY = 'threadView'
 const EXPANDED_ACCOUNTS_KEY = 'expandedAccounts'
 const EXPANDED_FOLDERS_KEY = 'expandedFolders'
+const FAVORITE_FOLDERS_KEY = 'favoriteFolders'
 const CONFIRM_ARCHIVE_KEY = 'confirmArchive'
 const LANGUAGE_KEY = 'language'
 
@@ -75,6 +76,17 @@ const loadExpandedFolders = (): string[] => {
   }
 }
 
+const loadFavoriteFolders = (): string[] => {
+  if (typeof window === 'undefined') return []
+  const stored = window.localStorage.getItem(FAVORITE_FOLDERS_KEY)
+  if (!stored) return []
+  try {
+    return JSON.parse(stored) as string[]
+  } catch {
+    return []
+  }
+}
+
 const loadConfirmArchive = (): boolean => {
   if (typeof window === 'undefined') return true
   const stored = window.localStorage.getItem(CONFIRM_ARCHIVE_KEY)
@@ -89,6 +101,7 @@ export const usePreferencesStore = defineStore('preferences', () => {
   const threadView = ref(loadThreadView())
   const expandedAccounts = ref<string[]>(loadExpandedAccounts())
   const expandedFolders = ref<string[]>(loadExpandedFolders())
+  const favoriteFolders = ref<string[]>(loadFavoriteFolders())
   const confirmArchive = ref(loadConfirmArchive())
   const language = ref(loadLanguage())
 
@@ -204,6 +217,28 @@ export const usePreferencesStore = defineStore('preferences', () => {
     return expandedFolders.value.includes(folderId)
   }
 
+  const setFavoriteFolders = (folderIds: string[]) => {
+    favoriteFolders.value = folderIds
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(FAVORITE_FOLDERS_KEY, JSON.stringify(folderIds))
+    }
+  }
+
+  const toggleFavoriteFolder = (folderId: string) => {
+    const current = favoriteFolders.value
+    const index = current.indexOf(folderId)
+    if (index > -1) {
+      const updated = current.filter(id => id !== folderId)
+      setFavoriteFolders(updated)
+    } else {
+      setFavoriteFolders([...current, folderId])
+    }
+  }
+
+  const isFolderFavorite = (folderId: string): boolean => {
+    return favoriteFolders.value.includes(folderId)
+  }
+
   return {
     showActionLabels,
     setShowActionLabels,
@@ -223,6 +258,10 @@ export const usePreferencesStore = defineStore('preferences', () => {
     toggleExpandedFolder,
     isAccountExpanded,
     isFolderExpanded,
+    favoriteFolders,
+    setFavoriteFolders,
+    toggleFavoriteFolder,
+    isFolderFavorite,
     confirmArchive,
     setConfirmArchive,
     showEmailNotifications,

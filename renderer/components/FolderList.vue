@@ -30,10 +30,23 @@
         {{ $t('folders.loadingFolders') }}
       </div>
       <div v-else>
-        <!-- Unified Folders Section -->
-        <div v-if="unifiedFolders.length > 0" class="mb-4">
+        <!-- Favorites Section -->
+        <div v-if="favoriteFolders.length > 0" class="mb-4 border-b border-white/10 pb-4">
           <FolderTreeItem
-            v-for="folder in unifiedFolders"
+            v-for="folder in favoriteFolders"
+            :key="folder.id"
+            :folder="folder"
+            :selected-folder-id="selectedFolderId"
+            :syncing-folder-id="syncingFolderId"
+            :level="0"
+            @select="handleFolderSelect"
+          />
+        </div>
+        
+        <!-- Unified Folders Section -->
+        <div v-if="displayedUnifiedFolders.length > 0" class="mb-4">
+          <FolderTreeItem
+            v-for="folder in displayedUnifiedFolders"
             :key="folder.id"
             :folder="folder"
             :selected-folder-id="selectedFolderId"
@@ -178,6 +191,7 @@ const unifiedFolders = computed(() => {
   }
   
   // Spam folder (unified) - show spam from all accounts, only if spam received today
+  // Note: Spam, Reminders, and Aside are now shown in favorites section, not here
   if (hasSpamToday.value) {
     const spamFolders: any[] = []
     let totalSpamUnread = 0
@@ -232,6 +246,52 @@ const unifiedFolders = computed(() => {
   })
   
   return folders
+})
+
+// Unified folders to display (excluding always-favorites which are shown in favorites section)
+const displayedUnifiedFolders = computed(() => {
+  const alwaysFavoriteIds = ['unified-reminders', 'unified-aside', 'unified-spam']
+  return unifiedFolders.value.filter(folder => !alwaysFavoriteIds.includes(folder.id))
+})
+
+const favoriteFolders = computed(() => {
+  const favoriteIds = preferences.favoriteFolders
+  const allFolders: any[] = []
+  
+  // Helper function to flatten folder tree
+  const flattenFolders = (folderList: any[]): any[] => {
+    const result: any[] = []
+    for (const folder of folderList) {
+      result.push(folder)
+      if (folder.children && folder.children.length > 0) {
+        result.push(...flattenFolders(folder.children))
+      }
+    }
+    return result
+  }
+  
+  // Collect unified folders
+  const unified = unifiedFolders.value
+  allFolders.push(...flattenFolders(unified))
+  
+  // Collect account folders
+  accounts.value.forEach(account => {
+    const accountFoldersList = accountFolders.value.get(account.id) || []
+    allFolders.push(...flattenFolders(accountFoldersList))
+  })
+  
+  // Always include reminders, aside, and spam in favorites section
+  const alwaysFavoriteIds = ['unified-reminders', 'unified-aside', 'unified-spam']
+  const alwaysFavorites = allFolders.filter(folder => alwaysFavoriteIds.includes(folder.id))
+  
+  // Add user-selected favorites (excluding always-favorites to avoid duplicates)
+  const userFavorites = allFolders.filter(folder => {
+    const isAlwaysFavorite = alwaysFavoriteIds.includes(folder.id)
+    return !isAlwaysFavorite && favoriteIds.includes(folder.id)
+  })
+  
+  // Combine always-favorites and user favorites
+  return [...alwaysFavorites, ...userFavorites]
 })
 
 const accountSections = computed((): AccountSection[] => {

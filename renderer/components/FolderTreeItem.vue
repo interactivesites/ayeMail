@@ -47,6 +47,25 @@
       <!-- Folder name -->
       <span class="text-sm font-medium truncate flex-1">{{ folder.name }}</span>
 
+      <!-- Favorite button (hidden for always-favorite folders) -->
+      <button
+        v-if="canBeFavorited"
+        @click.stop="handleFavoriteClick"
+        class="ml-2 flex-shrink-0 p-1 rounded-full hover:bg-white/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
+        :title="isFavorite ? 'Remove from favorites' : 'Add to favorites'"
+      >
+        <svg
+          class="w-3.5 h-3.5 transition-colors"
+          :class="isFavorite ? 'text-white fill-white' : 'text-white/40'"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <circle cx="12" cy="12" r="10" stroke-width="1.5" :fill="isFavorite ? 'currentColor' : 'none'" />
+          <circle v-if="isFavorite" cx="12" cy="12" r="3" fill="currentColor" />
+        </svg>
+      </button>
+
       <!-- Sync loader circle -->
       <div
         v-if="syncingFolderId === folder.id"
@@ -103,12 +122,37 @@ const getInitialExpanded = (): boolean => {
 
 const expanded = ref(getInitialExpanded())
 
+const isAlwaysFavorite = computed(() => {
+  // Reminders, Aside, and Spam are always favorites
+  return props.folder.id === 'unified-reminders' || 
+         props.folder.id === 'unified-aside' || 
+         props.folder.id === 'unified-spam'
+})
+
+const canBeFavorited = computed(() => {
+  return !isAlwaysFavorite.value
+})
+
+const isFavorite = computed(() => {
+  if (isAlwaysFavorite.value) return true
+  return preferences.isFolderFavorite(props.folder.id)
+})
+
+const handleFavoriteClick = () => {
+  preferences.toggleFavoriteFolder(props.folder.id)
+}
+
 const handleClick = (event: MouseEvent) => {
   // If clicking on the expand/collapse area, toggle expansion
   const target = event.target as HTMLElement
   if (target.tagName === 'svg' || target.closest('svg')) {
     expanded.value = !expanded.value
     preferences.toggleExpandedFolder(props.folder.id)
+    return
+  }
+
+  // If clicking on favorite button, it's already handled by handleFavoriteClick
+  if (target.closest('button[title*="favorite"]')) {
     return
   }
 

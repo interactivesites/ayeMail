@@ -30,6 +30,22 @@
           <span class="font-medium">Aside</span>
         </div>
       </button>
+      <!-- Favorite Folders -->
+      <div v-if="favoriteFoldersForAccount.length > 0" class="mb-2 space-y-1">
+        <button
+          v-for="folder in favoriteFoldersForAccount"
+          :key="folder.id"
+          @click="selectFolder(folder.id)"
+          class="w-full px-3 py-2 text-sm text-left rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800"
+        >
+          <div class="flex items-center space-x-2">
+            <svg class="w-4 h-4 text-gray-400 dark:text-gray-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+            </svg>
+            <span class="font-medium truncate">{{ getFolderDisplayName(folder) }}</span>
+          </div>
+        </button>
+      </div>
       <input
         ref="searchInputRef"
         v-model="searchQuery"
@@ -69,6 +85,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { gsap } from 'gsap'
+import { usePreferencesStore } from '../stores/preferences'
 
 const props = defineProps<{
   accountId: string
@@ -89,6 +106,7 @@ const folders = ref<any[]>([])
 const searchQuery = ref('')
 const highlightedIndex = ref(0)
 const loading = ref(false)
+const preferences = usePreferencesStore()
 
 const loadFolders = async () => {
   if (!props.accountId) return
@@ -123,6 +141,14 @@ const getFolderDisplayName = (folder: any): string => {
   // Show path if available, otherwise name
   return folder.path || folder.name || 'Unknown'
 }
+
+const favoriteFoldersForAccount = computed(() => {
+  const favoriteIds = preferences.favoriteFolders
+  if (favoriteIds.length === 0) return []
+  
+  // Filter folders to only include favorited ones for the current account
+  return folders.value.filter(folder => favoriteIds.includes(folder.id))
+})
 
 const filteredFolders = computed(() => {
   if (!searchQuery.value.trim()) {
