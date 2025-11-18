@@ -29,7 +29,8 @@
     "../gpg/**/*.ts",
     "../reminders/**/*.ts",
     "../security/**/*.ts",
-    "../shared/**/*.ts"
+    "../shared/**/*.ts",
+    "../contacts/**/*.ts"
   ],
   "exclude": ["node_modules", "renderer", "dist", "dist-electron"]
 }

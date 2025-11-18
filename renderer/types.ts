@@ -2,6 +2,7 @@
 declare global {
   interface Window {
     electronAPI: {
+      platform: string
       accounts: {
         list: () => Promise<any[]>
         get: (id: string) => Promise<any>

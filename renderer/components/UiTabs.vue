@@ -19,7 +19,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, watch } from 'vue'
 
 const props = defineProps<{
   tabs: Array<{ id: string; label: string }>
@@ -31,32 +31,37 @@ const emit = defineEmits<{
 }>()
 
 const fallbackTab = computed(() => props.tabs[0]?.id ?? '')
-const currentTab = ref(props.modelValue ?? fallbackTab.value)
-
-watch(
-  () => props.modelValue,
-  (value) => {
-    if (value !== undefined && value !== currentTab.value) {
-      currentTab.value = value || fallbackTab.value
+const currentTab = computed({
+  get: () => {
+    const value = props.modelValue ?? fallbackTab.value
+    // Ensure the value exists in tabs, otherwise use fallback
+    if (props.tabs.length > 0 && !props.tabs.find(tab => tab.id === value)) {
+      return fallbackTab.value
     }
+    return value || fallbackTab.value
+  },
+  set: (value: string) => {
+    emit('update:modelValue', value)
   }
-)
+})
 
 watch(
   () => props.tabs,
   (newTabs) => {
-    if (!newTabs.find((tab) => tab.id === currentTab.value)) {
-      currentTab.value = newTabs[0]?.id ?? ''
-      emit('update:modelValue', currentTab.value)
+    if (newTabs.length > 0) {
+      const currentValue = props.modelValue ?? newTabs[0]?.id ?? ''
+      if (!newTabs.find((tab) => tab.id === currentValue)) {
+        const newValue = newTabs[0]?.id ?? ''
+        emit('update:modelValue', newValue)
+      }
     }
   },
-  { deep: true }
+  { immediate: true }
 )
 
 const selectTab = (id: string) => {
   if (id === currentTab.value) return
   currentTab.value = id
-  emit('update:modelValue', id)
 }
 
 const tabClasses = (id: string) => {

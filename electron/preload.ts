@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
+import { platform } from 'os'
 
 // Type definitions for window.electronAPI
 declare global {
@@ -10,6 +11,8 @@ declare global {
 // Expose protected methods that allow the renderer process to use
 // the ipcRenderer without exposing the entire object
 contextBridge.exposeInMainWorld('electronAPI', {
+  // Platform info
+  platform: platform(),
   // Account management
   accounts: {
     list: () => ipcRenderer.invoke('accounts:list'),

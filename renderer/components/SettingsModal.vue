@@ -379,7 +379,7 @@ const rebuildResult = ref<{ success: boolean; message: string } | null>(null)
 const nativeContactsAvailable = ref(false)
 const syncingContacts = ref(false)
 const syncResult = ref<{ success: boolean; synced?: number; updated?: number; error?: string } | null>(null)
-const isMac = computed(() => process.platform === 'darwin')
+const isMac = computed(() => window.electronAPI.platform === 'darwin')
 const { t, locale } = useI18n()
 const settingsTabs = computed(() => [
   { id: 'general', label: t('settings.general') },
