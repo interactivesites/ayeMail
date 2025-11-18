@@ -1912,7 +1912,7 @@ const handleEmailMouseEnter = async (emailId: string) => {
     hoverTimeout = null
   }
   
-  // Small delay before showing popover to avoid flickering
+  // Show popover only after 5 seconds of hovering
   hoverTimeout = setTimeout(async () => {
     hoveredEmailId.value = emailId
     
@@ -1940,7 +1940,7 @@ const handleEmailMouseEnter = async (emailId: string) => {
         }
       }
     }
-  }, 300) // 300ms delay
+  }, 5000) // 5 second delay
 }
 
 const handleEmailMouseLeave = () => {
