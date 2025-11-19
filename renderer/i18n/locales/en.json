@@ -161,7 +161,23 @@
     "accountAdded": "Account added successfully!",
     "accountUpdated": "Account updated successfully!",
     "advancedSettings": "Advanced Settings",
-    "simpleMode": "Simple Mode"
+    "simpleMode": "Simple Mode",
+    "gmailAppPasswordHint": "⚠️ With 2-Step Verification enabled, you MUST use an App Password (not your regular password).",
+    "showStepByStepGuide": "Show step-by-step guide",
+    "gmailAppPasswordTitle": "How to Set Up Gmail with 2-Step Verification",
+    "gmailAppPasswordExplanation": "Gmail requires an App Password when 2-Step Verification is enabled. This is a special 16-character password that you'll use instead of your regular Gmail password.",
+    "gmailAppPasswordStep1": "Click the button below to open Google's App Password page",
+    "gmailAppPasswordStep2": "Sign in to your Google account",
+    "gmailAppPasswordStep2Detail": "You'll need to verify your identity if prompted.",
+    "gmailAppPasswordStep3": "Select 'Mail' and 'Other (Custom name)'",
+    "gmailAppPasswordStep3Detail": "Choose 'Mail' as the app type, then select 'Other (Custom name)' from the device dropdown.",
+    "gmailAppPasswordStep4": "Enter 'ayeMail' as the app name and click Generate",
+    "gmailAppPasswordStep4Detail": "Type 'ayeMail' in the custom name field, then click the Generate button.",
+    "gmailAppPasswordStep5": "Copy the 16-character password and paste it here",
+    "gmailAppPasswordStep5Detail": "Google will show you a 16-character password. Copy it (you can ignore spaces) and paste it into the password field above.",
+    "gmailAppPasswordNote": "Important:",
+    "gmailAppPasswordNoteDetail": "Use this App Password in the password field, NOT your regular Gmail password. App Passwords are required for all email apps when 2FA is enabled.",
+    "openAppPasswordPage": "Open App Password Page"
   },
   "signatures": {
     "selectAccount": "Select Account"

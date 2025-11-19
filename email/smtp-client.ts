@@ -61,7 +61,8 @@ export class SMTPClient {
       secure: this.account.smtp.secure,
       auth: auth as any,
       tls: {
-        rejectUnauthorized: true
+        rejectUnauthorized: false, // Allow connections through proxies/VPNs that inject certificates
+        minVersion: 'TLSv1.2'
       }
     } as any)
 

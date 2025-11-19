@@ -318,6 +318,9 @@ export function registerFolderHandlers() {
         const imapClient = getIMAPClient(account)
         await imapClient.connect()
         const serverFolders = await imapClient.listFolders()
+        
+        console.log(`[folders:list] Retrieved ${serverFolders.length} folders from server for account ${accountId}`)
+        console.log('[folders:list] Server folders:', serverFolders.map(f => ({ name: f.name, path: f.path, delimiter: f.delimiter })))
 
         // Build folder hierarchy and update database
         const now = Date.now()
@@ -390,7 +393,10 @@ export function registerFolderHandlers() {
             const parent = folderMap.get(parentPath)
 
             if (parent) {
+              console.log(`[folders:list] Setting parent for ${path}: parent is ${parentPath} (${parent.id})`)
               db.prepare('UPDATE folders SET parent_id = ? WHERE id = ?').run(parent.id, folderData.id)
+            } else {
+              console.log(`[folders:list] No parent found for ${path}, expected parent: ${parentPath}`)
             }
           }
         }
