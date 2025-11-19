@@ -1,13 +1,11 @@
 
 ## Functionality
-- save window position / size (E)
 - image resizing in mail (attachments)
 - bg image
 - GPG: plan, check, implement.
 - Auto-Updater
 
 ## Bugs
-- using ctrl/cmd modifiers and command keys must not execute!
 - threads show 2x same mail
 
 ## UI

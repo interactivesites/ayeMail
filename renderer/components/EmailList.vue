@@ -2023,6 +2023,11 @@ const handleKeyDown = (event: KeyboardEvent) => {
     closeFolderPickerPopover()
   }
   
+  // Don't handle shortcuts when Ctrl/Cmd modifiers are pressed (only plain keys)
+  if (event.ctrlKey || event.metaKey) {
+    return
+  }
+  
   switch (event.key) {
     case 'ArrowUp':
       event.preventDefault()
