@@ -1,4 +1,4 @@
-# iMail - Secure Electron Email Client
+# ayeMail - Secure Electron Email Client
 
 A secure, feature-rich email client built with Electron, Vue 3, TypeScript, and Tailwind CSS.
 
