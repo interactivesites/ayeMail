@@ -1,5 +1,5 @@
 <template>
-  <div ref="containerRef" class="flex flex-col h-full bg-gray-50 dark:bg-gray-900 items-center justify-center p-8">
+  <div ref="containerRef" class="flex flex-col h-full bg-gray-50 dark:bg-dark-gray-900 items-center justify-center p-8">
     <h2 class="text-lg font-semibold text-gray-900 mb-8">Move email to...</h2>
     
     <div class="grid grid-cols-2 gap-8 max-w-2xl w-full dark:text-white">
@@ -44,7 +44,7 @@
           </div>
         </div>
         <h3 class="font-medium text-gray-900 dark:text-white text-sm">Bin</h3>
-        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Delete</p>
+        <p class="text-xs text-gray-500 dark:text-dark-gray-400 mt-1">Delete</p>
       </div>
 
       <!-- Archive -->
@@ -88,7 +88,7 @@
           </div>
         </div>
         <h3 class="font-medium text-gray-900 dark:text-white text-sm">Archive</h3>
-        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Move to archive</p>
+        <p class="text-xs text-gray-500 dark:text-dark-gray-400 mt-1">Move to archive</p>
       </div>
 
       <!-- Set Aside - Tomorrow -->
@@ -132,7 +132,7 @@
           </div>
         </div>
         <h3 class="font-medium text-gray-900 dark:text-white text-sm">Tomorrow</h3>
-        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ getTomorrowDate() }}</p>
+        <p class="text-xs text-gray-500 dark:text-dark-gray-400 mt-1">{{ getTomorrowDate() }}</p>
       </div>
 
       <!-- Set Aside - In 3 Days -->
@@ -176,7 +176,7 @@
           </div>
         </div>
         <h3 class="font-medium text-gray-900 dark:text-white text-sm">In 3 days</h3>
-        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ get3DaysDate() }}</p>
+        <p class="text-xs text-gray-500 dark:text-dark-gray-400 mt-1">{{ get3DaysDate() }}</p>
       </div>
 
       <!-- Set Aside - In a Week -->
@@ -220,7 +220,7 @@
           </div>
         </div>
         <h3 class="font-medium text-gray-900 dark:text-white text-sm">In a week</h3>
-        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ getWeekDate() }}</p>
+        <p class="text-xs text-gray-500 dark:text-dark-gray-400 mt-1">{{ getWeekDate() }}</p>
       </div>
 
       <!-- Learned Folders -->
@@ -265,7 +265,7 @@
             </div>
           </div>
           <h3 class="font-medium text-gray-900 dark:text-white text-sm truncate max-w-[100px]">{{ learnedFolder.folderName }}</h3>
-          <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ learnedFolder.moveCount }}x</p>
+          <p class="text-xs text-gray-500 dark:text-dark-gray-400 mt-1">{{ learnedFolder.moveCount }}x</p>
         </div>
       </template>
       
@@ -280,8 +280,8 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
           </svg>
         </div>
-        <h3 class="font-medium text-gray-500 dark:text-gray-400 text-sm">Folders</h3>
-        <p class="text-xs text-gray-400 dark:text-gray-400 mt-1">No learned folders yet</p>
+        <h3 class="font-medium text-gray-500 dark:text-dark-gray-400 text-sm">Folders</h3>
+        <p class="text-xs text-gray-400 dark:text-dark-gray-400 mt-1">No learned folders yet</p>
       </div>
     </div>
 

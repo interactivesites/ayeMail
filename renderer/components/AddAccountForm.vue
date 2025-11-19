@@ -1,12 +1,12 @@
 <template>
   <div class="fixed inset-0 bg-black bg-opacity-50 dark:bg-opacity-70 flex items-center justify-center z-50">
-    <div class="bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
-      <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-        <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ editingAccount ? $t('accounts.editAccount') : $t('accounts.addAccount') }}</h2>
+    <div class="bg-white dark:bg-dark-gray-900 rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
+      <div class="p-4 border-b border-gray-200 dark:border-dark-gray-700 flex items-center justify-between">
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-dark-gray-100">{{ editingAccount ? $t('accounts.editAccount') : $t('accounts.addAccount') }}</h2>
         <button
           v-if="!preventClose"
           @click="$emit('close')"
-          class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+          class="text-gray-500 dark:text-dark-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
         >
           ✕
         </button>
@@ -41,19 +41,19 @@
         <!-- Simple mode: Email and Password only -->
         <div v-if="!showAdvanced">
           <div class="mb-4">
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ $t('accounts.emailAddress') }}</label>
+            <label class="block text-sm font-medium text-gray-700 dark:text-dark-gray-300 mb-1">{{ $t('accounts.emailAddress') }}</label>
             <input
               v-model="form.email"
               type="email"
               @blur="autoDetectSettings"
-              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-600 dark:bg-gray-800 dark:text-gray-100"
+              class="w-full px-3 py-2 border border-gray-300 dark:border-dark-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-600 dark:bg-dark-gray-800 dark:text-dark-gray-100"
               placeholder="your.email@domain.com"
             />
-            <p v-if="detectedProvider" class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            <p v-if="detectedProvider" class="mt-1 text-xs text-gray-500 dark:text-dark-gray-400">
               {{ detectedProvider }}
             </p>
             <div v-if="showAutoConfigFeedback" class="mt-2 space-y-1">
-              <div class="h-1 w-full bg-gray-200 dark:bg-gray-700 rounded overflow-hidden">
+              <div class="h-1 w-full bg-gray-200 dark:bg-dark-gray-700 rounded overflow-hidden">
                 <div
                   v-if="autoConfigState.status === 'finding'"
                   class="h-full w-full bg-primary-500/80 animate-pulse"
@@ -73,20 +73,20 @@
               </div>
               <p
                 class="text-xs"
-                :class="autoConfigState.status === 'failed' ? 'text-red-500 dark:text-red-400' : 'text-gray-500 dark:text-gray-400'"
+                :class="autoConfigState.status === 'failed' ? 'text-red-500 dark:text-red-400' : 'text-gray-500 dark:text-dark-gray-400'"
               >
                 {{ autoConfigState.error || autoConfigState.message }}
               </p>
             </div>
           </div>
           <div class="mb-4">
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label class="block text-sm font-medium text-gray-700 dark:text-dark-gray-300 mb-1">
               {{ editingAccount ? $t('accounts.passwordLeaveBlank') : $t('accounts.password') }}
             </label>
             <input
               v-model="form.password"
               type="password"
-              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-600 dark:bg-gray-800 dark:text-gray-100"
+              class="w-full px-3 py-2 border border-gray-300 dark:border-dark-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-600 dark:bg-dark-gray-800 dark:text-dark-gray-100"
               :placeholder="editingAccount ? $t('accounts.passwordLeaveBlankPlaceholder') : $t('accounts.passwordPlaceholder')"
             />
             <div v-if="detectedProvider === 'Gmail' && !editingAccount" class="mt-2 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded">
@@ -110,28 +110,28 @@
         <!-- Advanced mode: All fields -->
         <template v-else>
         <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ $t('accounts.accountName') }}</label>
+          <label class="block text-sm font-medium text-gray-700 dark:text-dark-gray-300 mb-1">{{ $t('accounts.accountName') }}</label>
           <input
             v-model="form.name"
             type="text"
-            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-600 dark:bg-gray-800 dark:text-gray-100"
+            class="w-full px-3 py-2 border border-gray-300 dark:border-dark-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-600 dark:bg-dark-gray-800 dark:text-dark-gray-100"
             :placeholder="$t('accounts.accountNamePlaceholder')"
           />
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ $t('accounts.emailAddress') }}</label>
+          <label class="block text-sm font-medium text-gray-700 dark:text-dark-gray-300 mb-1">{{ $t('accounts.emailAddress') }}</label>
           <input
             v-model="form.email"
             type="email"
               @blur="autoDetectSettings"
-            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-600 dark:bg-gray-800 dark:text-gray-100"
+            class="w-full px-3 py-2 border border-gray-300 dark:border-dark-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-600 dark:bg-dark-gray-800 dark:text-dark-gray-100"
               placeholder="your.email@domain.com"
             />
-            <p v-if="detectedProvider" class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            <p v-if="detectedProvider" class="mt-1 text-xs text-gray-500 dark:text-dark-gray-400">
               {{ detectedProvider }}
             </p>
             <div v-if="showAutoConfigFeedback" class="mt-2 space-y-1">
-              <div class="h-1 w-full bg-gray-200 dark:bg-gray-700 rounded overflow-hidden">
+              <div class="h-1 w-full bg-gray-200 dark:bg-dark-gray-700 rounded overflow-hidden">
                 <div
                   v-if="autoConfigState.status === 'finding'"
                   class="h-full w-full bg-primary-500/80 animate-pulse"
@@ -151,35 +151,35 @@
               </div>
               <p
                 class="text-xs"
-                :class="autoConfigState.status === 'failed' ? 'text-red-500 dark:text-red-400' : 'text-gray-500 dark:text-gray-400'"
+                :class="autoConfigState.status === 'failed' ? 'text-red-500 dark:text-red-400' : 'text-gray-500 dark:text-dark-gray-400'"
               >
                 {{ autoConfigState.error || autoConfigState.message }}
               </p>
             </div>
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ $t('accounts.accountType') }}</label>
+          <label class="block text-sm font-medium text-gray-700 dark:text-dark-gray-300 mb-1">{{ $t('accounts.accountType') }}</label>
           <select
             v-model="form.type"
-            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-600 dark:bg-gray-800 dark:text-gray-100"
+            class="w-full px-3 py-2 border border-gray-300 dark:border-dark-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-600 dark:bg-dark-gray-800 dark:text-dark-gray-100"
           >
             <option value="imap">{{ $t('accounts.imap') }}</option>
             <option value="pop3">{{ $t('accounts.pop3') }}</option>
           </select>
         </div>
         <div v-if="form.type === 'imap'">
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ $t('accounts.imapServer') }}</label>
+          <label class="block text-sm font-medium text-gray-700 dark:text-dark-gray-300 mb-1">{{ $t('accounts.imapServer') }}</label>
           <div class="flex space-x-2">
             <input
               v-model="form.imapHost"
               type="text"
-              class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-600 dark:bg-gray-800 dark:text-gray-100"
+              class="flex-1 px-3 py-2 border border-gray-300 dark:border-dark-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-600 dark:bg-dark-gray-800 dark:text-dark-gray-100"
               :placeholder="$t('accounts.imapServerPlaceholder')"
             />
             <input
               v-model.number="form.imapPort"
               type="number"
-              class="w-24 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-600 dark:bg-gray-800 dark:text-gray-100"
+              class="w-24 px-3 py-2 border border-gray-300 dark:border-dark-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-600 dark:bg-dark-gray-800 dark:text-dark-gray-100"
               placeholder="993"
             />
             <label class="flex items-center px-2">
@@ -188,23 +188,23 @@
                 type="checkbox"
                 class="mr-1"
               />
-              <span class="text-sm dark:text-gray-300">{{ $t('accounts.ssl') }}</span>
+              <span class="text-sm dark:text-dark-gray-300">{{ $t('accounts.ssl') }}</span>
             </label>
           </div>
         </div>
         <div v-if="form.type === 'pop3'">
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ $t('accounts.pop3Server') }}</label>
+          <label class="block text-sm font-medium text-gray-700 dark:text-dark-gray-300 mb-1">{{ $t('accounts.pop3Server') }}</label>
           <div class="flex space-x-2">
             <input
               v-model="form.pop3Host"
               type="text"
-              class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-600 dark:bg-gray-800 dark:text-gray-100"
+              class="flex-1 px-3 py-2 border border-gray-300 dark:border-dark-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-600 dark:bg-dark-gray-800 dark:text-dark-gray-100"
               :placeholder="$t('accounts.pop3ServerPlaceholder')"
             />
             <input
               v-model.number="form.pop3Port"
               type="number"
-              class="w-24 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-600 dark:bg-gray-800 dark:text-gray-100"
+              class="w-24 px-3 py-2 border border-gray-300 dark:border-dark-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-600 dark:bg-dark-gray-800 dark:text-dark-gray-100"
               placeholder="995"
             />
             <label class="flex items-center px-2">
@@ -213,23 +213,23 @@
                 type="checkbox"
                 class="mr-1"
               />
-              <span class="text-sm dark:text-gray-300">{{ $t('accounts.ssl') }}</span>
+              <span class="text-sm dark:text-dark-gray-300">{{ $t('accounts.ssl') }}</span>
             </label>
           </div>
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ $t('accounts.smtpServer') }}</label>
+          <label class="block text-sm font-medium text-gray-700 dark:text-dark-gray-300 mb-1">{{ $t('accounts.smtpServer') }}</label>
           <div class="flex space-x-2">
             <input
               v-model="form.smtpHost"
               type="text"
-              class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-600 dark:bg-gray-800 dark:text-gray-100"
+              class="flex-1 px-3 py-2 border border-gray-300 dark:border-dark-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-600 dark:bg-dark-gray-800 dark:text-dark-gray-100"
               :placeholder="$t('accounts.smtpServerPlaceholder')"
             />
             <input
               v-model.number="form.smtpPort"
               type="number"
-              class="w-24 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-600 dark:bg-gray-800 dark:text-gray-100"
+              class="w-24 px-3 py-2 border border-gray-300 dark:border-dark-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-600 dark:bg-dark-gray-800 dark:text-dark-gray-100"
               placeholder="587"
             />
             <label class="flex items-center px-2">
@@ -238,18 +238,18 @@
                 type="checkbox"
                 class="mr-1"
               />
-              <span class="text-sm dark:text-gray-300">{{ $t('accounts.ssl') }}</span>
+              <span class="text-sm dark:text-dark-gray-300">{{ $t('accounts.ssl') }}</span>
             </label>
           </div>
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          <label class="block text-sm font-medium text-gray-700 dark:text-dark-gray-300 mb-1">
             {{ editingAccount ? $t('accounts.passwordLeaveBlank') : $t('accounts.password') }}
           </label>
           <input
             v-model="form.password"
             type="password"
-            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-600 dark:bg-gray-800 dark:text-gray-100"
+            class="w-full px-3 py-2 border border-gray-300 dark:border-dark-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-600 dark:bg-dark-gray-800 dark:text-dark-gray-100"
             :placeholder="editingAccount ? $t('accounts.passwordLeaveBlankPlaceholder') : $t('accounts.passwordPlaceholder')"
           />
           <div v-if="detectedProvider === 'Gmail' && !editingAccount" class="mt-2 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded">
@@ -263,9 +263,9 @@
           </div>
         </div>
         <!-- From Addresses Management (only when editing) -->
-        <div v-if="editingAccount && props.accountId" class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+        <div v-if="editingAccount && props.accountId" class="mt-4 pt-4 border-t border-gray-200 dark:border-dark-gray-700">
           <div class="flex items-center justify-between mb-2">
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">From Email Addresses</label>
+            <label class="block text-sm font-medium text-gray-700 dark:text-dark-gray-300">From Email Addresses</label>
             <button
               @click="showAddFromAddress = true"
               class="text-xs px-2 py-1 bg-primary-600 text-white rounded hover:bg-primary-700"
@@ -273,27 +273,27 @@
               + Add
             </button>
           </div>
-          <div v-if="fromAddresses.length === 0" class="text-sm text-gray-500 dark:text-gray-400 mb-2">
+          <div v-if="fromAddresses.length === 0" class="text-sm text-gray-500 dark:text-dark-gray-400 mb-2">
             No from addresses configured. The account email will be used.
           </div>
           <div v-else class="space-y-2">
             <div
               v-for="addr in fromAddresses"
               :key="addr.id"
-              class="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800 rounded"
+              class="flex items-center justify-between p-2 bg-gray-50 dark:bg-dark-gray-800 rounded"
             >
               <div class="flex-1">
-                <div class="text-sm font-medium text-gray-900 dark:text-gray-100">
+                <div class="text-sm font-medium text-gray-900 dark:text-dark-gray-100">
                   {{ addr.name || addr.email }}
                 </div>
-                <div class="text-xs text-gray-500 dark:text-gray-400">{{ addr.email }}</div>
+                <div class="text-xs text-gray-500 dark:text-dark-gray-400">{{ addr.email }}</div>
                 <span v-if="addr.isDefault" class="text-xs text-primary-600 dark:text-primary-400">(Default)</span>
               </div>
               <div class="flex items-center space-x-1">
                 <button
                   @click="setDefaultFromAddress(addr.id)"
                   v-if="!addr.isDefault"
-                  class="text-xs px-2 py-1 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-300 dark:hover:bg-gray-600"
+                  class="text-xs px-2 py-1 bg-gray-200 dark:bg-dark-gray-700 text-gray-700 dark:text-dark-gray-300 rounded hover:bg-gray-300 dark:hover:bg-gray-600"
                   title="Set as default"
                 >
                   Set Default
@@ -324,12 +324,12 @@
         class="fixed inset-0 bg-black bg-opacity-50 dark:bg-opacity-70 flex items-center justify-center z-[60]"
         @click.self="showGmailHelpModal = false"
       >
-        <div class="bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-2xl max-h-[85vh] flex flex-col">
-          <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ $t('accounts.gmailAppPasswordTitle') }}</h2>
+        <div class="bg-white dark:bg-dark-gray-900 rounded-lg shadow-xl w-full max-w-2xl max-h-[85vh] flex flex-col">
+          <div class="p-4 border-b border-gray-200 dark:border-dark-gray-700 flex items-center justify-between">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-dark-gray-100">{{ $t('accounts.gmailAppPasswordTitle') }}</h2>
             <button
               @click="showGmailHelpModal = false"
-              class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+              class="text-gray-500 dark:text-dark-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
             >
               ✕
             </button>
@@ -345,7 +345,7 @@
               <div class="flex items-start space-x-3">
                 <div class="flex-shrink-0 w-8 h-8 bg-primary-600 text-white rounded-full flex items-center justify-center font-semibold">1</div>
                 <div class="flex-1">
-                  <p class="font-medium text-gray-900 dark:text-gray-100 mb-1">{{ $t('accounts.gmailAppPasswordStep1') }}</p>
+                  <p class="font-medium text-gray-900 dark:text-dark-gray-100 mb-1">{{ $t('accounts.gmailAppPasswordStep1') }}</p>
                   <button
                     @click="openAppPasswordPage"
                     class="text-primary-600 dark:text-primary-400 hover:underline text-sm break-all"
@@ -358,32 +358,32 @@
               <div class="flex items-start space-x-3">
                 <div class="flex-shrink-0 w-8 h-8 bg-primary-600 text-white rounded-full flex items-center justify-center font-semibold">2</div>
                 <div class="flex-1">
-                  <p class="font-medium text-gray-900 dark:text-gray-100 mb-1">{{ $t('accounts.gmailAppPasswordStep2') }}</p>
-                  <p class="text-sm text-gray-600 dark:text-gray-400">{{ $t('accounts.gmailAppPasswordStep2Detail') }}</p>
+                  <p class="font-medium text-gray-900 dark:text-dark-gray-100 mb-1">{{ $t('accounts.gmailAppPasswordStep2') }}</p>
+                  <p class="text-sm text-gray-600 dark:text-dark-gray-400">{{ $t('accounts.gmailAppPasswordStep2Detail') }}</p>
                 </div>
               </div>
               
               <div class="flex items-start space-x-3">
                 <div class="flex-shrink-0 w-8 h-8 bg-primary-600 text-white rounded-full flex items-center justify-center font-semibold">3</div>
                 <div class="flex-1">
-                  <p class="font-medium text-gray-900 dark:text-gray-100 mb-1">{{ $t('accounts.gmailAppPasswordStep3') }}</p>
-                  <p class="text-sm text-gray-600 dark:text-gray-400">{{ $t('accounts.gmailAppPasswordStep3Detail') }}</p>
+                  <p class="font-medium text-gray-900 dark:text-dark-gray-100 mb-1">{{ $t('accounts.gmailAppPasswordStep3') }}</p>
+                  <p class="text-sm text-gray-600 dark:text-dark-gray-400">{{ $t('accounts.gmailAppPasswordStep3Detail') }}</p>
                 </div>
               </div>
               
               <div class="flex items-start space-x-3">
                 <div class="flex-shrink-0 w-8 h-8 bg-primary-600 text-white rounded-full flex items-center justify-center font-semibold">4</div>
                 <div class="flex-1">
-                  <p class="font-medium text-gray-900 dark:text-gray-100 mb-1">{{ $t('accounts.gmailAppPasswordStep4') }}</p>
-                  <p class="text-sm text-gray-600 dark:text-gray-400">{{ $t('accounts.gmailAppPasswordStep4Detail') }}</p>
+                  <p class="font-medium text-gray-900 dark:text-dark-gray-100 mb-1">{{ $t('accounts.gmailAppPasswordStep4') }}</p>
+                  <p class="text-sm text-gray-600 dark:text-dark-gray-400">{{ $t('accounts.gmailAppPasswordStep4Detail') }}</p>
                 </div>
               </div>
               
               <div class="flex items-start space-x-3">
                 <div class="flex-shrink-0 w-8 h-8 bg-primary-600 text-white rounded-full flex items-center justify-center font-semibold">5</div>
                 <div class="flex-1">
-                  <p class="font-medium text-gray-900 dark:text-gray-100 mb-1">{{ $t('accounts.gmailAppPasswordStep5') }}</p>
-                  <p class="text-sm text-gray-600 dark:text-gray-400">{{ $t('accounts.gmailAppPasswordStep5Detail') }}</p>
+                  <p class="font-medium text-gray-900 dark:text-dark-gray-100 mb-1">{{ $t('accounts.gmailAppPasswordStep5') }}</p>
+                  <p class="text-sm text-gray-600 dark:text-dark-gray-400">{{ $t('accounts.gmailAppPasswordStep5Detail') }}</p>
                 </div>
               </div>
             </div>
@@ -394,7 +394,7 @@
               </p>
             </div>
           </div>
-          <div class="p-4 border-t border-gray-200 dark:border-gray-700 flex justify-end space-x-2">
+          <div class="p-4 border-t border-gray-200 dark:border-dark-gray-700 flex justify-end space-x-2">
             <button
               @click="openAppPasswordPage"
               class="px-4 py-2 bg-primary-600 text-white rounded hover:bg-primary-700"
@@ -403,7 +403,7 @@
             </button>
             <button
               @click="showGmailHelpModal = false"
-              class="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded hover:bg-gray-300 dark:hover:bg-gray-600"
+              class="px-4 py-2 bg-gray-200 dark:bg-dark-gray-700 text-gray-700 dark:text-dark-gray-200 rounded hover:bg-gray-300 dark:hover:bg-gray-600"
             >
               {{ $t('common.close') }}
             </button>
@@ -417,24 +417,24 @@
         class="fixed inset-0 bg-black bg-opacity-50 dark:bg-opacity-70 flex items-center justify-center z-50"
         @click.self="showAddFromAddress = false"
       >
-        <div class="bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-md p-4">
-          <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Add From Address</h3>
+        <div class="bg-white dark:bg-dark-gray-900 rounded-lg shadow-xl w-full max-w-md p-4">
+          <h3 class="text-lg font-semibold text-gray-900 dark:text-dark-gray-100 mb-4">Add From Address</h3>
           <div class="space-y-4">
             <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email</label>
+              <label class="block text-sm font-medium text-gray-700 dark:text-dark-gray-300 mb-1">Email</label>
               <input
                 v-model="newFromAddress.email"
                 type="email"
-                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-600 dark:bg-gray-800 dark:text-gray-100"
+                class="w-full px-3 py-2 border border-gray-300 dark:border-dark-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-600 dark:bg-dark-gray-800 dark:text-dark-gray-100"
                 placeholder="email@example.com"
               />
             </div>
             <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name (optional)</label>
+              <label class="block text-sm font-medium text-gray-700 dark:text-dark-gray-300 mb-1">Name (optional)</label>
               <input
                 v-model="newFromAddress.name"
                 type="text"
-                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-600 dark:bg-gray-800 dark:text-gray-100"
+                class="w-full px-3 py-2 border border-gray-300 dark:border-dark-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-600 dark:bg-dark-gray-800 dark:text-dark-gray-100"
                 placeholder="Display Name"
               />
             </div>
@@ -445,14 +445,14 @@
                   type="checkbox"
                   class="mr-2"
                 />
-                <span class="text-sm text-gray-700 dark:text-gray-300">Set as default</span>
+                <span class="text-sm text-gray-700 dark:text-dark-gray-300">Set as default</span>
               </label>
             </div>
           </div>
           <div class="flex justify-end space-x-2 mt-4">
             <button
               @click="showAddFromAddress = false; newFromAddress = { email: '', name: '', isDefault: false }"
-              class="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded hover:bg-gray-300 dark:hover:bg-gray-600"
+              class="px-4 py-2 bg-gray-200 dark:bg-dark-gray-700 text-gray-700 dark:text-dark-gray-200 rounded hover:bg-gray-300 dark:hover:bg-gray-600"
             >
               Cancel
             </button>
@@ -465,11 +465,11 @@
           </div>
         </div>
       </div>
-      <div class="p-4 border-t border-gray-200 dark:border-gray-700 flex justify-end space-x-2">
+      <div class="p-4 border-t border-gray-200 dark:border-dark-gray-700 flex justify-end space-x-2">
         <button
           v-if="!preventClose"
           @click="$emit('close')"
-          class="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded hover:bg-gray-300 dark:hover:bg-gray-600"
+          class="px-4 py-2 bg-gray-200 dark:bg-dark-gray-700 text-gray-700 dark:text-dark-gray-200 rounded hover:bg-gray-300 dark:hover:bg-gray-600"
         >
           {{ $t('common.cancel') }}
         </button>

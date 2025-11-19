@@ -1,17 +1,17 @@
 <template>
   <div class="email-viewer flex flex-col h-full">
-    <div v-if="!props.emailId && !email" class="flex-1 flex items-center justify-center text-gray-500 dark:text-gray-400">
+    <div v-if="!props.emailId && !email" class="flex-1 flex items-center justify-center text-gray-500 dark:text-dark-gray-400">
       Select an email to view
     </div>
     <div v-else-if="loading && !email" class="flex-1 flex items-center justify-center">
       <div class="flex flex-col items-center space-y-4">
         <div class="w-8 h-8 border-4 border-primary-600 dark:border-primary-500 border-t-transparent rounded-full animate-spin"></div>
-        <p class="text-gray-600 dark:text-gray-400">Loading email...</p>
+        <p class="text-gray-600 dark:text-dark-gray-400">Loading email...</p>
       </div>
     </div>
     <div v-else-if="email" class="flex flex-col h-full">
       <!-- Email Navigation - shown in window mode -->
-      <div v-if="showNavigation" class="p-4 border-b border-gray-200 dark:border-gray-700">
+      <div v-if="showNavigation" class="p-4 border-b border-gray-200 dark:border-dark-gray-700">
         <EmailNavigation 
           :has-selected-email="!!email" 
           :selected-email="email" 
@@ -23,9 +23,9 @@
           @delete="handleDelete" 
         />
       </div>
-      <div class="p-4 border-b border-gray-200 dark:border-gray-700">
+      <div class="p-4 border-b border-gray-200 dark:border-dark-gray-700">
         <div class="flex items-start justify-between mb-2">
-          <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ email.subject || '(No subject)' }}</h2>
+          <h2 class="text-lg font-semibold text-gray-900 dark:text-dark-gray-100">{{ email.subject || '(No subject)' }}</h2>
           <div class="flex items-center space-x-2">
             <span v-if="email.encrypted" class="text-primary-600 dark:text-primary-400" title="Encrypted">🔒</span>
             <span v-if="email.signed" class="text-green-600 dark:text-green-400" :title="email.signatureVerified ? 'Signature verified' : 'Signed'">
@@ -33,7 +33,7 @@
             </span>
           </div>
         </div>
-        <div class="text-sm text-gray-600 dark:text-gray-300 space-y-1">
+        <div class="text-sm text-gray-600 dark:text-dark-gray-300 space-y-1">
           <div>
             <span class="font-medium">{{ $t('email.from') }}</span>
             <span class="ml-2">
@@ -62,7 +62,7 @@
             <span class="font-medium">{{ $t('email.cc') }}</span>
             <span class="ml-2">{{ formatAddresses(email.cc) }}</span>
           </div>
-          <div class="text-gray-500 dark:text-gray-400">
+          <div class="text-gray-500 dark:text-dark-gray-400">
             {{ formatDate(email.date) }}
           </div>
         </div>
@@ -73,7 +73,7 @@
           <div v-if="email.htmlBody" class="email-html-container">
           <iframe
             :srcdoc="sanitizedHtml"
-            class="w-full border-0 bg-white dark:bg-gray-800"
+            class="w-full border-0 bg-white dark:bg-dark-gray-800"
             style="min-height: 400px; display: block;"
             sandbox="allow-same-origin"
             scrolling="no"
@@ -83,7 +83,7 @@
         </div>
         <div 
           v-else 
-          class="whitespace-pre-wrap text-gray-900 dark:text-gray-100" 
+          class="whitespace-pre-wrap text-gray-900 dark:text-dark-gray-100" 
           v-html="formatTextWithLinks(email.textBody || email.body)"
           @click="handleTextLinkClick"
         ></div>
@@ -105,25 +105,25 @@
         </div>
         
         <!-- Other Attachments -->
-        <div v-if="nonImageAttachments.length > 0" class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-          <h3 class="font-medium text-gray-900 dark:text-gray-100 mb-2">Attachments</h3>
+        <div v-if="nonImageAttachments.length > 0" class="mt-4 pt-4 border-t border-gray-200 dark:border-dark-gray-700">
+          <h3 class="font-medium text-gray-900 dark:text-dark-gray-100 mb-2">Attachments</h3>
           <div class="space-y-2">
             <button
               v-for="attachment in nonImageAttachments"
               :key="attachment.id"
               @click="downloadAttachment(attachment.id)"
-              class="w-full flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors group"
+              class="w-full flex items-center justify-between p-3 bg-gray-50 dark:bg-dark-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors group"
             >
               <div class="flex items-center space-x-3 flex-1 min-w-0">
-                <svg class="w-5 h-5 text-gray-400 dark:text-gray-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg class="w-5 h-5 text-gray-400 dark:text-dark-gray-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
                 </svg>
                 <div class="flex-1 min-w-0">
-                  <span class="text-sm text-gray-700 dark:text-gray-300 block truncate">{{ attachment.filename }}</span>
-                  <span class="text-xs text-gray-500 dark:text-gray-400">{{ formatSize(attachment.size) }}</span>
+                  <span class="text-sm text-gray-700 dark:text-dark-gray-300 block truncate">{{ attachment.filename }}</span>
+                  <span class="text-xs text-gray-500 dark:text-dark-gray-400">{{ formatSize(attachment.size) }}</span>
                 </div>
               </div>
-              <svg class="w-5 h-5 text-gray-400 dark:text-gray-500 group-hover:text-primary-600 dark:group-hover:text-primary-400 flex-shrink-0 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg class="w-5 h-5 text-gray-400 dark:text-dark-gray-500 group-hover:text-primary-600 dark:group-hover:text-primary-400 flex-shrink-0 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
               </svg>
             </button>
@@ -131,7 +131,7 @@
         </div>
         
         <!-- Thread Emails -->
-        <div v-if="threadEmails.length > 1" class="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+        <div v-if="threadEmails.length > 1" class="mt-6 pt-6 border-t border-gray-200 dark:border-dark-gray-700">
           <ThreadView
             :emails="threadEmails"
             :current-email-id="email?.id"

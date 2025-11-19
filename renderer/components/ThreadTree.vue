@@ -1,6 +1,6 @@
 <template>
   <div class="thread-tree">
-    <div v-if="emails.length === 0" class="text-sm text-gray-500 dark:text-gray-400 p-4 text-center">
+    <div v-if="emails.length === 0" class="text-sm text-gray-500 dark:text-dark-gray-400 p-4 text-center">
       No thread emails
     </div>
     <div v-else class="space-y-2">

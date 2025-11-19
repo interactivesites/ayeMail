@@ -9,12 +9,12 @@
         <!-- Vertical line -->
         <div
           v-if="node.depth > 0"
-          class="absolute left-3 top-0 bottom-0 w-0.5 bg-gray-200 dark:bg-gray-700"
+          class="absolute left-3 top-0 bottom-0 w-0.5 bg-gray-200 dark:bg-dark-gray-700"
         ></div>
         <!-- Horizontal line to parent -->
         <div
           v-if="node.depth > 0"
-          class="absolute left-3 top-4 w-3 h-0.5 bg-gray-200 dark:bg-gray-700"
+          class="absolute left-3 top-4 w-3 h-0.5 bg-gray-200 dark:bg-dark-gray-700"
         ></div>
         <!-- Expand/collapse button -->
         <button
@@ -22,8 +22,8 @@
           @click.stop="handleToggleExpand"
           class="absolute left-0 top-3 w-4 h-4 flex items-center justify-center rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
           :class="{
-            'text-gray-600 dark:text-gray-400': isExpanded,
-            'text-gray-400 dark:text-gray-500': !isExpanded
+            'text-gray-600 dark:text-dark-gray-400': isExpanded,
+            'text-gray-400 dark:text-dark-gray-500': !isExpanded
           }"
         >
           <svg
@@ -44,7 +44,7 @@
         class="max-w-md text-left p-2.5 rounded-lg border transition-all duration-200 hover:shadow-md"
         :class="{
           'bg-primary-50 dark:bg-primary-900/20 border-primary-300 dark:border-primary-700 ring-2 ring-primary-500 dark:ring-primary-400': email.id === currentEmailId,
-          'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700': email.id !== currentEmailId,
+          'bg-white dark:bg-dark-gray-800 border-gray-200 dark:border-dark-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700': email.id !== currentEmailId,
           'border-l-4 border-l-primary-500 dark:border-l-primary-400': isRoot
         }"
       >
@@ -55,7 +55,7 @@
               class="text-sm font-medium truncate"
               :class="{
                 'text-primary-700 dark:text-primary-300': email.id === currentEmailId,
-                'text-gray-900 dark:text-gray-100': email.id !== currentEmailId
+                'text-gray-900 dark:text-dark-gray-100': email.id !== currentEmailId
               }"
             >
               {{ email.from[0]?.name || email.from[0]?.address }}
@@ -77,7 +77,7 @@
             class="text-xs flex-shrink-0"
             :class="{
               'text-primary-600 dark:text-primary-400': email.id === currentEmailId,
-              'text-gray-500 dark:text-gray-400': email.id !== currentEmailId
+              'text-gray-500 dark:text-dark-gray-400': email.id !== currentEmailId
             }"
           >
             {{ formatDate(email.date) }}
@@ -90,7 +90,7 @@
             class="text-sm"
             :class="{
               'text-primary-900 dark:text-primary-100 font-medium': email.id === currentEmailId,
-              'text-gray-700 dark:text-gray-300': email.id !== currentEmailId
+              'text-gray-700 dark:text-dark-gray-300': email.id !== currentEmailId
             }"
           >
             {{ email.subject || '(No subject)' }}
@@ -103,7 +103,7 @@
           class="text-xs line-clamp-2 mt-1"
           :class="{
             'text-primary-700/80 dark:text-primary-300/80': email.id === currentEmailId,
-            'text-gray-500 dark:text-gray-400': email.id !== currentEmailId
+            'text-gray-500 dark:text-dark-gray-400': email.id !== currentEmailId
           }"
         >
           {{ getPreview(email) }}
@@ -138,14 +138,14 @@
           </span>
           <span
             v-if="email.attachmentCount && email.attachmentCount > 0"
-            class="text-xs text-gray-500 dark:text-gray-400"
+            class="text-xs text-gray-500 dark:text-dark-gray-400"
             title="Has attachments"
           >
             📎
           </span>
           <span
             v-if="node.children.length > 0"
-            class="text-xs text-gray-500 dark:text-gray-400"
+            class="text-xs text-gray-500 dark:text-dark-gray-400"
             title="Has replies"
           >
             {{ node.children.length }} {{ node.children.length === 1 ? 'reply' : 'replies' }}

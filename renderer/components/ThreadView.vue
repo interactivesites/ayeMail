@@ -1,18 +1,18 @@
 <template>
   <div class="thread-view">
     <!-- Header with view mode toggle -->
-    <div class="flex items-center justify-between mb-4 pb-3 border-b border-gray-200 dark:border-gray-700">
-      <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100">
+    <div class="flex items-center justify-between mb-4 pb-3 border-b border-gray-200 dark:border-dark-gray-700">
+      <h3 class="text-sm font-medium text-gray-900 dark:text-dark-gray-100">
         Thread ({{ emails.length }} {{ emails.length === 1 ? 'email' : 'emails' }})
       </h3>
-      <div class="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-0.5">
+      <div class="flex items-center gap-1 bg-gray-100 dark:bg-dark-gray-800 rounded-lg p-0.5">
         <button
           @click="viewMode = 'timeline'"
           :aria-pressed="viewMode === 'timeline'"
           class="px-3 py-1.5 text-xs font-medium rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
           :class="viewMode === 'timeline'
-            ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm'
-            : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'"
+            ? 'bg-white dark:bg-dark-gray-700 text-gray-900 dark:text-dark-gray-100 shadow-sm'
+            : 'text-gray-600 dark:text-dark-gray-400 hover:text-gray-900 dark:hover:text-gray-100'"
           title="Timeline view"
         >
           Timeline
@@ -22,8 +22,8 @@
           :aria-pressed="viewMode === 'tree'"
           class="px-3 py-1.5 text-xs font-medium rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
           :class="viewMode === 'tree'
-            ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm'
-            : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'"
+            ? 'bg-white dark:bg-dark-gray-700 text-gray-900 dark:text-dark-gray-100 shadow-sm'
+            : 'text-gray-600 dark:text-dark-gray-400 hover:text-gray-900 dark:hover:text-gray-100'"
           title="Tree view"
         >
           Tree

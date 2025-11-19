@@ -1,15 +1,15 @@
 <template>
   <div ref="containerRef" tabindex="0" class="flex flex-col h-full outline-none" @keydown="handleKeyDown" @focus="handleFocus" @click="handleContainerClick">
-    <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-      <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ folderName }}</h2>
+    <div class="p-4 border-b border-gray-200 dark:border-dark-gray-700 flex items-center justify-between">
+      <h2 class="text-lg font-semibold text-gray-900 dark:text-dark-gray-100">{{ folderName }}</h2>
       <div class="flex items-center space-x-2">
-        <div class="flex items-center space-x-1 bg-gray-100 dark:bg-gray-800 rounded-full p-0.5">
+        <div class="flex items-center space-x-1 bg-gray-100 dark:bg-dark-gray-800 rounded-full p-0.5">
           <button
             type="button"
             @click="handlePreviewLevelChange(1)"
             :aria-pressed="previewLevel === 1"
             class="p-1.5 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
-            :class="previewLevel === 1 ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'"
+            :class="previewLevel === 1 ? 'bg-white dark:bg-dark-gray-700 text-gray-900 dark:text-dark-gray-100 shadow-sm' : 'text-gray-600 dark:text-dark-gray-400 hover:text-gray-900 dark:hover:text-dark-gray-100'"
             title="Title only"
           >
             <span class="text-xs font-medium w-4 h-4 flex items-center justify-center">1</span>
@@ -19,7 +19,7 @@
             @click="handlePreviewLevelChange(2)"
             :aria-pressed="previewLevel === 2"
             class="p-1.5 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
-            :class="previewLevel === 2 ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'"
+            :class="previewLevel === 2 ? 'bg-white dark:bg-dark-gray-700 text-gray-900 dark:text-dark-gray-100 shadow-sm' : 'text-gray-600 dark:text-dark-gray-400 hover:text-gray-900 dark:hover:text-dark-gray-100'"
             title="2 lines preview"
           >
             <span class="text-xs font-medium w-4 h-4 flex items-center justify-center">2</span>
@@ -30,7 +30,7 @@
           @click="toggleThreadView"
           :aria-pressed="threadView"
           class="p-1.5 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
-          :class="threadView ? 'bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'"
+          :class="threadView ? 'bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300' : 'bg-gray-100 dark:bg-dark-gray-800 text-gray-600 dark:text-dark-gray-400 hover:text-gray-900 dark:hover:text-dark-gray-100'"
           title="Thread view"
         >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -44,7 +44,7 @@
           :disabled="deletingAllEmails || emails.length === 0"
           class="px-3 py-1.5 text-sm font-medium rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600 disabled:opacity-50 disabled:cursor-not-allowed"
           :class="deletingAllEmails || emails.length === 0 
-            ? 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500' 
+            ? 'bg-gray-200 dark:bg-dark-gray-700 text-gray-400 dark:text-dark-gray-500' 
             : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/50'"
           title="Delete all emails in this folder"
         >
@@ -64,22 +64,22 @@
       </div>
     </div>
     <ThinScrollbar class="flex-1">
-      <div v-if="loading" class="p-4 text-center text-gray-500 dark:text-gray-400">
+      <div v-if="loading" class="p-4 text-center text-gray-500 dark:text-dark-gray-400">
         Loading emails...
       </div>
-      <div v-else-if="emails.length === 0" class="p-4 text-center text-gray-500 dark:text-gray-400">
+      <div v-else-if="emails.length === 0" class="p-4 text-center text-gray-500 dark:text-dark-gray-400">
         No emails in this folder
       </div>
       <div v-else>
         <div v-for="group in groupedEmails" :key="group.key" class="mb-6">
           <!-- Date Group Header -->
-          <div class="sticky top-0 z-10 flex items-center justify-between px-4 py-2 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+          <div class="sticky top-0 z-10 flex items-center justify-between px-4 py-2 border-b border-gray-200 dark:border-dark-gray-700 bg-white dark:bg-dark-gray-800">
             <span class="text-sm font-medium text-primary-600 dark:text-primary-400">{{ group.dayName }}</span>
-            <span class="text-sm text-gray-500 dark:text-gray-400">{{ group.dateString }}</span>
+            <span class="text-sm text-gray-500 dark:text-dark-gray-400">{{ group.dateString }}</span>
           </div>
           
           <!-- Email Items -->
-          <div class="divide-y divide-gray-100 dark:divide-gray-700 mx-2">
+          <div class="divide-y divide-gray-100 dark:divide-dark-gray-700 mx-2">
             <button
               v-for="(email, emailIndex) in group.emails"
               :key="email.id"
@@ -109,10 +109,10 @@
                 <div v-if="selectedEmailIds.has(email.id)" class="flex-shrink-0 self-center relative">
                   <button
                     @click.stop="showArchiveConfirm(email.id)"
-                    class="w-5 h-5 rounded-full border-2 border-gray-300 dark:border-gray-600 flex items-center justify-center transition-colors hover:border-primary-600 dark:hover:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-600 focus:ring-offset-1"
+                    class="w-5 h-5 rounded-full border-2 border-gray-300 dark:border-dark-gray-600 flex items-center justify-center transition-colors hover:border-primary-600 dark:hover:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-600 focus:ring-offset-1"
                     :class="{
                       'bg-primary-600 dark:bg-primary-500 border-primary-600 dark:border-primary-500': archiveConfirmId === email.id,
-                      'hover:bg-gray-50 dark:hover:bg-gray-700': archiveConfirmId !== email.id
+                      'hover:bg-gray-50 dark:hover:bg-dark-gray-700': archiveConfirmId !== email.id
                     }"
                     title="Archive email"
                   >
@@ -126,17 +126,17 @@
                     <div
                       v-if="archiveConfirmId === email.id" 
                       :ref="(el: HTMLElement | null) => { if (el) { archivePopoverRefs.set(email.id, el) } else { archivePopoverRefs.delete(email.id) } }"
-                      class="popover-panel fixed z-50 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 p-3 min-w-[220px]"
+                      class="popover-panel fixed z-50 bg-white dark:bg-dark-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-dark-gray-700 p-3 min-w-[220px]"
                       @click.stop
                     >
                       <div
-                        class="popover-arrow bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700"
+                        class="popover-arrow bg-white dark:bg-dark-gray-800 border border-gray-200 dark:border-dark-gray-700"
                         :ref="(el: HTMLElement | null) => { if (el) { archiveArrowRefs.set(email.id, el) } else { archiveArrowRefs.delete(email.id) } }"
                       ></div>
                       <div class="flex items-center gap-2 mb-3">
                         <button
                           @click="cancelArchive"
-                          class="px-3 py-1.5 text-sm rounded bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                          class="px-3 py-1.5 text-sm rounded bg-gray-200 dark:bg-dark-gray-700 text-gray-700 dark:text-dark-gray-200 hover:bg-gray-300 dark:hover:bg-dark-gray-600 transition-colors"
                         >
                           Cancel
                         </button>
@@ -147,7 +147,7 @@
                           Complete
                         </button>
                       </div>
-                      <p class="text-xs text-gray-500 dark:text-gray-400">Disable confirmation messages in Preferences</p>
+                      <p class="text-xs text-gray-500 dark:text-dark-gray-400">Disable confirmation messages in Preferences</p>
                     </div>
                   </Teleport>
                 </div>
@@ -162,7 +162,7 @@
                           class="text-sm font-semibold truncate"
                           :class="selectedEmailIds.has(email.id) 
                             ? 'text-white' 
-                            : (isEmailUnread(email) ? 'text-primary-600 dark:text-primary-400' : 'text-gray-900 dark:text-gray-100')"
+                            : (isEmailUnread(email) ? 'text-primary-600 dark:text-primary-400' : 'text-gray-900 dark:text-dark-gray-100')"
                         >
                           {{ email.from[0]?.name || email.from[0]?.address }}
                         </span>
@@ -186,7 +186,7 @@
                           class="text-sm text-balance break-words whitespace-normal"
                           :class="selectedEmailIds.has(email.id) 
                             ? 'text-white' 
-                            : (isEmailUnread(email) ? 'text-gray-900 dark:text-gray-100 font-medium' : 'text-gray-600 dark:text-gray-300')"
+                            : (isEmailUnread(email) ? 'text-gray-900 dark:text-dark-gray-100 font-medium' : 'text-gray-600 dark:text-dark-gray-300')"
                         >
                           {{ email.subject || '(No subject)' }}
                         </span>
@@ -198,7 +198,7 @@
                         class="mt-1 text-xs"
                         :class="[
                           previewLevel === 3 ? 'line-clamp-4' : 'line-clamp-2',
-                          selectedEmailIds.has(email.id) ? 'text-white/70' : 'text-gray-500 dark:text-gray-400'
+                          selectedEmailIds.has(email.id) ? 'text-white/70' : 'text-gray-500 dark:text-dark-gray-400'
                         ]"
                       >
                         {{ getEmailPreview(email) }}
@@ -210,7 +210,7 @@
                       <!-- Time Display -->
                       <span 
                         class="text-xs"
-                        :class="selectedEmailIds.has(email.id) ? 'text-white/60' : 'text-gray-500 dark:text-gray-400'"
+                        :class="selectedEmailIds.has(email.id) ? 'text-white/60' : 'text-gray-500 dark:text-dark-gray-400'"
                       >
                         {{ formatTime(email.date) }}
                       </span>
@@ -221,13 +221,13 @@
                         <span 
                           v-if="email.attachmentCount && email.attachmentCount > 0" 
                           class="text-xs"
-                          :class="selectedEmailId === email.id ? 'text-white/80' : 'text-gray-500 dark:text-gray-400'"
+                          :class="selectedEmailId === email.id ? 'text-white/80' : 'text-gray-500 dark:text-dark-gray-400'"
                           title="Has attachments"
                         >📎</span>
                         <span 
                           v-if="email.threadCount && email.threadCount > 1" 
                           class="text-xs"
-                          :class="selectedEmailId === email.id ? 'text-white/80' : 'text-gray-500 dark:text-gray-400'"
+                          :class="selectedEmailId === email.id ? 'text-white/80' : 'text-gray-500 dark:text-dark-gray-400'"
                           title="Thread"
                         >
                           {{ email.threadCount }}
@@ -235,7 +235,7 @@
                         <svg 
                           v-if="email.isDraft" 
                           class="w-4 h-4" 
-                          :class="selectedEmailId === email.id ? 'text-white/60' : 'text-gray-400 dark:text-gray-500'"
+                          :class="selectedEmailId === email.id ? 'text-white/60' : 'text-gray-400 dark:text-dark-gray-500'"
                           fill="none" 
                           stroke="currentColor" 
                           viewBox="0 0 24 24"
@@ -354,7 +354,7 @@
         style="pointer-events: auto;"
       >
         <div
-          class="popover-arrow bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700"
+          class="popover-arrow bg-white dark:bg-dark-gray-800 border border-gray-200 dark:border-dark-gray-700"
           ref="reminderArrowRef"
         ></div>
         <ReminderModal
@@ -377,7 +377,7 @@
         style="pointer-events: auto;"
       >
         <div
-          class="popover-arrow bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700"
+          class="popover-arrow bg-white dark:bg-dark-gray-800 border border-gray-200 dark:border-dark-gray-700"
           ref="folderPickerArrowRef"
         ></div>
         <FolderPickerModal
@@ -395,19 +395,19 @@
       <div
         v-if="hoveredEmailId"
         ref="shortcutsPopoverRef"
-        class="keyboard-shortcuts-popover fixed z-[9998] bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 p-3 min-w-[200px]"
+        class="keyboard-shortcuts-popover fixed z-[9998] bg-white dark:bg-dark-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-dark-gray-700 p-3 min-w-[200px]"
         :style="shortcutsPopoverStyle"
         @mouseenter="handleEmailMouseEnter(hoveredEmailId)"
         @mouseleave="handleEmailMouseLeave"
       >
-        <div class="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2 uppercase tracking-wide">Keyboard Shortcuts</div>
+        <div class="text-xs font-semibold text-gray-500 dark:text-dark-gray-400 mb-2 uppercase tracking-wide">Keyboard Shortcuts</div>
         <div class="space-y-1.5 mb-3">
           <div
             v-for="shortcut in getEmailShortcutsSync(getAllEmailsFlat().find(e => e.id === hoveredEmailId) || {})"
             :key="shortcut.key"
             class="flex items-center justify-between gap-3"
           >
-            <span class="text-xs text-gray-600 dark:text-gray-300">{{ shortcut.action }}</span>
+            <span class="text-xs text-gray-600 dark:text-dark-gray-300">{{ shortcut.action }}</span>
             <div class="flex items-center gap-1">
               <kbd
                 :class="[
@@ -424,12 +424,12 @@
             </div>
           </div>
         </div>
-        <div class="pt-2 border-t border-gray-200 dark:border-gray-700">
+        <div class="pt-2 border-t border-gray-200 dark:border-dark-gray-700">
           <div class="flex items-center gap-2">
-            <svg class="w-4 h-4 text-gray-400 dark:text-gray-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-4 h-4 text-gray-400 dark:text-dark-gray-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
             </svg>
-            <span class="text-xs text-gray-500 dark:text-gray-400">Drag item to the right for more actions</span>
+            <span class="text-xs text-gray-500 dark:text-dark-gray-400">Drag item to the right for more actions</span>
           </div>
         </div>
       </div>

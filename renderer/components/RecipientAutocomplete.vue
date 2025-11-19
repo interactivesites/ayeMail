@@ -56,7 +56,7 @@ const props = withDefaults(defineProps<{
 }>(), {
   placeholder: 'To',
   maxResults: 10,
-  inputClass: 'w-full px-3 py-2 bg-transparent border-0 border-b border-gray-300 dark:border-gray-600 rounded-none focus:outline-none focus:ring-0 focus:border-primary-600 dark:focus:border-primary-500 transition-colors dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500'
+  inputClass: 'w-full px-3 py-2 bg-transparent border-0 border-b border-gray-300 dark:border-dark-gray-600 rounded-none focus:outline-none focus:ring-0 focus:border-primary-600 dark:focus:border-primary-500 transition-colors dark:text-dark-gray-100 placeholder-gray-400 dark:placeholder-dark-gray-500'
 })
 
 const emit = defineEmits<{

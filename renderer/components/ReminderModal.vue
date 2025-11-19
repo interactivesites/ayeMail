@@ -1,39 +1,39 @@
 <template>
   <!-- Full-screen modal version -->
   <div v-if="!isPopover" class="fixed inset-0 bg-black bg-opacity-50 dark:bg-opacity-70 flex items-center justify-center z-50">
-    <div class="bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-md">
-      <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-        <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Set Reminder</h2>
+    <div class="bg-white dark:bg-dark-gray-900 rounded-lg shadow-xl w-full max-w-md">
+      <div class="p-4 border-b border-gray-200 dark:border-dark-gray-700 flex items-center justify-between">
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-dark-gray-100">Set Reminder</h2>
         <button
           @click="$emit('close')"
-          class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+          class="text-gray-500 dark:text-dark-gray-400 hover:text-gray-700 dark:hover:text-dark-gray-200"
         >
           ✕
         </button>
       </div>
       <div class="p-4 space-y-4">
         <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Reminder Date & Time</label>
+          <label class="block text-sm font-medium text-gray-700 dark:text-dark-gray-300 mb-1">Reminder Date & Time</label>
           <input
             v-model="form.dueDate"
             type="datetime-local"
-            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-600 dark:bg-gray-800 dark:text-gray-100"
+            class="w-full px-3 py-2 border border-gray-300 dark:border-dark-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-600 dark:bg-dark-gray-800 dark:text-dark-gray-100"
           />
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Message (optional)</label>
+          <label class="block text-sm font-medium text-gray-700 dark:text-dark-gray-300 mb-1">Message (optional)</label>
           <textarea
             v-model="form.message"
             rows="3"
-            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-600 dark:bg-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
+            class="w-full px-3 py-2 border border-gray-300 dark:border-dark-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-600 dark:bg-dark-gray-800 dark:text-dark-gray-100 placeholder-gray-400 dark:placeholder-dark-gray-500"
             placeholder="Reminder message"
           ></textarea>
         </div>
       </div>
-      <div class="p-4 border-t border-gray-200 dark:border-gray-700 flex justify-end space-x-2">
+      <div class="p-4 border-t border-gray-200 dark:border-dark-gray-700 flex justify-end space-x-2">
         <button
           @click="$emit('close')"
-          class="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded hover:bg-gray-300 dark:hover:bg-gray-600"
+          class="px-4 py-2 bg-gray-200 dark:bg-dark-gray-700 text-gray-700 dark:text-dark-gray-200 rounded hover:bg-gray-300 dark:hover:bg-dark-gray-600"
         >
           Cancel
         </button>
@@ -49,10 +49,10 @@
   </div>
   
   <!-- Popover version - calendar only -->
-  <div v-else class="reminder-calendar-popover bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 relative p-3">
+  <div v-else class="reminder-calendar-popover bg-white dark:bg-dark-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-dark-gray-700 relative p-3">
     <!-- Clear reminder button if reminder exists -->
     <div v-if="existingReminder" class="mb-2 flex items-center justify-between px-2">
-      <span class="text-xs text-gray-600 dark:text-gray-400">Reminder set</span>
+      <span class="text-xs text-gray-600 dark:text-dark-gray-400">Reminder set</span>
       <button
         @click="clearReminder"
         :disabled="clearing"
@@ -66,8 +66,8 @@
       </button>
     </div>
     <div class="flex items-start gap-4">
-      <div class="w-40 flex flex-col gap-2 border border-dashed border-gray-200 dark:border-gray-700 rounded-lg p-2">
-        <p class="text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Quick picks</p>
+      <div class="w-40 flex flex-col gap-2 border border-dashed border-gray-200 dark:border-dark-gray-700 rounded-lg p-2">
+        <p class="text-[11px] uppercase tracking-wide text-gray-500 dark:text-dark-gray-400">Quick picks</p>
         <button
           v-for="shortcut in quickShortcuts"
           :key="shortcut.label"
@@ -75,7 +75,7 @@
           class="text-left text-sm px-3 py-2 rounded-md border transition-colors"
           :class="isShortcutActive(shortcut.days)
             ? 'border-primary-600 bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-200'
-            : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:border-primary-500 hover:text-primary-600'"
+            : 'border-gray-200 dark:border-dark-gray-700 text-gray-700 dark:text-dark-gray-200 hover:border-primary-500 hover:text-primary-600'"
           @click="applyShortcut(shortcut.days)"
         >
           {{ shortcut.label }}
@@ -98,10 +98,10 @@
         />
       </div>
     </div>
-    <div v-if="saving" class="absolute inset-0 bg-white/50 dark:bg-gray-900/50 backdrop-blur-xl z-50 flex items-center justify-center rounded-lg">
+    <div v-if="saving" class="absolute inset-0 bg-white/50 dark:bg-dark-gray-900/50 backdrop-blur-xl z-50 flex items-center justify-center rounded-lg">
       <div class="flex flex-col items-center space-y-4">
         <div class="w-12 h-12 border-4 border-primary-600 dark:border-primary-500 border-t-transparent rounded-full animate-spin"></div>
-        <p class="text-gray-700 dark:text-gray-300 text-sm font-medium">Putting aside...</p>
+        <p class="text-gray-700 dark:text-dark-gray-300 text-sm font-medium">Putting aside...</p>
       </div>
     </div>
   </div>

@@ -20,7 +20,7 @@
           <div class="dark:text-white flex items-start gap-3">
             <!-- Rounded Checkbox -->
             <div class="flex-shrink-0 self-center relative">
-              <button @click.stop="showArchiveConfirm(mail.id)" class="w-5 h-5 rounded-full border-2 border-gray-300 dark:border-gray-600 flex items-center justify-center transition-colors hover:border-primary-600 dark:hover:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-600 focus:ring-offset-1" :class="{
+              <button @click.stop="showArchiveConfirm(mail.id)" class="w-5 h-5 rounded-full border-2 border-gray-300 dark:border-dark-gray-600 flex items-center justify-center transition-colors hover:border-primary-600 dark:hover:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-600 focus:ring-offset-1" :class="{
                 'bg-primary-600 dark:bg-primary-500 border-primary-600 dark:border-primary-500': archiveConfirmId === mail.id,
                 'hover:bg-gray-50 dark:hover:bg-gray-700': archiveConfirmId !== mail.id
               }" title="Archive email">
@@ -31,17 +31,17 @@
 
               <!-- Archive Confirmation Popover -->
               <Teleport to="body">
-                <div v-if="archiveConfirmId === mail.id" :ref="el => { if (el) archivePopoverRefs.set(mail.id, el as HTMLElement) }" class="popover-panel fixed z-50 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 p-3 min-w-[220px]" @click.stop>
-                  <div class="popover-arrow bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700" :ref="el => { if (el) archiveArrowRefs.set(mail.id, el as HTMLElement) }"></div>
+                <div v-if="archiveConfirmId === mail.id" :ref="el => { if (el) archivePopoverRefs.set(mail.id, el as HTMLElement) }" class="popover-panel fixed z-50 bg-white dark:bg-dark-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-dark-gray-700 p-3 min-w-[220px]" @click.stop>
+                  <div class="popover-arrow bg-white dark:bg-dark-gray-800 border border-gray-200 dark:border-dark-gray-700" :ref="el => { if (el) archiveArrowRefs.set(mail.id, el as HTMLElement) }"></div>
                   <div class="flex items-center gap-2 mb-3">
-                    <button @click="cancelArchive" class="px-3 py-1.5 text-sm rounded bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">
+                    <button @click="cancelArchive" class="px-3 py-1.5 text-sm rounded bg-gray-200 dark:bg-dark-gray-700 text-gray-700 dark:text-dark-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">
                       Cancel
                     </button>
                     <button @click="confirmArchive(mail.id)" class="px-3 py-1.5 text-sm rounded bg-primary-600 dark:bg-primary-500 text-white hover:bg-primary-700 dark:hover:bg-primary-600 transition-colors">
                       Complete
                     </button>
                   </div>
-                  <p class="text-xs text-gray-500 dark:text-gray-400">Disable confirmation messages in Preferences</p>
+                  <p class="text-xs text-gray-500 dark:text-dark-gray-400">Disable confirmation messages in Preferences</p>
                 </div>
               </Teleport>
             </div>
@@ -82,7 +82,7 @@
         style="pointer-events: auto;"
       >
         <div
-          class="popover-arrow bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700"
+          class="popover-arrow bg-white dark:bg-dark-gray-800 border border-gray-200 dark:border-dark-gray-700"
           ref="reminderArrowRef"
         ></div>
         <ReminderModal

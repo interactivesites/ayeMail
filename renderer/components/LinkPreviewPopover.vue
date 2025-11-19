@@ -3,7 +3,7 @@
     <div
       v-if="show"
       ref="popoverRef"
-      class="link-preview-popover fixed z-[9999] bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 p-4 min-w-[320px] max-w-[480px]"
+      class="link-preview-popover fixed z-[9999] bg-white dark:bg-dark-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-dark-gray-700 p-4 min-w-[320px] max-w-[480px]"
       :style="popoverStyle"
     >
       <div class="flex items-start justify-between mb-3">
@@ -15,7 +15,7 @@
             class="w-5 h-5 flex-shrink-0"
             @error="faviconUrl = null"
           />
-          <span class="font-semibold text-gray-900 dark:text-gray-100 truncate">{{ domain }}</span>
+          <span class="font-semibold text-gray-900 dark:text-dark-gray-100 truncate">{{ domain }}</span>
         </div>
         <button
           @click="close"
@@ -29,7 +29,7 @@
       </div>
 
       <div class="mb-3">
-        <div class="text-sm text-gray-600 dark:text-gray-400 break-all mb-2">{{ url }}</div>
+        <div class="text-sm text-gray-600 dark:text-dark-gray-400 break-all mb-2">{{ url }}</div>
         <button
           @click="copyUrl"
           class="text-xs text-primary-600 dark:text-primary-400 hover:underline"
@@ -93,7 +93,7 @@
         </button>
         <button
           @click="close"
-          class="px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg font-medium transition-colors"
+          class="px-4 py-2 bg-gray-100 dark:bg-dark-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-dark-gray-300 rounded-lg font-medium transition-colors"
         >
           Cancel
         </button>

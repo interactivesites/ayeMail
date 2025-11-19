@@ -1,11 +1,11 @@
 <template>
   <div class="fixed inset-0 bg-black bg-opacity-50 dark:bg-opacity-70 flex items-center justify-center z-50">
-    <div class="bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
-      <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-        <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ $t('settings.title') }}</h2>
+    <div class="bg-white dark:bg-dark-gray-900 rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
+      <div class="p-4 border-b border-gray-200 dark:border-dark-gray-700 flex items-center justify-between">
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-dark-gray-100">{{ $t('settings.title') }}</h2>
         <button
           @click="$emit('close')"
-          class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+          class="text-gray-500 dark:text-dark-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
         >
           ✕
         </button>
@@ -16,18 +16,18 @@
             <div v-if="currentTab === 'accounts'" class="space-y-6">
               <div>
                 <h3 class="text-md font-semibold text-gray-900 mb-2">{{ $t('accounts.title') }}</h3>
-                <div v-if="accounts.length === 0" class="text-gray-500 dark:text-gray-400 text-sm mb-4">
+                <div v-if="accounts.length === 0" class="text-gray-500 dark:text-dark-gray-400 text-sm mb-4">
                   {{ $t('accounts.noAccountsConfigured') }}
                 </div>
                 <div v-else class="space-y-2 mb-4">
                   <div
                     v-for="account in accounts"
                     :key="account.id"
-                    class="p-3 border border-gray-200 dark:border-gray-700 rounded flex items-center justify-between dark:bg-gray-800"
+                    class="p-3 border border-gray-200 dark:border-dark-gray-700 rounded flex items-center justify-between dark:bg-dark-gray-800"
                   >
                     <div class="flex-1">
-                      <div class="font-medium text-gray-900 dark:text-gray-100">{{ account.name }}</div>
-                      <div class="text-sm text-gray-500 dark:text-gray-400">{{ account.email }}</div>
+                      <div class="font-medium text-gray-900 dark:text-dark-gray-100">{{ account.name }}</div>
+                      <div class="text-sm text-gray-500 dark:text-dark-gray-400">{{ account.email }}</div>
                     </div>
                     <div class="flex items-center space-x-2">
                       <button
@@ -62,19 +62,19 @@
             <div v-else-if="currentTab === 'signatures'" class="space-y-6">
               <div>
                 <h3 class="text-md font-semibold text-gray-900 mb-2">{{ $t('signatures.selectAccount') }}</h3>
-                <div v-if="accounts.length === 0" class="text-gray-500 dark:text-gray-400 text-sm mb-4">
+                <div v-if="accounts.length === 0" class="text-gray-500 dark:text-dark-gray-400 text-sm mb-4">
                   {{ $t('accounts.noAccountsConfiguredDesc') }}
                 </div>
                 <div v-else class="space-y-2 mb-4">
                   <div
                     v-for="account in accounts"
                     :key="account.id"
-                    class="p-3 border border-gray-200 dark:border-gray-700 rounded flex items-center justify-between dark:bg-gray-800"
+                    class="p-3 border border-gray-200 dark:border-dark-gray-700 rounded flex items-center justify-between dark:bg-dark-gray-800"
                     :class="{ 'border-primary-600 bg-primary-50 dark:bg-primary-900/20 dark:border-primary-500': selectedAccountId === account.id }"
                   >
                     <div>
-                      <div class="font-medium text-gray-900 dark:text-gray-100">{{ account.name }}</div>
-                      <div class="text-sm text-gray-500 dark:text-gray-400">{{ account.email }}</div>
+                      <div class="font-medium text-gray-900 dark:text-dark-gray-100">{{ account.name }}</div>
+                      <div class="text-sm text-gray-500 dark:text-dark-gray-400">{{ account.email }}</div>
                     </div>
                     <button
                       @click="selectAccountForSignatures(account)"
@@ -91,12 +91,12 @@
             </div>
             <div v-else-if="currentTab === 'security'" class="space-y-6">
               <div>
-                <h3 class="text-md font-semibold text-gray-900 dark:text-gray-100 mb-2">{{ $t('settings.gpgEncryption') }}</h3>
-                <div class="p-3 border border-gray-200 dark:border-gray-700 rounded dark:bg-gray-800 opacity-60 pointer-events-none">
+                <h3 class="text-md font-semibold text-gray-900 dark:text-dark-gray-100 mb-2">{{ $t('settings.gpgEncryption') }}</h3>
+                <div class="p-3 border border-gray-200 dark:border-dark-gray-700 rounded dark:bg-dark-gray-800 opacity-60 pointer-events-none">
                   <div class="flex items-center justify-between mb-2">
                     <div>
-                      <p class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ $t('settings.gpgKeyManagement') }}</p>
-                      <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ $t('settings.notYetImplemented') }}</p>
+                      <p class="text-sm font-medium text-gray-900 dark:text-dark-gray-100">{{ $t('settings.gpgKeyManagement') }}</p>
+                      <p class="text-xs text-gray-500 dark:text-dark-gray-400 mt-1">{{ $t('settings.notYetImplemented') }}</p>
                     </div>
                     <div class="flex items-center space-x-2">
                       <button
@@ -113,13 +113,13 @@
                       </button>
                     </div>
                   </div>
-                  <div class="text-gray-500 dark:text-gray-400 text-sm">
+                  <div class="text-gray-500 dark:text-dark-gray-400 text-sm">
                     {{ $t('settings.noGpgKeys') }}
                   </div>
                 </div>
               </div>
               <div>
-                <h3 class="text-md font-semibold text-gray-900 dark:text-gray-100 mb-2">{{ $t('settings.autoLock') }}</h3>
+                <h3 class="text-md font-semibold text-gray-900 dark:text-dark-gray-100 mb-2">{{ $t('settings.autoLock') }}</h3>
                 <div class="space-y-2">
                   <label class="flex items-center">
                     <input
@@ -128,15 +128,15 @@
                       class="toggle mr-2"
                       @change="updateAutoLock"
                     />
-                    <span class="text-sm text-gray-700 dark:text-gray-300">{{ $t('settings.autoLockAfterInactivity') }}</span>
+                    <span class="text-sm text-gray-700 dark:text-dark-gray-300">{{ $t('settings.autoLockAfterInactivity') }}</span>
                   </label>
                   <div v-if="autoLockEnabled" class="ml-6">
-                    <label class="block text-sm text-gray-700 dark:text-gray-300 mb-1">{{ $t('settings.lockAfterMinutes') }}</label>
+                    <label class="block text-sm text-gray-700 dark:text-dark-gray-300 mb-1">{{ $t('settings.lockAfterMinutes') }}</label>
                     <input
                       v-model.number="autoLockMinutes"
                       type="number"
                       min="1"
-                      class="w-32 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-600 dark:bg-gray-800 dark:text-gray-100"
+                      class="w-32 px-3 py-2 border border-gray-300 dark:border-dark-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-600 dark:bg-dark-gray-800 dark:text-dark-gray-100"
                       @change="updateAutoLock"
                     />
                   </div>
@@ -145,11 +145,11 @@
             </div>
             <div v-else class="space-y-6">
               <div>
-                <h3 class="text-md font-semibold text-gray-900 dark:text-gray-100 mb-2">{{ $t('settings.appearance') }}</h3>
-                <label class="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-700 rounded dark:bg-gray-800">
+                <h3 class="text-md font-semibold text-gray-900 dark:text-dark-gray-100 mb-2">{{ $t('settings.appearance') }}</h3>
+                <label class="flex items-center justify-between p-3 border border-gray-200 dark:border-dark-gray-700 rounded dark:bg-dark-gray-800">
                   <div>
-                    <p class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ $t('settings.showActionLabels') }}</p>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">{{ $t('settings.showActionLabelsDesc') }}</p>
+                    <p class="text-sm font-medium text-gray-900 dark:text-dark-gray-100">{{ $t('settings.showActionLabels') }}</p>
+                    <p class="text-xs text-gray-500 dark:text-dark-gray-400">{{ $t('settings.showActionLabelsDesc') }}</p>
                   </div>
                   <input
                     v-model="showActionLabels"
@@ -157,10 +157,10 @@
                     class="toggle"
                   />
                 </label>
-                <label class="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-700 rounded mt-2 dark:bg-gray-800">
+                <label class="flex items-center justify-between p-3 border border-gray-200 dark:border-dark-gray-700 rounded mt-2 dark:bg-dark-gray-800">
                   <div>
-                    <p class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ $t('settings.darkMode') }}</p>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">{{ $t('settings.darkModeDesc') }}</p>
+                    <p class="text-sm font-medium text-gray-900 dark:text-dark-gray-100">{{ $t('settings.darkMode') }}</p>
+                    <p class="text-xs text-gray-500 dark:text-dark-gray-400">{{ $t('settings.darkModeDesc') }}</p>
                   </div>
                   <input
                     v-model="darkMode"
@@ -168,15 +168,15 @@
                     class="toggle"
                   />
                 </label>
-                <div class="p-3 border border-gray-200 dark:border-gray-700 rounded mt-2 dark:bg-gray-800">
+                <div class="p-3 border border-gray-200 dark:border-dark-gray-700 rounded mt-2 dark:bg-dark-gray-800">
                   <div class="mb-2">
-                    <p class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ $t('settings.language') }}</p>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">{{ $t('settings.languageDesc') }}</p>
+                    <p class="text-sm font-medium text-gray-900 dark:text-dark-gray-100">{{ $t('settings.language') }}</p>
+                    <p class="text-xs text-gray-500 dark:text-dark-gray-400">{{ $t('settings.languageDesc') }}</p>
                   </div>
                   <select
                     v-model="selectedLanguage"
                     @change="handleLanguageChange"
-                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-600 dark:bg-gray-700 dark:text-gray-100"
+                    class="w-full px-3 py-2 border border-gray-300 dark:border-dark-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-600 dark:bg-dark-gray-700 dark:text-dark-gray-100"
                   >
                     <option value="en">{{ $t('settings.english') }}</option>
                     <option value="de">{{ $t('settings.german') }}</option>
@@ -184,11 +184,11 @@
                 </div>
               </div>
               <div>
-                <h3 class="text-md font-semibold text-gray-900 dark:text-gray-100 mb-2">{{ $t('settings.emailActions') }}</h3>
-                <label class="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-700 rounded dark:bg-gray-800">
+                <h3 class="text-md font-semibold text-gray-900 dark:text-dark-gray-100 mb-2">{{ $t('settings.emailActions') }}</h3>
+                <label class="flex items-center justify-between p-3 border border-gray-200 dark:border-dark-gray-700 rounded dark:bg-dark-gray-800">
                   <div>
-                    <p class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ $t('settings.confirmArchiving') }}</p>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">{{ $t('settings.confirmArchivingDesc') }}</p>
+                    <p class="text-sm font-medium text-gray-900 dark:text-dark-gray-100">{{ $t('settings.confirmArchiving') }}</p>
+                    <p class="text-xs text-gray-500 dark:text-dark-gray-400">{{ $t('settings.confirmArchivingDesc') }}</p>
                   </div>
                   <input
                     v-model="confirmArchive"
@@ -198,11 +198,11 @@
                 </label>
               </div>
               <div>
-                <h3 class="text-md font-semibold text-gray-900 dark:text-gray-100 mb-2">{{ $t('settings.notifications') }}</h3>
-                <label class="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-700 rounded dark:bg-gray-800">
+                <h3 class="text-md font-semibold text-gray-900 dark:text-dark-gray-100 mb-2">{{ $t('settings.notifications') }}</h3>
+                <label class="flex items-center justify-between p-3 border border-gray-200 dark:border-dark-gray-700 rounded dark:bg-dark-gray-800">
                   <div>
-                    <p class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ $t('settings.showEmailNotifications') }}</p>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">{{ $t('settings.showEmailNotificationsDesc') }}</p>
+                    <p class="text-sm font-medium text-gray-900 dark:text-dark-gray-100">{{ $t('settings.showEmailNotifications') }}</p>
+                    <p class="text-xs text-gray-500 dark:text-dark-gray-400">{{ $t('settings.showEmailNotificationsDesc') }}</p>
                   </div>
                   <input
                     v-model="showEmailNotifications"
@@ -212,12 +212,12 @@
                 </label>
               </div>
               <div>
-                <h3 class="text-md font-semibold text-gray-900 dark:text-gray-100 mb-2">{{ $t('settings.autoSync') }}</h3>
+                <h3 class="text-md font-semibold text-gray-900 dark:text-dark-gray-100 mb-2">{{ $t('settings.autoSync') }}</h3>
                 <div class="space-y-2">
-                  <label class="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-700 rounded dark:bg-gray-800">
+                  <label class="flex items-center justify-between p-3 border border-gray-200 dark:border-dark-gray-700 rounded dark:bg-dark-gray-800">
                     <div>
-                      <p class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ $t('settings.enableAutoSync') }}</p>
-                      <p class="text-xs text-gray-500 dark:text-gray-400">{{ $t('settings.enableAutoSyncDesc') }}</p>
+                      <p class="text-sm font-medium text-gray-900 dark:text-dark-gray-100">{{ $t('settings.enableAutoSync') }}</p>
+                      <p class="text-xs text-gray-500 dark:text-dark-gray-400">{{ $t('settings.enableAutoSyncDesc') }}</p>
                     </div>
                     <input
                       v-model="autoSyncEnabled"
@@ -226,27 +226,27 @@
                       @change="updateAutoSync"
                     />
                   </label>
-                  <div v-if="autoSyncEnabled" class="ml-6 p-3 border border-gray-200 dark:border-gray-700 rounded dark:bg-gray-800">
-                    <label class="block text-sm text-gray-700 dark:text-gray-300 mb-2">{{ $t('settings.checkEveryMinutes') }}</label>
+                  <div v-if="autoSyncEnabled" class="ml-6 p-3 border border-gray-200 dark:border-dark-gray-700 rounded dark:bg-dark-gray-800">
+                    <label class="block text-sm text-gray-700 dark:text-dark-gray-300 mb-2">{{ $t('settings.checkEveryMinutes') }}</label>
                     <input
                       v-model.number="autoSyncInterval"
                       type="number"
                       min="1"
                       max="60"
-                      class="w-32 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-600 dark:bg-gray-800 dark:text-gray-100"
+                      class="w-32 px-3 py-2 border border-gray-300 dark:border-dark-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-600 dark:bg-dark-gray-800 dark:text-dark-gray-100"
                       @change="updateAutoSync"
                     />
-                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">{{ $t('settings.recommendedInterval') }}</p>
+                    <p class="text-xs text-gray-500 dark:text-dark-gray-400 mt-2">{{ $t('settings.recommendedInterval') }}</p>
                   </div>
                 </div>
               </div>
               <div>
-                <h3 class="text-md font-semibold text-gray-900 dark:text-gray-100 mb-2">{{ $t('settings.maintenance') }}</h3>
-                <div class="p-3 border border-gray-200 dark:border-gray-700 rounded dark:bg-gray-800">
+                <h3 class="text-md font-semibold text-gray-900 dark:text-dark-gray-100 mb-2">{{ $t('settings.maintenance') }}</h3>
+                <div class="p-3 border border-gray-200 dark:border-dark-gray-700 rounded dark:bg-dark-gray-800">
                   <div class="flex items-center justify-between mb-2">
                     <div>
-                      <p class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ $t('settings.rebuildFolders') }}</p>
-                      <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ $t('settings.rebuildFoldersDesc') }}</p>
+                      <p class="text-sm font-medium text-gray-900 dark:text-dark-gray-100">{{ $t('settings.rebuildFolders') }}</p>
+                      <p class="text-xs text-gray-500 dark:text-dark-gray-400 mt-1">{{ $t('settings.rebuildFoldersDesc') }}</p>
                     </div>
                     <button
                       @click="handleRebuildFolders"
@@ -265,7 +265,7 @@
                       <span v-else>{{ $t('settings.rebuild') }}</span>
                     </button>
                   </div>
-                  <div v-if="rebuildProgress" class="text-xs text-gray-600 dark:text-gray-400 mt-2">
+                  <div v-if="rebuildProgress" class="text-xs text-gray-600 dark:text-dark-gray-400 mt-2">
                     {{ rebuildProgress }}
                   </div>
                   <div v-if="rebuildResult" class="text-xs mt-2" :class="rebuildResult.success ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'">
@@ -274,12 +274,12 @@
                 </div>
               </div>
               <div v-if="nativeContactsAvailable">
-                <h3 class="text-md font-semibold text-gray-900 dark:text-gray-100 mb-2">Contacts Sync</h3>
-                <div class="p-3 border border-gray-200 dark:border-gray-700 rounded dark:bg-gray-800">
+                <h3 class="text-md font-semibold text-gray-900 dark:text-dark-gray-100 mb-2">Contacts Sync</h3>
+                <div class="p-3 border border-gray-200 dark:border-dark-gray-700 rounded dark:bg-dark-gray-800">
                   <div class="flex items-center justify-between mb-2">
                     <div>
-                      <p class="text-sm font-medium text-gray-900 dark:text-gray-100">Sync with System Contacts</p>
-                      <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      <p class="text-sm font-medium text-gray-900 dark:text-dark-gray-100">Sync with System Contacts</p>
+                      <p class="text-xs text-gray-500 dark:text-dark-gray-400 mt-1">
                         Import contacts from {{ isMac ? 'macOS Contacts' : 'Windows Contacts' }} to improve autocomplete suggestions.
                       </p>
                     </div>
@@ -311,12 +311,12 @@
                 </div>
               </div>
               <div>
-                <h3 class="text-md font-semibold text-gray-900 dark:text-gray-100 mb-2">{{ $t('common.about') }}</h3>
-                <div class="p-3 border border-gray-200 dark:border-gray-700 rounded dark:bg-gray-800">
+                <h3 class="text-md font-semibold text-gray-900 dark:text-dark-gray-100 mb-2">{{ $t('common.about') }}</h3>
+                <div class="p-3 border border-gray-200 dark:border-dark-gray-700 rounded dark:bg-dark-gray-800">
                   <div class="flex items-center justify-between">
                     <div>
-                      <p class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ $t('app.name') }}</p>
-                      <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ $t('settings.learnMoreAboutApp') }}</p>
+                      <p class="text-sm font-medium text-gray-900 dark:text-dark-gray-100">{{ $t('app.name') }}</p>
+                      <p class="text-xs text-gray-500 dark:text-dark-gray-400 mt-1">{{ $t('settings.learnMoreAboutApp') }}</p>
                     </div>
                     <button
                       @click="$emit('open-about')"

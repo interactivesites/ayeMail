@@ -1,7 +1,7 @@
 <template>
-  <div class="h-screen flex flex-col bg-white dark:bg-gray-900 relative overflow-hidden">
+  <div class="h-screen flex flex-col bg-white dark:bg-dark-gray-900 relative overflow-hidden">
     <!-- Custom Title Bar -->
-    <div class="app-drag-region bg-white/70 dark:bg-gray-800/70 backdrop-blur-xl border-b border-white/60 dark:border-gray-700 shadow-sm flex items-center justify-between px-4 py-2 h-12">
+    <div class="app-drag-region bg-white/70 dark:bg-dark-gray-800/70 backdrop-blur-xl border-b border-white/60 dark:border-dark-gray-700 shadow-sm flex items-center justify-between px-4 py-2 h-12">
       <div class="app-no-drag flex items-center space-x-3 flex-1 min-w-0">
        
         <button
@@ -36,14 +36,14 @@
           </svg>
         </button>
         <!-- <img src="../../assets/ilogo.png" alt="iMail" class="w-6 h-6 rounded-lg flex-shrink-0" /> -->
-        <h2 class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate min-w-0 flex-1" :title="displayTitle">{{ displayTitle }}</h2>
-        <div class="border-l border-gray-300 dark:border-gray-600 h-4 mx-4 flex-shrink-0"></div>
+        <h2 class="text-sm font-medium text-gray-900 dark:text-dark-gray-100 truncate min-w-0 flex-1" :title="displayTitle">{{ displayTitle }}</h2>
+        <div class="border-l border-gray-300 dark:border-dark-gray-600 h-4 mx-4 flex-shrink-0"></div>
         <div class="flex items-center space-x-2">
-          <label class="text-xs text-gray-600 dark:text-gray-300">{{ $t('compose.from') }}</label>
+          <label class="text-xs text-gray-600 dark:text-dark-gray-300">{{ $t('compose.from') }}</label>
           <select
             v-model="selectedAccountId"
             @change="handleAccountChange"
-            class="text-xs px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-primary-600 focus:border-primary-600"
+            class="text-xs px-2 py-1 border border-gray-300 dark:border-dark-gray-600 rounded bg-white dark:bg-dark-gray-700 dark:text-dark-gray-100 focus:outline-none focus:ring-1 focus:ring-primary-600 focus:border-primary-600"
           >
             <option v-for="account in accounts" :key="account.id" :value="account.id">
               {{ account.name || account.email }}
@@ -52,21 +52,21 @@
           <select
             v-if="fromAddresses.length > 0"
             v-model="selectedFromAddressId"
-            class="text-xs px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-primary-600 focus:border-primary-600"
+            class="text-xs px-2 py-1 border border-gray-300 dark:border-dark-gray-600 rounded bg-white dark:bg-dark-gray-700 dark:text-dark-gray-100 focus:outline-none focus:ring-1 focus:ring-primary-600 focus:border-primary-600"
           >
             <option v-for="addr in fromAddresses" :key="addr.id" :value="addr.id">
               {{ addr.name ? `${addr.name} <${addr.email}>` : addr.email }}
             </option>
           </select>
         </div>
-        <div class="border-l border-gray-300 dark:border-gray-600 h-4 mx-4 flex-shrink-0"></div>
+        <div class="border-l border-gray-300 dark:border-dark-gray-600 h-4 mx-4 flex-shrink-0"></div>
         <!-- <label class="flex items-center space-x-1.5 cursor-pointer">
           <input
             v-model="form.encrypt"
             type="checkbox"
             class="toggle-sm"
           />
-          <span class="text-xs text-gray-700 dark:text-gray-300">Encrypt</span>
+          <span class="text-xs text-gray-700 dark:text-dark-gray-300">Encrypt</span>
         </label>
         <label class="flex items-center space-x-1.5 cursor-pointer">
           <input
@@ -74,39 +74,39 @@
             type="checkbox"
             class="toggle-sm"
           />
-          <span class="text-xs text-gray-700 dark:text-gray-300">Sign</span>
+          <span class="text-xs text-gray-700 dark:text-dark-gray-300">Sign</span>
         </label> -->
       </div>
       <div class="app-no-drag flex items-center space-x-1">
         <button
           @click="fileInput?.click()"
-          class="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+          class="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-dark-gray-700 transition-colors"
           title="Attach Files"
         >
-          <svg class="w-4 h-4 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg class="w-4 h-4 text-gray-600 dark:text-dark-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
           </svg>
         </button>
         <button
           @click="handleMinimize"
-          class="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+          class="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-dark-gray-700 transition-colors"
           title="Minimize"
         >
-          <MinusIcon class="w-4 h-4 text-gray-600 dark:text-gray-300" />
+          <MinusIcon class="w-4 h-4 text-gray-600 dark:text-dark-gray-300" />
         </button>
         <button
           @click="handleMaximize"
-          class="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+          class="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-dark-gray-700 transition-colors"
           title="Maximize"
         >
-          <ArrowsPointingOutIcon class="w-4 h-4 text-gray-600 dark:text-gray-300" />
+          <ArrowsPointingOutIcon class="w-4 h-4 text-gray-600 dark:text-dark-gray-300" />
         </button>
         <button
           @click="handleClose"
           class="p-1.5 rounded hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
           title="Close"
         >
-          <XMarkIcon class="w-4 h-4 text-gray-600 dark:text-gray-300 hover:text-red-600 dark:hover:text-red-400" />
+          <XMarkIcon class="w-4 h-4 text-gray-600 dark:text-dark-gray-300 hover:text-red-600 dark:hover:text-red-400" />
         </button>
       </div>
     </div>
@@ -114,11 +114,11 @@
     <!-- Loading Overlay -->
     <div 
       v-if="isLoadingReplyData"
-      class="absolute inset-0 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm z-50 flex items-center justify-center"
+      class="absolute inset-0 bg-white/80 dark:bg-dark-gray-900/80 backdrop-blur-sm z-50 flex items-center justify-center"
     >
       <div class="flex flex-col items-center space-y-3">
         <div class="w-8 h-8 border-4 border-primary-600 dark:border-primary-500 border-t-transparent rounded-full animate-spin"></div>
-        <p class="text-sm font-medium text-gray-700 dark:text-gray-300">Loading email...</p>
+        <p class="text-sm font-medium text-gray-700 dark:text-dark-gray-300">Loading email...</p>
       </div>
     </div>
 
@@ -143,7 +143,7 @@
           <input
             v-model="form.cc"
             type="text"
-            class="w-full px-3 py-2 bg-transparent dark:bg-transparent border-0 border-b border-gray-300 dark:border-gray-600 rounded-none focus:outline-none focus:ring-0 focus:border-primary-600 dark:focus:border-primary-500 transition-colors dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
+            class="w-full px-3 py-2 bg-transparent dark:bg-transparent border-0 border-b border-gray-300 dark:border-dark-gray-600 rounded-none focus:outline-none focus:ring-0 focus:border-primary-600 dark:focus:border-primary-500 transition-colors dark:text-dark-gray-100 placeholder-gray-400 dark:placeholder-dark-gray-500"
             placeholder="CC"
           />
         </div>
@@ -151,12 +151,12 @@
           <input
             v-model="form.subject"
             type="text"
-            class="w-full px-3 py-2 bg-transparent dark:bg-transparent border-0 border-b border-gray-300 dark:border-gray-600 rounded-none focus:outline-none focus:ring-0 focus:border-primary-600 dark:focus:border-primary-500 transition-colors dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
+            class="w-full px-3 py-2 bg-transparent dark:bg-transparent border-0 border-b border-gray-300 dark:border-dark-gray-600 rounded-none focus:outline-none focus:ring-0 focus:border-primary-600 dark:focus:border-primary-500 transition-colors dark:text-dark-gray-100 placeholder-gray-400 dark:placeholder-dark-gray-500"
             placeholder="Subject"
           />
         </div>
         <div>
-          <div class="rounded-md overflow-hidden focus-within:ring-0 relative bg-white dark:bg-white border border-gray-200 dark:border-gray-200">
+          <div class="rounded-md overflow-hidden focus-within:ring-0 relative bg-white dark:bg-white border border-gray-200 dark:border-dark-gray-200">
             <EditorContent :editor="editor" class="prose max-w-none" />
             <BubbleMenu
               v-if="editor"
@@ -164,12 +164,12 @@
               :tippy-options="{ duration: 100, placement: 'top' }"
               class="bubble-menu"
             >
-              <div class="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg p-1 flex items-center space-x-1">
+              <div class="bg-white dark:bg-dark-gray-800 border border-gray-300 dark:border-dark-gray-600 rounded-lg shadow-lg p-1 flex items-center space-x-1">
                 <button
                   @click="editor.chain().focus().toggleBold().run()"
                   :class="[
-                    'p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors font-bold dark:text-gray-100',
-                    editor.isActive('bold') ? 'bg-gray-300 dark:bg-gray-600' : ''
+                    'p-1.5 rounded hover:bg-gray-200 dark:hover:bg-dark-gray-700 transition-colors font-bold dark:text-dark-gray-100',
+                    editor.isActive('bold') ? 'bg-gray-300 dark:bg-dark-gray-600' : ''
                   ]"
                   title="Bold"
                 >
@@ -178,8 +178,8 @@
                 <button
                   @click="editor.chain().focus().toggleItalic().run()"
                   :class="[
-                    'p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors italic dark:text-gray-100',
-                    editor.isActive('italic') ? 'bg-gray-300 dark:bg-gray-600' : ''
+                    'p-1.5 rounded hover:bg-gray-200 dark:hover:bg-dark-gray-700 transition-colors italic dark:text-dark-gray-100',
+                    editor.isActive('italic') ? 'bg-gray-300 dark:bg-dark-gray-600' : ''
                   ]"
                   title="Italic"
                 >
@@ -188,14 +188,14 @@
                 <button
                   @click="editor.chain().focus().toggleStrike().run()"
                   :class="[
-                    'p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors line-through dark:text-gray-100',
-                    editor.isActive('strike') ? 'bg-gray-300 dark:bg-gray-600' : ''
+                    'p-1.5 rounded hover:bg-gray-200 dark:hover:bg-dark-gray-700 transition-colors line-through dark:text-dark-gray-100',
+                    editor.isActive('strike') ? 'bg-gray-300 dark:bg-dark-gray-600' : ''
                   ]"
                   title="Strikethrough"
                 >
                   <span class="text-xs">S</span>
                 </button>
-                <div class="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1"></div>
+                <div class="w-px h-6 bg-gray-300 dark:bg-dark-gray-600 mx-1"></div>
                 <button
                   @click="editor.chain().focus().toggleHeading({ level: 1 }).run()"
                   :class="[
@@ -216,7 +216,7 @@
                 >
                   <span class="text-xs font-bold">H2</span>
                 </button>
-                <div class="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1"></div>
+                <div class="w-px h-6 bg-gray-300 dark:bg-dark-gray-600 mx-1"></div>
                 <button
                   @click="editor.chain().focus().toggleBulletList().run()"
                   :class="[
@@ -237,7 +237,7 @@
                 >
                   <span class="text-xs">1.</span>
                 </button>
-                <div class="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1"></div>
+                <div class="w-px h-6 bg-gray-300 dark:bg-dark-gray-600 mx-1"></div>
                 <button
                   @click="editor.chain().focus().toggleBlockquote().run()"
                   :class="[
@@ -259,8 +259,8 @@
           @change="handleFileSelect"
           class="hidden"
         />
-        <div v-if="attachments.length > 0" class="flex items-center border-t border-gray-200 dark:border-gray-700 pt-4 mt-4">
-          <span class="text-sm text-gray-600 dark:text-gray-300">
+        <div v-if="attachments.length > 0" class="flex items-center border-t border-gray-200 dark:border-dark-gray-700 pt-4 mt-4">
+          <span class="text-sm text-gray-600 dark:text-dark-gray-300">
             {{ attachments.length }} file{{ attachments.length > 1 ? 's' : '' }} attached ({{ formatTotalSize() }})
           </span>
         </div>
@@ -268,16 +268,16 @@
           <div
             v-for="(attachment, index) in attachments"
             :key="index"
-            class="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800 rounded-lg"
+            class="flex items-center justify-between p-2 bg-gray-50 dark:bg-dark-gray-800 rounded-lg"
             :class="{ 'border-2 border-red-300 dark:border-red-600 bg-red-50 dark:bg-red-900/20': attachment.size > MAX_FILE_SIZE }"
           >
             <div class="flex items-center space-x-2 flex-1 min-w-0">
-              <svg class="w-4 h-4 text-gray-400 dark:text-gray-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg class="w-4 h-4 text-gray-400 dark:text-dark-gray-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
               </svg>
               <div class="flex-1 min-w-0">
-                <span class="text-sm text-gray-700 dark:text-gray-300 block truncate">{{ attachment.name }}</span>
-                <span class="text-xs" :class="attachment.size > MAX_FILE_SIZE ? 'text-red-600 dark:text-red-400 font-medium' : 'text-gray-500 dark:text-gray-400'">
+                <span class="text-sm text-gray-700 dark:text-dark-gray-300 block truncate">{{ attachment.name }}</span>
+                <span class="text-xs" :class="attachment.size > MAX_FILE_SIZE ? 'text-red-600 dark:text-red-400 font-medium' : 'text-gray-500 dark:text-dark-gray-400'">
                   {{ formatSize(attachment.size) }}
                   <span v-if="attachment.size > MAX_FILE_SIZE"> (exceeds 15MB limit)</span>
                 </span>
@@ -285,7 +285,7 @@
             </div>
             <button
               @click="removeAttachment(index)"
-              class="ml-2 text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+              class="ml-2 text-gray-400 dark:text-dark-gray-500 hover:text-red-600 dark:hover:text-red-400 transition-colors"
               title="Remove attachment"
             >
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -371,6 +371,57 @@ watch(() => props.replyTo, (newReplyTo) => {
 }, { immediate: true })
 
 const MAX_FILE_SIZE = 15 * 1024 * 1024 // 15MB
+const MAX_IMAGE_DIMENSION = 1600 // Maximum width or height in pixels
+
+// Resize image to maximum dimension while maintaining aspect ratio
+const resizeImage = (file: File, maxDimension: number = MAX_IMAGE_DIMENSION): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      const img = new Image()
+      img.onload = () => {
+        // Calculate new dimensions
+        let width = img.width
+        let height = img.height
+        
+        // Only resize if image exceeds max dimension
+        if (width > maxDimension || height > maxDimension) {
+          if (width > height) {
+            height = (height / width) * maxDimension
+            width = maxDimension
+          } else {
+            width = (width / height) * maxDimension
+            height = maxDimension
+          }
+        }
+        
+        // Create canvas and resize
+        const canvas = document.createElement('canvas')
+        canvas.width = width
+        canvas.height = height
+        const ctx = canvas.getContext('2d')
+        
+        if (!ctx) {
+          reject(new Error('Could not get canvas context'))
+          return
+        }
+        
+        // Draw resized image
+        ctx.drawImage(img, 0, 0, width, height)
+        
+        // Convert to data URL with original format (or JPEG for better compression)
+        const mimeType = file.type || 'image/jpeg'
+        const quality = mimeType === 'image/jpeg' ? 0.92 : undefined
+        const dataUrl = canvas.toDataURL(mimeType, quality)
+        resolve(dataUrl)
+      }
+      img.onerror = () => reject(new Error('Failed to load image'))
+      img.src = e.target?.result as string
+    }
+    reader.onerror = () => reject(new Error('Failed to read file'))
+    reader.readAsDataURL(file)
+  })
+}
 
 // Strip images from HTML content to prevent re-attaching them in replies
 const stripImagesFromHtml = (html: string): string => {
@@ -420,15 +471,21 @@ const editor = useEditor({
         const imageFiles = files.filter(file => file.type.startsWith('image/'))
         const otherFiles = files.filter(file => !file.type.startsWith('image/'))
         
-        // Insert images inline into editor
+        // Insert images inline into editor (with resizing)
         if (imageFiles.length > 0 && editor.value) {
-          imageFiles.forEach(file => {
-            const reader = new FileReader()
-            reader.onload = () => {
-              const dataUrl = reader.result as string
-              editor.value?.chain().focus().setImage({ src: dataUrl }).run()
+          imageFiles.forEach(async (file) => {
+            try {
+              if (file.size > MAX_FILE_SIZE) {
+                alert(`Image ${file.name} exceeds 15MB limit and was not inserted.`)
+                return
+              }
+              // Resize image before inserting
+              const resizedDataUrl = await resizeImage(file)
+              editor.value?.chain().focus().setImage({ src: resizedDataUrl }).run()
+            } catch (error) {
+              console.error('Error resizing/inserting image:', error)
+              alert(`Failed to insert image ${file.name}`)
             }
-            reader.readAsDataURL(file)
           })
         }
         
@@ -701,19 +758,21 @@ const handleFileSelect = (event: Event) => {
     const imageFiles = fileArray.filter(file => file.type.startsWith('image/'))
     const otherFiles = fileArray.filter(file => !file.type.startsWith('image/'))
     
-    // Insert images inline into editor
+    // Insert images inline into editor (with resizing)
     if (imageFiles.length > 0 && editor.value) {
-      imageFiles.forEach(file => {
-        if (file.size > MAX_FILE_SIZE) {
-          alert(`Image ${file.name} exceeds 15MB limit and was not inserted.`)
-          return
+      imageFiles.forEach(async (file) => {
+        try {
+          if (file.size > MAX_FILE_SIZE) {
+            alert(`Image ${file.name} exceeds 15MB limit and was not inserted.`)
+            return
+          }
+          // Resize image before inserting
+          const resizedDataUrl = await resizeImage(file)
+          editor.value?.chain().focus().setImage({ src: resizedDataUrl }).run()
+        } catch (error) {
+          console.error('Error resizing/inserting image:', error)
+          alert(`Failed to insert image ${file.name}`)
         }
-        const reader = new FileReader()
-        reader.onload = () => {
-          const dataUrl = reader.result as string
-          editor.value?.chain().focus().setImage({ src: dataUrl }).run()
-        }
-        reader.readAsDataURL(file)
       })
     }
     

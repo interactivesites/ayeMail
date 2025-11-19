@@ -16,7 +16,7 @@
     <div
       v-if="showSuggestions && filteredItems.length > 0"
       :class="[
-        'absolute z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg overflow-hidden',
+        'absolute z-50 bg-white dark:bg-dark-gray-800 border border-gray-200 dark:border-dark-gray-700 rounded-lg shadow-lg overflow-hidden',
         popover ? 'mt-1' : 'mt-0 border-t-0 rounded-t-none',
         popover ? 'min-w-full' : 'w-full'
       ]"
@@ -30,11 +30,11 @@
           @mousedown.prevent="selectItem(item)"
           :class="[
             'w-full text-left px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors',
-            index === selectedIndex ? 'bg-gray-100 dark:bg-gray-700' : ''
+            index === selectedIndex ? 'bg-gray-100 dark:bg-dark-gray-700' : ''
           ]"
         >
-          <div class="text-sm text-gray-900 dark:text-gray-100" v-html="highlightMatch(getItemLabel(item), searchQuery)"></div>
-          <div v-if="getItemValue(item) !== getItemLabel(item)" class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+          <div class="text-sm text-gray-900 dark:text-dark-gray-100" v-html="highlightMatch(getItemLabel(item), searchQuery)"></div>
+          <div v-if="getItemValue(item) !== getItemLabel(item)" class="text-xs text-gray-500 dark:text-dark-gray-400 mt-0.5">
             {{ getItemValue(item) }}
           </div>
         </button>
@@ -45,13 +45,13 @@
     <div
       v-if="showSuggestions && filteredItems.length === 0 && searchQuery.length >= 2"
       :class="[
-        'absolute z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg',
+        'absolute z-50 bg-white dark:bg-dark-gray-800 border border-gray-200 dark:border-dark-gray-700 rounded-lg shadow-lg',
         popover ? 'mt-1' : 'mt-0 border-t-0 rounded-t-none',
         popover ? 'min-w-full' : 'w-full'
       ]"
       :style="popover ? popoverStyle : {}"
     >
-      <div class="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">No results found</div>
+      <div class="px-3 py-2 text-sm text-gray-500 dark:text-dark-gray-400">No results found</div>
     </div>
   </div>
 </template>
@@ -80,7 +80,7 @@ const props = withDefaults(defineProps<{
   searchKeys: () => ['label', 'value'],
   popover: false,
   maxResults: 10,
-  inputClass: 'w-full px-3 py-2 bg-transparent border-0 border-b border-gray-300 dark:border-gray-600 rounded-none focus:outline-none focus:ring-0 focus:border-primary-600 dark:focus:border-primary-500 transition-colors dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500'
+  inputClass: 'w-full px-3 py-2 bg-transparent border-0 border-b border-gray-300 dark:border-dark-gray-600 rounded-none focus:outline-none focus:ring-0 focus:border-primary-600 dark:focus:border-primary-500 transition-colors dark:text-dark-gray-100 placeholder-gray-400 dark:placeholder-dark-gray-500'
 })
 
 const emit = defineEmits<{

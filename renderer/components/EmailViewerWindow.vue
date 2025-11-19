@@ -1,9 +1,9 @@
 <template>
-  <div class="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
+  <div class="h-screen flex flex-col bg-gray-50 dark:bg-dark-gray-900">
     <!-- Custom Title Bar -->
-    <div class="app-drag-region bg-white/70 dark:bg-gray-800/70 backdrop-blur-xl border-b border-white/60 dark:border-gray-700 shadow-sm flex items-center justify-between px-4 py-2 h-12">
+    <div class="app-drag-region bg-white/70 dark:bg-dark-gray-800/70 backdrop-blur-xl border-b border-white/60 dark:border-dark-gray-700 shadow-sm flex items-center justify-between px-4 py-2 h-12">
       <div class="app-no-drag flex items-center space-x-3 flex-1 min-w-0">
-        <h2 class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate min-w-0 flex-1" :title="emailSubject">{{ emailSubject || 'Email Viewer' }}</h2>
+        <h2 class="text-sm font-medium text-gray-900 dark:text-dark-gray-100 truncate min-w-0 flex-1" :title="emailSubject">{{ emailSubject || 'Email Viewer' }}</h2>
       </div>
       <div class="app-no-drag flex items-center space-x-1">
         <button
@@ -11,21 +11,21 @@
           class="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
           title="Minimize"
         >
-          <MinusIcon class="w-4 h-4 text-gray-600 dark:text-gray-300" />
+          <MinusIcon class="w-4 h-4 text-gray-600 dark:text-dark-gray-300" />
         </button>
         <button
           @click="handleMaximize"
           class="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
           title="Maximize"
         >
-          <ArrowsPointingOutIcon class="w-4 h-4 text-gray-600 dark:text-gray-300" />
+          <ArrowsPointingOutIcon class="w-4 h-4 text-gray-600 dark:text-dark-gray-300" />
         </button>
         <button
           @click="handleClose"
           class="p-1.5 rounded hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
           title="Close"
         >
-          <XMarkIcon class="w-4 h-4 text-gray-600 dark:text-gray-300 hover:text-red-600 dark:hover:text-red-400" />
+          <XMarkIcon class="w-4 h-4 text-gray-600 dark:text-dark-gray-300 hover:text-red-600 dark:hover:text-red-400" />
         </button>
       </div>
     </div>

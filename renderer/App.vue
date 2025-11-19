@@ -4,40 +4,76 @@
   <!-- As email viewer mode is open, show the email viewer window -->
   <EmailViewerWindow v-else-if="isEmailViewerMode" />
   <!-- As composer mode is not open, show the main app -->
-  <div v-else class="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
+  <div v-else class="h-screen flex flex-col bg-gray-50 dark:bg-dark-gray-900">
     <!-- Custom Title Bar -->
-    <div class="app-drag-region bg-white/70 dark:bg-gray-800/70 backdrop-blur-xl border-b border-white/60 dark:border-gray-700 shadow-sm flex items-center justify-between px-4 py-2 h-12 flex-shrink-0">
-      <div class="app-no-drag flex items-center space-x-3 flex-1 min-w-0">
-        <h2 class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate min-w-0 flex-1">iMail</h2>
+    <div class="app-drag-region bg-white/70 dark:bg-dark-gray-800/70 backdrop-blur-xl border-b border-white/60 dark:border-dark-gray-700 shadow-sm flex items-center justify-between px-4 py-2 h-12 flex-shrink-0">
+      <div class=" flex items-center space-x-3 flex-1 min-w-0">
+        <img src="../../assets/ilogo.png" alt="iMail" class="w-6 h-6" />
+        <h2 class="text-sm font-medium text-gray-900 dark:text-dark-gray-100 truncate min-w-0">iMail</h2>
       </div>
-      <div class="app-no-drag flex items-center space-x-1">
-        <button
-          @click="handleMinimize"
-          class="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-          title="Minimize"
-        >
-          <MinusIcon class="w-4 h-4 text-gray-600 dark:text-gray-300" />
-        </button>
-        <button
-          @click="handleMaximize"
-          class="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-          title="Maximize"
-        >
-          <ArrowsPointingOutIcon class="w-4 h-4 text-gray-600 dark:text-gray-300" />
-        </button>
-        <button
-          @click="handleClose"
-          class="p-1.5 rounded hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
-          title="Close"
-        >
-          <XMarkIcon class="w-4 h-4 text-gray-600 dark:text-gray-300 hover:text-red-600 dark:hover:text-red-400" />
-        </button>
+      <div class="app-no-drag flex items-center space-x-3">
+        <!-- Search and Settings -->
+        <div class="flex items-center space-x-3">
+          <div class="relative">
+            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <MagnifyingGlassIcon class="h-4 w-4 text-gray-400 dark:text-dark-gray-500" />
+            </div>
+            <input
+              ref="searchInputRef"
+              type="text"
+              v-model="localSearchQuery"
+              @keydown.escape="handleClearSearch"
+              :placeholder="$t('navigation.searchEmails')"
+              class="pl-9 pr-8 py-1.5 w-56 text-sm border border-gray-300 dark:border-dark-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-transparent dark:bg-dark-gray-700 dark:text-dark-gray-100 placeholder-gray-400 dark:placeholder-dark-gray-500"
+            />
+            <button
+              v-if="localSearchQuery"
+              @click="handleClearSearch"
+              class="absolute inset-y-0 right-0 pr-2 flex items-center"
+              :title="$t('navigation.clearSearch')"
+            >
+              <XMarkIcon class="h-3.5 w-3.5 text-gray-400 dark:text-dark-gray-500 hover:text-gray-600 dark:hover:text-gray-300" />
+            </button>
+          </div>
+          <button 
+            type="button" 
+            class="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-dark-gray-700 transition-colors text-gray-600 dark:text-dark-gray-300 hover:text-gray-900 dark:hover:text-gray-100" 
+            @click="showSettings = true" 
+            title="Settings"
+          >
+            <CogIcon class="w-4 h-4" />
+          </button>
+        </div>
+        <!-- Window Controls -->
+        <div class="flex items-center space-x-1">
+          <button
+            @click="handleMinimize"
+            class="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-dark-gray-700 transition-colors"
+            title="Minimize"
+          >
+            <MinusIcon class="w-4 h-4 text-gray-600 dark:text-dark-gray-300" />
+          </button>
+          <button
+            @click="handleMaximize"
+            class="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-dark-gray-700 transition-colors"
+            title="Maximize"
+          >
+            <ArrowsPointingOutIcon class="w-4 h-4 text-gray-600 dark:text-dark-gray-300" />
+          </button>
+          <button
+            @click="handleClose"
+            class="p-1.5 rounded hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+            title="Close"
+          >
+            <XMarkIcon class="w-4 h-4 text-gray-600 dark:text-dark-gray-300 hover:text-red-600 dark:hover:text-red-400" />
+          </button>
+        </div>
       </div>
     </div>
 
     <main class="flex-1 flex overflow-hidden">
 
-      <aside v-if="hasAccounts" class="border-r border-white/10 dark:border-gray-700 bg-slate-900/70 dark:bg-gray-800 text-slate-100 dark:text-gray-100 backdrop-blur-2xl shadow-xl flex flex-col transition-all duration-200 flex-shrink-0" :style="{ width: sidebarWidth + 'px', minWidth: sidebarWidth + 'px', maxWidth: sidebarWidth + 'px' }">
+      <aside v-if="hasAccounts" class="border-r border-white/10 dark:border-dark-gray-700 bg-slate-900/70 dark:bg-dark-gray-800 text-slate-100 dark:text-dark-gray-100 backdrop-blur-2xl shadow-xl flex flex-col transition-all duration-200 flex-shrink-0" :style="{ width: sidebarWidth + 'px', minWidth: sidebarWidth + 'px', maxWidth: sidebarWidth + 'px' }">
         <MainNav mode="left" :syncing="syncing" :has-selected-email="Boolean(selectedEmailId)" @sync="syncEmails" @compose="handleCompose" />
         <div class="flex-1 overflow-hidden">
           <FolderList :selected-folder-id="selectedFolderId" :syncing-folder-id="currentSyncFolderId" @select-folder="handleFolderSelect" @open-about="showAbout = true" />
@@ -93,16 +129,16 @@
         <template v-else>
           <div class="flex-1 flex overflow-hidden">
             <div :class="[
-              'border-r border-gray-200 dark:border-gray-700 flex-shrink-0',
+              'border-r border-gray-200 dark:border-dark-gray-700 flex-shrink-0',
               !isResizingMailPane ? 'transition-all duration-200' : ''
             ]" :style="{ width: mailPaneWidth + 'px' }">
               <component v-if="selectedFolderId || searchQuery" :is="EmailList" :folder-id="searchQuery ? '' : selectedFolderId" :folder-name="searchQuery ? $t('email.searchResults') : selectedFolderName" :selected-email-id="selectedEmailId" :account-id="selectedAccount?.id" :unified-folder-type="unifiedFolderType" :unified-folder-account-ids="unifiedFolderAccountIds" :search-query="searchQuery" @select-email="handleEmailSelect" @drag-start="handleDragStart" @drag-end="handleDragEnd" />
             </div>
             <div class="w-2 flex-shrink-0 cursor-col-resize relative group bg-transparent hover:bg-gray-100/50 dark:hover:bg-gray-700/50 transition-colors" role="separator" aria-orientation="vertical" aria-label="Resize email list" @mousedown.prevent="startMailResize">
-              <span class="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-gray-300 dark:bg-gray-600 group-hover:bg-gray-500 dark:group-hover:bg-gray-400 transition-colors"></span>
+              <span class="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-gray-300 dark:bg-dark-gray-600 group-hover:bg-gray-500 dark:group-hover:bg-gray-400 transition-colors"></span>
             </div>
             <div class="flex-1 flex flex-col relative">
-              <MainNav mode="right" :syncing="false" :has-selected-email="Boolean(selectedEmailId)" @reply="handleNavReply" @forward="handleNavForward" @set-reminder="handleNavReminder" @delete="handleNavDelete" @open-settings="showSettings = true" @search="handleSearch" @clear-search="handleClearSearch" />
+              <MainNav mode="right" :syncing="false" :has-selected-email="Boolean(selectedEmailId)" @reply="handleNavReply" @forward="handleNavForward" @set-reminder="handleNavReminder" @delete="handleNavDelete" />
               <div class="flex-1 overflow-hidden">
                 <EmailDropZone v-if="isDraggingEmail && draggedEmail" :dragged-email="draggedEmail" :account-id="selectedAccount?.id || ''" @action-complete="handleDragActionComplete" @close="handleDragEnd" @drop-start="handleDropStart" @drop-error="handleDropError" />
                 <EmailViewer v-else :email-id="selectedEmailId" @reply="handleReply" @forward="handleForward" @set-reminder="handleSetReminder" @delete="handleDeleteEmail" @select-thread-email="handleEmailSelect" />
@@ -119,8 +155,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, onBeforeUnmount } from 'vue'
-import { MinusIcon, ArrowsPointingOutIcon, XMarkIcon } from '@heroicons/vue/24/outline'
+import { ref, onMounted, computed, onBeforeUnmount, watch, nextTick } from 'vue'
+import { MinusIcon, ArrowsPointingOutIcon, XMarkIcon, MagnifyingGlassIcon, CogIcon } from '@heroicons/vue/24/outline'
 import FolderList from './components/FolderList.vue'
 import EmailList from './components/EmailList.vue'
 import CalmMode from './components/CalmMode.vue'
@@ -133,7 +169,6 @@ import AboutModal from './components/AboutModal.vue'
 import ReminderModal from './components/ReminderModal.vue'
 import MainNav from './components/MainNav.vue'
 import { usePreferencesStore } from './stores/preferences'
-import { useEmailActions } from './composables/useEmailActions'
 import { useEmailCacheStore } from './stores/emailCache'
 
 // Check if we're in compose mode or email viewer mode
@@ -182,7 +217,23 @@ const MAX_MAIL_WIDTH = 640
 const isDraggingEmail = ref(false)
 const draggedEmail = ref<any>(null)
 const searchQuery = ref<string>('')
+const localSearchQuery = ref('')
+const searchInputRef = ref<HTMLInputElement | null>(null)
 const windowWidth = ref(window.innerWidth)
+
+// Debounce search to avoid too many updates
+let searchTimeout: NodeJS.Timeout | null = null
+watch(localSearchQuery, (newValue) => {
+  // Clear existing timeout
+  if (searchTimeout) {
+    clearTimeout(searchTimeout)
+  }
+  
+  // Debounce the search emit
+  searchTimeout = setTimeout(() => {
+    handleSearch(newValue)
+  }, 150) // Small delay to prevent excessive updates
+})
 
 // Sidebar width: default 256px (w-64), but 30% narrower (179px) when email list < 20% of screen width
 const sidebarWidth = computed(() => {
@@ -953,11 +1004,16 @@ const handleSearch = (query: string) => {
 }
 
 const handleClearSearch = () => {
+  localSearchQuery.value = ''
   searchQuery.value = ''
   // Restore folder selection if we had one before
   if (!selectedFolderId.value && selectedAccount.value) {
     // Try to select the account's inbox
     // This will be handled by FolderList if needed
   }
+  // Maintain focus after clearing
+  nextTick(() => {
+    searchInputRef.value?.focus()
+  })
 }
 </script>

@@ -1,6 +1,6 @@
 <template>
   <div class="thread-timeline">
-    <div v-if="emails.length === 0" class="text-sm text-gray-500 dark:text-gray-400 p-4 text-center">
+    <div v-if="emails.length === 0" class="text-sm text-gray-500 dark:text-dark-gray-400 p-4 text-center">
       No thread emails
     </div>
     <div v-else class="space-y-4">
@@ -12,7 +12,7 @@
         <!-- Timeline line connector -->
         <div
           v-if="index < sortedEmails.length - 1"
-          class="absolute left-3.5 top-10 w-0.5 h-full bg-gray-200 dark:bg-gray-700"
+          class="absolute left-3.5 top-10 w-0.5 h-full bg-gray-200 dark:bg-dark-gray-700"
           :style="{ height: `${getTimeGapHeight(email, sortedEmails[index + 1])}px` }"
         ></div>
         
@@ -22,7 +22,7 @@
           class="relative max-w-md text-left p-2.5 rounded-lg border transition-all duration-200 hover:shadow-md"
           :class="{
             'bg-primary-50 dark:bg-primary-900/20 border-primary-300 dark:border-primary-700': email.id === currentEmailId,
-            'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700': email.id !== currentEmailId,
+            'bg-white dark:bg-dark-gray-800 border-gray-200 dark:border-dark-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700': email.id !== currentEmailId,
             'ring-2 ring-primary-500 dark:ring-primary-400': isRootEmail(email),
             'ml-8': !isRootEmail(email)
           }"
@@ -32,7 +32,7 @@
             class="absolute left-2.5 top-3.5 w-2 h-2 rounded-full border-2 transition-colors"
             :class="{
               'bg-primary-600 dark:bg-primary-400 border-primary-600 dark:border-primary-400': email.id === currentEmailId,
-              'bg-white dark:bg-gray-800 border-gray-400 dark:border-gray-500': email.id !== currentEmailId,
+              'bg-white dark:bg-dark-gray-800 border-gray-400 dark:border-dark-gray-500': email.id !== currentEmailId,
               'ring-2 ring-primary-500 dark:ring-primary-400': isRootEmail(email)
             }"
           ></div>
@@ -45,7 +45,7 @@
                   class="text-sm font-medium truncate"
                   :class="{
                     'text-primary-700 dark:text-primary-300': email.id === currentEmailId,
-                    'text-gray-900 dark:text-gray-100': email.id !== currentEmailId
+                    'text-gray-900 dark:text-dark-gray-100': email.id !== currentEmailId
                   }"
                 >
                   {{ email.from[0]?.name || email.from[0]?.address }}
@@ -67,7 +67,7 @@
                 class="text-xs flex-shrink-0"
                 :class="{
                   'text-primary-600 dark:text-primary-400': email.id === currentEmailId,
-                  'text-gray-500 dark:text-gray-400': email.id !== currentEmailId
+                  'text-gray-500 dark:text-dark-gray-400': email.id !== currentEmailId
                 }"
               >
                 {{ formatDate(email.date) }}
@@ -80,7 +80,7 @@
                 class="text-sm"
                 :class="{
                   'text-primary-900 dark:text-primary-100 font-medium': email.id === currentEmailId,
-                  'text-gray-700 dark:text-gray-300': email.id !== currentEmailId
+                  'text-gray-700 dark:text-dark-gray-300': email.id !== currentEmailId
                 }"
               >
                 {{ email.subject || '(No subject)' }}
@@ -93,7 +93,7 @@
               class="text-xs line-clamp-2 mt-1"
               :class="{
                 'text-primary-700/80 dark:text-primary-300/80': email.id === currentEmailId,
-                'text-gray-500 dark:text-gray-400': email.id !== currentEmailId
+                'text-gray-500 dark:text-dark-gray-400': email.id !== currentEmailId
               }"
             >
               {{ getPreview(email) }}
@@ -128,7 +128,7 @@
               </span>
               <span
                 v-if="email.attachmentCount && email.attachmentCount > 0"
-                class="text-xs text-gray-500 dark:text-gray-400"
+                class="text-xs text-gray-500 dark:text-dark-gray-400"
                 title="Has attachments"
               >
                 📎
