@@ -131,7 +131,8 @@
       @dragleave="handleDragLeave"
       @drop="handleDrop"
     >
-      <div class="flex-1 overflow-y-auto p-4 space-y-4">
+      <ThinScrollbar class="flex-1">
+        <div class="p-4 space-y-4">
         <div>
           <RecipientAutocomplete
             v-model="form.to"
@@ -293,7 +294,8 @@
             </button>
           </div>
         </div>
-      </div>
+        </div>
+      </ThinScrollbar>
     </div>
   </div>
 </template>
@@ -306,6 +308,7 @@ import StarterKit from '@tiptap/starter-kit'
 import Image from '@tiptap/extension-image'
 import { formatSize } from '../utils/formatters'
 import RecipientAutocomplete from './RecipientAutocomplete.vue'
+import ThinScrollbar from './ThinScrollbar.vue'
 import {
   ArrowsPointingOutIcon,
   XMarkIcon,

@@ -25,7 +25,7 @@
         </button>
       </div>
     </div>
-    <div class="flex-1 overflow-y-auto">
+    <ThinScrollbar class="flex-1">
       <div v-if="loading" class="p-4 text-center text-white/70">
         {{ $t('folders.loadingFolders') }}
       </div>
@@ -93,7 +93,7 @@
           </div>
         </div>
       </div>
-    </div>
+    </ThinScrollbar>
     <div class="border-t border-white/10 p-4 space-y-2">
       <!-- <a
         v-if="!preferences.isSupporter"
@@ -126,6 +126,7 @@ import { ref, onMounted, watch, onUnmounted, computed } from 'vue'
 import { usePreferencesStore } from '../stores/preferences'
 import { ListBulletIcon, Squares2X2Icon } from '@heroicons/vue/24/outline'
 import FolderTreeItem from './FolderTreeItem.vue'
+import ThinScrollbar from './ThinScrollbar.vue'
 
 const props = defineProps<{
   accountId?: string

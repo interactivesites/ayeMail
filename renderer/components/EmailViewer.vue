@@ -68,13 +68,15 @@
         </div>
        
       </div>
-      <div class="flex-1 overflow-y-auto p-4">
-        <div v-if="email.htmlBody" class="email-html-container">
+      <ThinScrollbar class="flex-1">
+        <div class="p-4">
+          <div v-if="email.htmlBody" class="email-html-container">
           <iframe
             :srcdoc="sanitizedHtml"
             class="w-full border-0 bg-white dark:bg-gray-800"
             style="min-height: 400px; display: block;"
             sandbox="allow-same-origin"
+            scrolling="no"
             @load="onIframeLoad"
             ref="emailIframe"
           ></iframe>
@@ -136,7 +138,8 @@
             @select-email="handleThreadEmailClick"
           />
         </div>
-      </div>
+        </div>
+      </ThinScrollbar>
     </div>
     
     <!-- Link Preview Popover -->
@@ -162,6 +165,7 @@ import { useEmailCacheStore } from '../stores/emailCache'
 import ThreadView from './ThreadView.vue'
 import LinkPreviewPopover from './LinkPreviewPopover.vue'
 import EmailNavigation from './EmailNavigation.vue'
+import ThinScrollbar from './ThinScrollbar.vue'
 
 const props = defineProps<{
   emailId?: string
@@ -210,6 +214,19 @@ const sanitizedHtml = computed(() => {
   // Add base styles for better rendering
   const baseStyles = `
     <style>
+      * {
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+      }
+      *::-webkit-scrollbar {
+        display: none;
+      }
+      html {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        height: auto;
+      }
       body {
         margin: 0;
         padding: 16px;
@@ -218,6 +235,9 @@ const sanitizedHtml = computed(() => {
         line-height: 1.6;
         color: #1f2937;
         background: #ffffff;
+        overflow: visible;
+        height: auto;
+        min-height: auto;
       }
       img {
         max-width: 100%;
@@ -360,17 +380,53 @@ const downloadAttachment = async (attachmentId: string) => {
 }
 
 const onIframeLoad = () => {
-  // Optionally adjust iframe height to content
+  // Adjust iframe height to content and handle dynamic content changes
   if (emailIframe.value) {
     try {
       const iframe = emailIframe.value
       const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document
       if (iframeDoc) {
-        const height = Math.max(
-          iframeDoc.body?.scrollHeight || 400,
-          iframeDoc.documentElement?.scrollHeight || 400
-        )
-        iframe.style.height = `${height}px`
+        const updateHeight = () => {
+          const height = Math.max(
+            iframeDoc.body?.scrollHeight || 400,
+            iframeDoc.documentElement?.scrollHeight || 400
+          )
+          iframe.style.height = `${height}px`
+        }
+        
+        // Initial height calculation
+        updateHeight()
+        
+        // Recalculate height when images load (for async image loading)
+        const images = iframeDoc.querySelectorAll('img')
+        let loadedImages = 0
+        const totalImages = images.length
+        
+        if (totalImages > 0) {
+          images.forEach((img: HTMLImageElement) => {
+            if (img.complete) {
+              loadedImages++
+            } else {
+              img.addEventListener('load', () => {
+                loadedImages++
+                if (loadedImages === totalImages) {
+                  updateHeight()
+                }
+              })
+              img.addEventListener('error', () => {
+                loadedImages++
+                if (loadedImages === totalImages) {
+                  updateHeight()
+                }
+              })
+            }
+          })
+          
+          // If all images are already loaded
+          if (loadedImages === totalImages) {
+            updateHeight()
+          }
+        }
         
         // Intercept link clicks to open externally with security checks
         const links = iframeDoc.querySelectorAll('a[href]')

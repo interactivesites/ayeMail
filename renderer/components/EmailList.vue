@@ -63,7 +63,7 @@
         </button>
       </div>
     </div>
-    <div class="flex-1 overflow-y-auto">
+    <ThinScrollbar class="flex-1">
       <div v-if="loading" class="p-4 text-center text-gray-500 dark:text-gray-400">
         Loading emails...
       </div>
@@ -354,7 +354,7 @@
           </div>
         </div>
       </div>
-    </div>
+    </ThinScrollbar>
     <!-- Reminder Modal as Popover -->
     <Teleport to="body">
       <div
@@ -456,6 +456,7 @@ import { usePreferencesStore } from '../stores/preferences'
 import { formatTime } from '../utils/formatters'
 import ReminderModal from './ReminderModal.vue'
 import FolderPickerModal from './FolderPickerModal.vue'
+import ThinScrollbar from './ThinScrollbar.vue'
 import { computePosition, offset, shift, arrow as floatingArrow } from '@floating-ui/dom'
 import type { Placement, MiddlewareData } from '@floating-ui/dom'
 
@@ -2526,7 +2527,7 @@ const handleFocus = () => {
 const handleContainerClick = (event: MouseEvent) => {
   // Focus container when clicking in empty space
   const target = event.target as HTMLElement
-  if (target === containerRef.value || target.closest('.flex-1.overflow-y-auto')) {
+  if (target === containerRef.value || target.closest('.thin-scrollbar')) {
     containerRef.value?.focus()
   }
 }
