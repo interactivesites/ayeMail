@@ -81,11 +81,12 @@
           <!-- Email Items -->
           <div class="divide-y divide-gray-100 dark:divide-gray-700 mx-2">
             <button
-              v-for="email in group.emails"
+              v-for="(email, emailIndex) in group.emails"
               :key="email.id"
               :data-email-id="email.id"
+              :data-email-index="getEmailGlobalIndex(group.emails, emailIndex, group)"
               draggable="true"
-              @click="$emit('select-email', email.id)"
+              @click="handleEmailClick($event, email.id, getEmailGlobalIndex(group.emails, emailIndex, group))"
               @dblclick="handleEmailDoubleClick(email.id)"
               @dragstart="handleDragStart($event, email)"
               @dragend="handleDragEnd"
@@ -93,8 +94,8 @@
               @mouseleave="handleEmailMouseLeave"
               class="w-full text-left px-4 pt-3 pb-3 my-2 transition-all duration-200 rounded-lg relative cursor-grab active:cursor-grabbing group hover:pb-10"
               :class="{
-                'bg-primary-900 dark:bg-primary-800 text-white': selectedEmailId === email.id,
-                'hover:bg-primary-800/20 dark:hover:bg-primary-900/30': selectedEmailId !== email.id,
+                'bg-primary-900 dark:bg-primary-800 text-white': selectedEmailIds.has(email.id),
+                'hover:bg-primary-800/20 dark:hover:bg-primary-900/30': !selectedEmailIds.has(email.id),
                 'border-l-2 border-primary-600 dark:border-primary-500': isEmailUnread(email),
                 'opacity-50': isDragging === email.id,
                 'busy': busyEmailIds.has(email.id)
@@ -115,8 +116,26 @@
                 </div>
               </div>
               <div class="flex items-start gap-3">
-                <!-- Rounded Checkbox -->
+                <!-- Selection Checkbox -->
                 <div class="flex-shrink-0 self-center relative">
+                  <button
+                    @click.stop="handleCheckboxClick($event, email.id, getEmailGlobalIndex(group.emails, emailIndex, group))"
+                    class="w-5 h-5 rounded border-2 flex items-center justify-center transition-colors focus:outline-none focus:ring-2 focus:ring-primary-600 focus:ring-offset-1"
+                    :class="{
+                      'bg-primary-600 dark:bg-primary-500 border-primary-600 dark:border-primary-500': selectedEmailIds.has(email.id),
+                      'border-gray-300 dark:border-gray-600 hover:border-primary-600 dark:hover:border-primary-500': !selectedEmailIds.has(email.id),
+                      'hover:bg-gray-50 dark:hover:bg-gray-700': !selectedEmailIds.has(email.id)
+                    }"
+                    title="Select email"
+                  >
+                    <svg v-if="selectedEmailIds.has(email.id)" class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </button>
+                </div>
+                
+                <!-- Archive Button (shown when email is selected) -->
+                <div v-if="selectedEmailIds.has(email.id)" class="flex-shrink-0 self-center relative">
                   <button
                     @click.stop="showArchiveConfirm(email.id)"
                     class="w-5 h-5 rounded-full border-2 border-gray-300 dark:border-gray-600 flex items-center justify-center transition-colors hover:border-primary-600 dark:hover:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-600 focus:ring-offset-1"
@@ -171,7 +190,7 @@
                       <div class="flex items-center gap-2">
                         <span 
                           class="text-sm font-semibold truncate"
-                          :class="selectedEmailId === email.id 
+                          :class="selectedEmailIds.has(email.id) 
                             ? 'text-white' 
                             : (isEmailUnread(email) ? 'text-primary-600 dark:text-primary-400' : 'text-gray-900 dark:text-gray-100')"
                         >
@@ -180,13 +199,13 @@
                         <span 
                           v-if="email.encrypted" 
                           class="text-xs" 
-                          :class="selectedEmailId === email.id ? 'text-white/80' : 'text-primary-600'"
+                          :class="selectedEmailIds.has(email.id) ? 'text-white/80' : 'text-primary-600'"
                           title="Encrypted"
                         >🔒</span>
                         <span 
                           v-if="email.signed" 
                           class="text-xs" 
-                          :class="selectedEmailId === email.id ? 'text-green-300' : 'text-green-600'"
+                          :class="selectedEmailIds.has(email.id) ? 'text-green-300' : 'text-green-600'"
                           title="Signed"
                         >✓</span>
                       </div>
@@ -195,7 +214,7 @@
                       <div class="mt-0.5">
                         <span 
                           class="text-sm text-balance break-words whitespace-normal"
-                          :class="selectedEmailId === email.id 
+                          :class="selectedEmailIds.has(email.id) 
                             ? 'text-white' 
                             : (isEmailUnread(email) ? 'text-gray-900 dark:text-gray-100 font-medium' : 'text-gray-600 dark:text-gray-300')"
                         >
@@ -209,7 +228,7 @@
                         class="mt-1 text-xs"
                         :class="[
                           previewLevel === 3 ? 'line-clamp-4' : 'line-clamp-2',
-                          selectedEmailId === email.id ? 'text-white/70' : 'text-gray-500 dark:text-gray-400'
+                          selectedEmailIds.has(email.id) ? 'text-white/70' : 'text-gray-500 dark:text-gray-400'
                         ]"
                       >
                         {{ getEmailPreview(email) }}
@@ -221,7 +240,7 @@
                       <!-- Time Display -->
                       <span 
                         class="text-xs"
-                        :class="selectedEmailId === email.id ? 'text-white/60' : 'text-gray-500 dark:text-gray-400'"
+                        :class="selectedEmailIds.has(email.id) ? 'text-white/60' : 'text-gray-500 dark:text-gray-400'"
                       >
                         {{ formatTime(email.date) }}
                       </span>
@@ -266,9 +285,9 @@
                   @click.stop
                 >
                   <button
-                    @click.stop="showArchiveConfirm(email.id)"
+                    @click.stop="handleArchiveSelected"
                     class="p-1 transition-colors"
-                    :class="selectedEmailId === email.id 
+                    :class="selectedEmailIds.has(email.id) 
                       ? 'text-white/80 hover:text-white' 
                       : 'text-gray-500 hover:text-gray-700'"
                     title="Archive"
@@ -278,9 +297,9 @@
                     </svg>
                   </button>
                   <button
-                    @click.stop="handleDeleteEmail(email.id)"
+                    @click.stop="handleDeleteSelected"
                     class="p-1 transition-colors"
-                    :class="selectedEmailId === email.id 
+                    :class="selectedEmailIds.has(email.id) 
                       ? 'text-white/80 hover:text-white' 
                       : 'text-gray-500 hover:text-gray-700'"
                     title="Delete"
@@ -291,9 +310,9 @@
                   </button>
                   <button
                     v-if="email.accountId"
-                    @click.stop="showReminderForEmail(email.id)"
+                    @click.stop="handleReminderSelected"
                     class="p-1 transition-colors"
-                    :class="selectedEmailId === email.id 
+                    :class="selectedEmailIds.has(email.id) 
                       ? 'text-white/80 hover:text-white' 
                       : 'text-gray-500 hover:text-gray-700'"
                     title="Set Reminder"
@@ -304,9 +323,9 @@
                   </button>
                   <button
                     v-if="email.accountId"
-                    @click.stop="handleMoveToAside(email.id)"
+                    @click.stop="handleMoveToAsideSelected"
                     class="p-1 transition-colors"
-                    :class="selectedEmailId === email.id 
+                    :class="selectedEmailIds.has(email.id) 
                       ? 'text-white/80 hover:text-white' 
                       : 'text-gray-500 hover:text-gray-700'"
                     title="Move to Aside (A)"
@@ -317,9 +336,9 @@
                   </button>
                   <button
                     v-if="email.accountId"
-                    @click.stop="showFolderPickerForEmail(email.id)"
+                    @click.stop="handleMoveToFolderSelected"
                     class="p-1 transition-colors"
-                    :class="selectedEmailId === email.id 
+                    :class="selectedEmailIds.has(email.id) 
                       ? 'text-white/80 hover:text-white' 
                       : 'text-gray-500 hover:text-gray-700'"
                     title="Move to Folder (M)"
@@ -337,9 +356,9 @@
                 >
                   <button
                     v-if="email.accountId"
-                    @click.stop="handleUnspamEmail(email.id)"
+                    @click.stop="handleUnspamSelected"
                     class="p-1 transition-colors"
-                    :class="selectedEmailId === email.id 
+                    :class="selectedEmailIds.has(email.id) 
                       ? 'text-white/80 hover:text-white' 
                       : 'text-gray-500 hover:text-gray-700'"
                     title="Move to Inbox (Un-spam)"
@@ -471,6 +490,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   'select-email': [id: string]
+  'select-emails': [ids: string[]]
   'drag-start': [email: any]
   'drag-end': []
 }>()
@@ -484,6 +504,19 @@ const removedEmails = ref<Map<string, any>>(new Map()) // Store removed emails f
 const deletingAllEmails = ref(false)
 const pendingSyncedEmails = ref<any[]>([])
 const syncProgressUnsubscribe = ref<null | (() => void)>(null)
+
+// Multi-selection state
+const selectedEmailIds = ref<Set<string>>(new Set())
+const lastSelectedIndex = ref<number>(-1) // For Shift+click range selection
+
+// Sync with prop for backward compatibility
+watch(() => props.selectedEmailId, (newId) => {
+  if (newId) {
+    selectedEmailIds.value = new Set([newId])
+  } else if (!newId && selectedEmailIds.value.size === 1 && selectedEmailIds.value.has(props.selectedEmailId || '')) {
+    selectedEmailIds.value.clear()
+  }
+}, { immediate: true })
 
 // Check if we're in spam/junk folder
 const isSpamFolder = computed(() => {
@@ -586,6 +619,57 @@ const getEmailElement = (emailId: string): HTMLElement | null => {
 
 const getEmailAnchorElement = (emailId: string): HTMLElement | null => {
   return document.querySelector(`[data-email-anchor="${emailId}"]`) as HTMLElement | null
+}
+
+// Get global index of an email across all groups
+const getEmailGlobalIndex = (groupEmails: any[], emailIndex: number, group: any): number => {
+  const flatEmails = getAllEmailsFlat()
+  const email = groupEmails[emailIndex]
+  return flatEmails.findIndex(e => e.id === email.id)
+}
+
+// Handle email click with multi-selection support
+const handleEmailClick = (event: MouseEvent, emailId: string, emailIndex: number) => {
+  const isCtrlOrCmd = event.ctrlKey || event.metaKey
+  const isShift = event.shiftKey
+  
+  if (isShift && lastSelectedIndex.value !== -1) {
+    // Range selection
+    const start = Math.min(lastSelectedIndex.value, emailIndex)
+    const end = Math.max(lastSelectedIndex.value, emailIndex)
+    const flatEmails = getAllEmailsFlat()
+    
+    for (let i = start; i <= end; i++) {
+      if (flatEmails[i]) {
+        selectedEmailIds.value.add(flatEmails[i].id)
+      }
+    }
+    lastSelectedIndex.value = emailIndex
+  } else if (isCtrlOrCmd) {
+    // Toggle selection
+    if (selectedEmailIds.value.has(emailId)) {
+      selectedEmailIds.value.delete(emailId)
+    } else {
+      selectedEmailIds.value.add(emailId)
+    }
+    lastSelectedIndex.value = emailIndex
+  } else {
+    // Single selection
+    selectedEmailIds.value.clear()
+    selectedEmailIds.value.add(emailId)
+    lastSelectedIndex.value = emailIndex
+    // Emit for backward compatibility
+    emit('select-email', emailId)
+  }
+  
+  // Emit multi-selection event
+  emit('select-emails', Array.from(selectedEmailIds.value))
+}
+
+// Handle checkbox click
+const handleCheckboxClick = (event: MouseEvent, emailId: string, emailIndex: number) => {
+  event.stopPropagation()
+  handleEmailClick(event, emailId, emailIndex)
 }
 
 const handleEmailDoubleClick = async (emailId: string) => {
@@ -843,8 +927,76 @@ const cancelArchive = () => {
   closeArchivePopover()
 }
 
+// Handle archive for multiple selected emails
+const handleArchiveSelected = async () => {
+  const idsToArchive = Array.from(selectedEmailIds.value)
+  if (idsToArchive.length === 0) return
+  
+  // Check if confirmation is enabled
+  if (preferences.confirmArchive) {
+    // For now, archive first email to show confirmation
+    // In future, could show bulk confirmation
+    if (idsToArchive.length === 1) {
+      showArchiveConfirm(idsToArchive[0])
+      return
+    }
+    // For multiple, skip confirmation and archive all
+  }
+  
+  // Mark all as busy
+  idsToArchive.forEach(id => {
+    archivingEmailId.value = id
+    busyEmailIds.value.add(id)
+  })
+  
+  try {
+    // Archive all selected emails
+    const archivePromises = idsToArchive.map(async (emailId) => {
+      try {
+        const result = await window.electronAPI.emails.archive(emailId)
+        if (result.success) {
+          return { success: true, id: emailId }
+        } else {
+          console.error('Failed to archive email:', result.message)
+          return { success: false, id: emailId }
+        }
+      } catch (error) {
+        console.error('Error archiving email:', error)
+        return { success: false, id: emailId }
+      }
+    })
+    
+    const results = await Promise.all(archivePromises)
+    const successful = results.filter(r => r.success).map(r => r.id)
+    
+    // Remove successfully archived emails from list
+    emails.value = emails.value.filter(e => !successful.includes(e.id))
+    
+    // Clear selection
+    selectedEmailIds.value.clear()
+    lastSelectedIndex.value = -1
+    emit('select-email', '')
+    emit('select-emails', [])
+    
+    // Refresh email list
+    window.dispatchEvent(new CustomEvent('refresh-emails'))
+  } catch (error) {
+    console.error('Error archiving emails:', error)
+  } finally {
+    idsToArchive.forEach(id => busyEmailIds.value.delete(id))
+    archivingEmailId.value = null
+  }
+}
+
 const confirmArchive = async (emailId: string) => {
   closeArchivePopover()
+  
+  // If multiple emails selected, archive all
+  if (selectedEmailIds.value.has(emailId) && selectedEmailIds.value.size > 1) {
+    await handleArchiveSelected()
+    return
+  }
+  
   archivingEmailId.value = emailId
   busyEmailIds.value.add(emailId)
   
@@ -855,9 +1007,13 @@ const confirmArchive = async (emailId: string) => {
       emails.value = emails.value.filter(e => e.id !== emailId)
       // Refresh email list
       window.dispatchEvent(new CustomEvent('refresh-emails'))
-      // Clear selection if deleted email was selected
-      if (props.selectedEmailId === emailId) {
-        emit('select-email', '')
+      // Clear selection if archived email was selected
+      if (selectedEmailIds.value.has(emailId)) {
+        selectedEmailIds.value.delete(emailId)
+        if (selectedEmailIds.value.size === 0) {
+          emit('select-email', '')
+        }
+        emit('select-emails', Array.from(selectedEmailIds.value))
       }
     } else {
       console.error('Failed to archive email:', result.message)
@@ -870,8 +1026,60 @@ const confirmArchive = async (emailId: string) => {
   }
 }
 
+// Handle delete for multiple selected emails
+const handleDeleteSelected = async () => {
+  const idsToDelete = Array.from(selectedEmailIds.value)
+  if (idsToDelete.length === 0) return
+  
+  // Mark all as busy
+  idsToDelete.forEach(id => busyEmailIds.value.add(id))
+  
+  try {
+    // Delete all selected emails
+    const deletePromises = idsToDelete.map(async (emailId) => {
+      try {
+        const result = await window.electronAPI.emails.delete(emailId)
+        if (result.success) {
+          return { success: true, id: emailId }
+        } else {
+          console.error('Failed to delete email:', result.message)
+          return { success: false, id: emailId }
+        }
+      } catch (error) {
+        console.error('Error deleting email:', error)
+        return { success: false, id: emailId }
+      }
+    })
+    
+    const results = await Promise.all(deletePromises)
+    const successful = results.filter(r => r.success).map(r => r.id)
+    
+    // Remove successfully deleted emails from list
+    emails.value = emails.value.filter(e => !successful.includes(e.id))
+    
+    // Clear selection
+    selectedEmailIds.value.clear()
+    lastSelectedIndex.value = -1
+    emit('select-email', '')
+    emit('select-emails', [])
+    
+    // Refresh email list
+    window.dispatchEvent(new CustomEvent('refresh-emails'))
+  } catch (error) {
+    console.error('Error deleting emails:', error)
+  } finally {
+    idsToDelete.forEach(id => busyEmailIds.value.delete(id))
+  }
+}
+
 const handleDeleteEmail = async (emailId: string) => {
   if (!emailId) return
+  
+  // If this email is in selection, delete all selected
+  if (selectedEmailIds.value.has(emailId) && selectedEmailIds.value.size > 1) {
+    await handleDeleteSelected()
+    return
+  }
   
   busyEmailIds.value.add(emailId)
   
@@ -888,15 +1096,21 @@ const handleDeleteEmail = async (emailId: string) => {
       window.dispatchEvent(new CustomEvent('refresh-emails'))
       
       // Update selection if deleted email was selected
-      if (props.selectedEmailId === emailId) {
+      if (selectedEmailIds.value.has(emailId)) {
+        selectedEmailIds.value.delete(emailId)
         const remainingEmails = getAllEmailsFlat()
         if (remainingEmails.length > 0) {
           // Select next email, or previous if at end, or first if we were at first
           const nextIndex = currentIndex < remainingEmails.length ? currentIndex : remainingEmails.length - 1
-          emit('select-email', remainingEmails[nextIndex].id)
+          const nextId = remainingEmails[nextIndex].id
+          selectedEmailIds.value.clear()
+          selectedEmailIds.value.add(nextId)
+          emit('select-email', nextId)
         } else {
+          selectedEmailIds.value.clear()
           emit('select-email', '')
         }
+        emit('select-emails', Array.from(selectedEmailIds.value))
       }
     } else {
       console.error('Failed to delete email:', result.message)
@@ -908,8 +1122,60 @@ const handleDeleteEmail = async (emailId: string) => {
   }
 }
 
+// Handle spam for multiple selected emails
+const handleSpamSelected = async () => {
+  const idsToSpam = Array.from(selectedEmailIds.value)
+  if (idsToSpam.length === 0) return
+  
+  // Mark all as busy
+  idsToSpam.forEach(id => busyEmailIds.value.add(id))
+  
+  try {
+    // Spam all selected emails
+    const spamPromises = idsToSpam.map(async (emailId) => {
+      try {
+        const result = await window.electronAPI.emails.spam(emailId)
+        if (result.success) {
+          return { success: true, id: emailId }
+        } else {
+          console.error('Failed to mark email as spam:', result.message)
+          return { success: false, id: emailId }
+        }
+      } catch (error) {
+        console.error('Error marking email as spam:', error)
+        return { success: false, id: emailId }
+      }
+    })
+    
+    const results = await Promise.all(spamPromises)
+    const successful = results.filter(r => r.success).map(r => r.id)
+    
+    // Remove successfully spammed emails from list
+    emails.value = emails.value.filter(e => !successful.includes(e.id))
+    
+    // Clear selection
+    selectedEmailIds.value.clear()
+    lastSelectedIndex.value = -1
+    emit('select-email', '')
+    emit('select-emails', [])
+    
+    // Refresh email list
+    window.dispatchEvent(new CustomEvent('refresh-emails'))
+  } catch (error) {
+    console.error('Error marking emails as spam:', error)
+  } finally {
+    idsToSpam.forEach(id => busyEmailIds.value.delete(id))
+  }
+}
+
 const handleSpamEmail = async (emailId: string) => {
   if (!emailId) return
+  
+  // If this email is in selection, spam all selected
+  if (selectedEmailIds.value.has(emailId) && selectedEmailIds.value.size > 1) {
+    await handleSpamSelected()
+    return
+  }
   
   busyEmailIds.value.add(emailId)
   
@@ -926,15 +1192,21 @@ const handleSpamEmail = async (emailId: string) => {
       window.dispatchEvent(new CustomEvent('refresh-emails'))
       
       // Update selection if spammed email was selected
-      if (props.selectedEmailId === emailId) {
+      if (selectedEmailIds.value.has(emailId)) {
+        selectedEmailIds.value.delete(emailId)
         const remainingEmails = getAllEmailsFlat()
         if (remainingEmails.length > 0) {
           // Select next email, or previous if at end, or first if we were at first
           const nextIndex = currentIndex < remainingEmails.length ? currentIndex : remainingEmails.length - 1
-          emit('select-email', remainingEmails[nextIndex].id)
+          const nextId = remainingEmails[nextIndex].id
+          selectedEmailIds.value.clear()
+          selectedEmailIds.value.add(nextId)
+          emit('select-email', nextId)
         } else {
+          selectedEmailIds.value.clear()
           emit('select-email', '')
         }
+        emit('select-emails', Array.from(selectedEmailIds.value))
       }
     } else {
       console.error('Failed to mark email as spam:', result.message)
@@ -946,12 +1218,98 @@ const handleSpamEmail = async (emailId: string) => {
   }
 }
 
-const handleUnspamEmail = async (emailId: string) => {
-  if (!emailId) return
+// Handle unspam for multiple selected emails
+const handleUnspamSelected = async () => {
+  const idsToUnspam = Array.from(selectedEmailIds.value)
+  if (idsToUnspam.length === 0) return
   
+  const flatEmails = getAllEmailsFlat()
+  const emailsToUnspam = idsToUnspam.map(id => flatEmails.find(e => e.id === id)).filter(Boolean)
+  
+  // Group by accountId to batch folder lookups
+  const emailsByAccount = new Map<string, any[]>()
+  emailsToUnspam.forEach(email => {
+    if (email && email.accountId) {
+      if (!emailsByAccount.has(email.accountId)) {
+        emailsByAccount.set(email.accountId, [])
+      }
+      emailsByAccount.get(email.accountId)!.push(email)
+    }
+  })
+  
+  // Mark all as busy
+  idsToUnspam.forEach(id => busyEmailIds.value.add(id))
+  
+  try {
+    // Get inbox folders for all accounts
+    const accountFolders = new Map<string, string>()
+    for (const [accountId] of emailsByAccount) {
+      try {
+        const folders = await window.electronAPI.folders.list(accountId)
+        const inboxFolder = folders.find((f: any) => f.name.toLowerCase() === 'inbox')
+        if (inboxFolder) {
+          accountFolders.set(accountId, inboxFolder.id)
+        }
+      } catch (error) {
+        console.error(`Error getting folders for account ${accountId}:`, error)
+      }
+    }
+    
+    // Move all emails to inbox
+    const movePromises = emailsToUnspam.map(async (email) => {
+      if (!email || !email.accountId) return { success: false, id: email?.id }
+      
+      const inboxFolderId = accountFolders.get(email.accountId)
+      if (!inboxFolderId) {
+        console.error('Inbox folder not found for account:', email.accountId)
+        return { success: false, id: email.id }
+      }
+      
+      try {
+        const result = await window.electronAPI.emails.moveToFolder(email.id, inboxFolderId)
+        if (result.success) {
+          return { success: true, id: email.id }
+        } else {
+          console.error('Failed to un-spam email:', result.message)
+          return { success: false, id: email.id }
+        }
+      } catch (error) {
+        console.error('Error un-spamming email:', error)
+        return { success: false, id: email.id }
+      }
+    })
+    
+    const results = await Promise.all(movePromises)
+    const successful = results.filter(r => r.success).map(r => r.id)
+    
+    // Remove successfully moved emails from list
+    emails.value = emails.value.filter(e => !successful.includes(e.id))
+    
+    // Clear selection
+    selectedEmailIds.value.clear()
+    lastSelectedIndex.value = -1
+    emit('select-email', '')
+    emit('select-emails', [])
+    
+    // Refresh email list
+    window.dispatchEvent(new CustomEvent('refresh-emails'))
+  } catch (error) {
+    console.error('Error un-spamming emails:', error)
+  } finally {
+    idsToUnspam.forEach(id => busyEmailIds.value.delete(id))
+  }
+}
+
+const handleUnspamEmail = async (emailId: string) => {
   const email = getAllEmailsFlat().find(e => e.id === emailId)
   if (!email || !email.accountId) {
     console.error('Email not found or missing accountId', { emailId, email })
+    return
+  }
+  
+  // If this email is in selection, unspam all selected
+  if (selectedEmailIds.value.has(emailId) && selectedEmailIds.value.size > 1) {
+    await handleUnspamSelected()
     return
   }
   
@@ -981,15 +1339,21 @@ const handleUnspamEmail = async (emailId: string) => {
       window.dispatchEvent(new CustomEvent('refresh-emails'))
       
       // Update selection if un-spammed email was selected
-      if (props.selectedEmailId === emailId) {
+      if (selectedEmailIds.value.has(emailId)) {
+        selectedEmailIds.value.delete(emailId)
         const remainingEmails = getAllEmailsFlat()
         if (remainingEmails.length > 0) {
           // Select next email, or previous if at end, or first if we were at first
           const nextIndex = currentIndex < remainingEmails.length ? currentIndex : remainingEmails.length - 1
-          emit('select-email', remainingEmails[nextIndex].id)
+          const nextId = remainingEmails[nextIndex].id
+          selectedEmailIds.value.clear()
+          selectedEmailIds.value.add(nextId)
+          emit('select-email', nextId)
         } else {
+          selectedEmailIds.value.clear()
           emit('select-email', '')
         }
+        emit('select-emails', Array.from(selectedEmailIds.value))
       }
     } else {
       console.error('Failed to un-spam email:', result.message)
@@ -1046,7 +1410,10 @@ const handleDeleteAllEmails = async () => {
     }
     
     // Clear selection
+    selectedEmailIds.value.clear()
+    lastSelectedIndex.value = -1
     emit('select-email', '')
+    emit('select-emails', [])
     
     // Refresh email list
     window.dispatchEvent(new CustomEvent('refresh-emails'))
@@ -1067,6 +1434,23 @@ const handleReminderSaved = async () => {
   
   // Refresh the email list to reflect the move to Reminders folder
   await loadEmails()
+}
+
+// Handle reminder for multiple selected emails
+const handleReminderSelected = async () => {
+  const idsToRemind = Array.from(selectedEmailIds.value)
+  if (idsToRemind.length === 0) return
+  
+  // For multiple emails, show reminder modal for the first one
+  // The reminder modal can handle multiple emails if needed
+  const firstEmailId = idsToRemind[0]
+  const email = getAllEmailsFlat().find(e => e.id === firstEmailId)
+  if (!email || !email.accountId) {
+    console.error('Email not found or missing accountId', { emailId: firstEmailId, email })
+    return
+  }
+  
+  await showReminderForEmail(firstEmailId)
 }
 
 const showReminderForEmail = async (emailId: string) => {
@@ -1125,6 +1509,23 @@ const showReminderForEmail = async (emailId: string) => {
   } else {
     console.warn('Email or modal element not found, keeping centered position')
   }
+}
+
+// Handle folder picker for multiple selected emails
+const handleMoveToFolderSelected = async () => {
+  const idsToMove = Array.from(selectedEmailIds.value)
+  if (idsToMove.length === 0) return
+  
+  // For multiple emails, show folder picker for the first one
+  // The folder picker will move all selected emails
+  const firstEmailId = idsToMove[0]
+  const email = getAllEmailsFlat().find(e => e.id === firstEmailId)
+  if (!email || !email.accountId) {
+    console.error('Email not found or missing accountId', { emailId: firstEmailId, email })
+    return
+  }
+  
+  await showFolderPickerForEmail(firstEmailId)
 }
 
 const showFolderPickerForEmail = async (emailId: string) => {
@@ -1194,10 +1595,139 @@ const showFolderPickerForEmail = async (emailId: string) => {
   }
 }
 
+// Handle move to Aside for multiple selected emails
+const handleMoveToAsideSelected = async () => {
+  const idsToMove = Array.from(selectedEmailIds.value)
+  if (idsToMove.length === 0) return
+  
+  const flatEmails = getAllEmailsFlat()
+  const emailsToMove = idsToMove.map(id => flatEmails.find(e => e.id === id)).filter(Boolean)
+  
+  // Group by accountId to batch folder lookups
+  const emailsByAccount = new Map<string, any[]>()
+  emailsToMove.forEach(email => {
+    if (email && email.accountId) {
+      if (!emailsByAccount.has(email.accountId)) {
+        emailsByAccount.set(email.accountId, [])
+      }
+      emailsByAccount.get(email.accountId)!.push(email)
+    }
+  })
+  
+  // Mark all as busy
+  idsToMove.forEach(id => busyEmailIds.value.add(id))
+  
+  // Optimistically remove emails
+  const emailsToRemove = emailsToMove.map(email => {
+    const emailToRemove = emails.value.find(e => e.id === email.id)
+    if (emailToRemove) {
+      removedEmails.value.set(email.id, emailToRemove)
+    }
+    return { email, emailToRemove }
+  })
+  
+  emails.value = emails.value.filter(e => !idsToMove.includes(e.id))
+  
+  try {
+    // Get or create Aside folders for all accounts
+    const accountAsideFolders = new Map<string, string>()
+    for (const [accountId] of emailsByAccount) {
+      try {
+        const folders = await window.electronAPI.folders.list(accountId)
+        const flattenFolders = (folderList: any[]): any[] => {
+          const result: any[] = []
+          for (const folder of folderList) {
+            result.push(folder)
+            if (folder.children && folder.children.length > 0) {
+              result.push(...flattenFolders(folder.children))
+            }
+          }
+          return result
+        }
+        const allFolders = flattenFolders(folders)
+        let asideFolder = allFolders.find((f: any) => 
+          f.name.toLowerCase() === 'aside' || f.path?.toLowerCase().includes('aside')
+        )
+        
+        // If Aside folder doesn't exist, create it
+        if (!asideFolder) {
+          asideFolder = await window.electronAPI.folders.create(accountId, 'Aside')
+        }
+        
+        if (asideFolder) {
+          accountAsideFolders.set(accountId, asideFolder.id)
+        }
+      } catch (error) {
+        console.error(`Error getting/creating Aside folder for account ${accountId}:`, error)
+      }
+    }
+    
+    // Move all emails to Aside
+    const movePromises = emailsToMove.map(async (email) => {
+      if (!email || !email.accountId) return { success: false, id: email?.id }
+      
+      const asideFolderId = accountAsideFolders.get(email.accountId)
+      if (!asideFolderId) {
+        console.error('Aside folder not found for account:', email.accountId)
+        return { success: false, id: email.id }
+      }
+      
+      try {
+        await window.electronAPI.emails.moveToFolder(email.id, asideFolderId)
+        return { success: true, id: email.id }
+      } catch (error) {
+        console.error('Error moving email to Aside:', error)
+        return { success: false, id: email.id }
+      }
+    })
+    
+    const results = await Promise.all(movePromises)
+    const failed = results.filter(r => !r.success).map(r => r.id)
+    
+    // Restore failed emails
+    failed.forEach(emailId => {
+      const emailToRestore = removedEmails.value.get(emailId)
+      if (emailToRestore) {
+        emails.value.push(emailToRestore)
+        removedEmails.value.delete(emailId)
+      }
+    })
+    
+    emails.value.sort((a, b) => (b.date || 0) - (a.date || 0))
+    
+    // Clear selection
+    selectedEmailIds.value.clear()
+    lastSelectedIndex.value = -1
+    emit('select-email', '')
+    emit('select-emails', [])
+    
+    // Refresh email list
+    window.dispatchEvent(new CustomEvent('refresh-emails'))
+  } catch (error: any) {
+    console.error('Error moving emails to Aside:', error)
+    // Restore all emails on error
+    emailsToRemove.forEach(({ email, emailToRemove }) => {
+      if (emailToRemove) {
+        removedEmails.value.delete(email.id)
+        emails.value.push(emailToRemove)
+      }
+    })
+    emails.value.sort((a, b) => (b.date || 0) - (a.date || 0))
+  } finally {
+    idsToMove.forEach(id => busyEmailIds.value.delete(id))
+  }
+}
+
 const handleMoveToAside = async (emailId: string) => {
   const email = getAllEmailsFlat().find(e => e.id === emailId)
   if (!email || !email.accountId) {
     console.error('Email not found or missing accountId', { emailId, email })
+    return
+  }
+  
+  // If this email is in selection, move all selected
+  if (selectedEmailIds.value.has(emailId) && selectedEmailIds.value.size > 1) {
+    await handleMoveToAsideSelected()
     return
   }
   
@@ -1214,15 +1744,21 @@ const handleMoveToAside = async (emailId: string) => {
     emails.value = emails.value.filter(e => e.id !== emailId)
     
     // Update selection if moved email was selected
-    if (props.selectedEmailId === emailId) {
+    if (selectedEmailIds.value.has(emailId)) {
+      selectedEmailIds.value.delete(emailId)
       const remainingEmails = getAllEmailsFlat()
       if (remainingEmails.length > 0) {
         // Select next email, or previous if at end
         const nextIndex = currentIndex < remainingEmails.length ? currentIndex : remainingEmails.length - 1
-        emit('select-email', remainingEmails[nextIndex].id)
+        const nextId = remainingEmails[nextIndex].id
+        selectedEmailIds.value.clear()
+        selectedEmailIds.value.add(nextId)
+        emit('select-email', nextId)
       } else {
+        selectedEmailIds.value.clear()
         emit('select-email', '')
       }
+      emit('select-emails', Array.from(selectedEmailIds.value))
     }
   }
   
@@ -1272,47 +1808,76 @@ const handleFolderSelected = async (folderId: string) => {
   
   const emailId = folderPickerEmail.value.id
   
-  busyEmailIds.value.add(emailId)
+  // If multiple emails are selected, move all of them
+  const idsToMove = selectedEmailIds.value.size > 1 
+    ? Array.from(selectedEmailIds.value)
+    : [emailId]
   
-  // Optimistically remove email
-  const emailToRemove = emails.value.find(e => e.id === emailId)
-  if (emailToRemove) {
-    // Get flat list before filtering to find next email
-    const flatEmails = getAllEmailsFlat()
-    const currentIndex = flatEmails.findIndex(e => e.id === emailId)
-    
-    removedEmails.value.set(emailId, emailToRemove)
-    emails.value = emails.value.filter(e => e.id !== emailId)
-    
-    // Update selection if moved email was selected
-    if (props.selectedEmailId === emailId) {
-      const remainingEmails = getAllEmailsFlat()
-      if (remainingEmails.length > 0) {
-        // Select next email, or previous if at end
-        const nextIndex = currentIndex < remainingEmails.length ? currentIndex : remainingEmails.length - 1
-        emit('select-email', remainingEmails[nextIndex].id)
-      } else {
-        emit('select-email', '')
-      }
+  // Mark all as busy
+  idsToMove.forEach(id => busyEmailIds.value.add(id))
+  
+  // Optimistically remove emails
+  const emailsToRemove = idsToMove.map(id => {
+    const emailToRemove = emails.value.find(e => e.id === id)
+    if (emailToRemove) {
+      removedEmails.value.set(id, emailToRemove)
     }
-  }
+    return { id, emailToRemove }
+  })
+  
+  emails.value = emails.value.filter(e => !idsToMove.includes(e.id))
   
   try {
-    await window.electronAPI.emails.moveToFolder(emailId, folderId)
+    // Move all selected emails to the folder
+    const movePromises = idsToMove.map(async (id) => {
+      try {
+        await window.electronAPI.emails.moveToFolder(id, folderId)
+        return { success: true, id }
+      } catch (error: any) {
+        console.error(`Error moving email ${id} to folder:`, error)
+        return { success: false, id, error }
+      }
+    })
+    
+    const results = await Promise.all(movePromises)
+    const failed = results.filter(r => !r.success)
+    
+    // Restore failed emails
+    failed.forEach(({ id }) => {
+      const emailToRestore = removedEmails.value.get(id)
+      if (emailToRestore) {
+        emails.value.push(emailToRestore)
+        removedEmails.value.delete(id)
+      }
+    })
+    
+    emails.value.sort((a, b) => b.date - a.date)
+    
+    // Clear selection
+    selectedEmailIds.value.clear()
+    lastSelectedIndex.value = -1
+    emit('select-email', '')
+    emit('select-emails', [])
+    
     // Refresh email list
     window.dispatchEvent(new CustomEvent('refresh-emails'))
-  } catch (error: any) {
-    console.error('Error moving email to folder:', error)
-    // Restore email on error
-    const emailToRestore = removedEmails.value.get(emailId)
-    if (emailToRestore) {
-      emails.value.push(emailToRestore)
-      emails.value.sort((a, b) => b.date - a.date)
-      removedEmails.value.delete(emailId)
+    
+    if (failed.length > 0) {
+      alert(`Failed to move ${failed.length} email${failed.length === 1 ? '' : 's'}.`)
     }
-    alert(`Failed to move email: ${error.message || 'Unknown error'}`)
+  } catch (error: any) {
+    console.error('Error moving emails to folder:', error)
+    // Restore all emails on error
+    emailsToRemove.forEach(({ id, emailToRemove }) => {
+      if (emailToRemove) {
+        removedEmails.value.delete(id)
+        emails.value.push(emailToRemove)
+      }
+    })
+    emails.value.sort((a, b) => b.date - a.date)
+    alert(`Failed to move emails: ${error.message || 'Unknown error'}`)
   } finally {
-    busyEmailIds.value.delete(emailId)
+    idsToMove.forEach(id => busyEmailIds.value.delete(id))
     closeFolderPickerPopover()
   }
 }
@@ -1327,8 +1892,13 @@ const navigateEmail = (direction: 'up' | 'down') => {
   const flatEmails = getAllEmailsFlat()
   if (flatEmails.length === 0) return
   
-  const currentIndex = props.selectedEmailId 
-    ? flatEmails.findIndex(e => e.id === props.selectedEmailId)
+  // Get the first selected email or use the prop for backward compatibility
+  const currentEmailId = selectedEmailIds.value.size > 0 
+    ? Array.from(selectedEmailIds.value)[0]
+    : props.selectedEmailId
+  
+  const currentIndex = currentEmailId 
+    ? flatEmails.findIndex(e => e.id === currentEmailId)
     : -1
   
   let newIndex: number
@@ -1347,7 +1917,12 @@ const navigateEmail = (direction: 'up' | 'down') => {
   if (newEmail) {
     // Ensure container is focused before selecting
     containerRef.value?.focus()
+    // Clear selection and select new email
+    selectedEmailIds.value.clear()
+    selectedEmailIds.value.add(newEmail.id)
+    lastSelectedIndex.value = newIndex
     emit('select-email', newEmail.id)
+    emit('select-emails', [newEmail.id])
     // Scroll selected email into view
     nextTick(() => {
       const emailElement = document.querySelector(`[data-email-id="${newEmail.id}"]`) as HTMLElement
@@ -1439,51 +2014,81 @@ const handleKeyDown = (event: KeyboardEvent) => {
       navigateEmail('down')
       break
     case 'Delete':
-      if (props.selectedEmailId) {
+      if (selectedEmailIds.value.size > 0) {
         event.preventDefault()
         event.stopPropagation()
-        handleDeleteEmail(props.selectedEmailId)
+        if (selectedEmailIds.value.size > 1) {
+          handleDeleteSelected()
+        } else {
+          const emailId = Array.from(selectedEmailIds.value)[0]
+          handleDeleteEmail(emailId)
+        }
       }
       break
     case ' ':
-      if (props.selectedEmailId) {
+      if (selectedEmailIds.value.size > 0) {
         event.preventDefault()
         event.stopPropagation()
-        showArchiveConfirm(props.selectedEmailId)
+        if (selectedEmailIds.value.size > 1) {
+          handleArchiveSelected()
+        } else {
+          const emailId = Array.from(selectedEmailIds.value)[0]
+          showArchiveConfirm(emailId)
+        }
       }
       break
     case 't':
     case 'T':
-      if (props.selectedEmailId) {
+      if (selectedEmailIds.value.size > 0) {
         event.preventDefault()
         event.stopPropagation()
-        showReminderForEmail(props.selectedEmailId)
+        if (selectedEmailIds.value.size > 1) {
+          handleReminderSelected()
+        } else {
+          const emailId = Array.from(selectedEmailIds.value)[0]
+          showReminderForEmail(emailId)
+        }
       }
       break
     case 's':
     case 'S':
     case 'j':
     case 'J':
-      if (props.selectedEmailId) {
+      if (selectedEmailIds.value.size > 0) {
         event.preventDefault()
         event.stopPropagation()
-        handleSpamEmail(props.selectedEmailId)
+        if (selectedEmailIds.value.size > 1) {
+          handleSpamSelected()
+        } else {
+          const emailId = Array.from(selectedEmailIds.value)[0]
+          handleSpamEmail(emailId)
+        }
       }
       break
     case 'a':
     case 'A':
-      if (props.selectedEmailId) {
+      if (selectedEmailIds.value.size > 0) {
         event.preventDefault()
         event.stopPropagation()
-        handleMoveToAside(props.selectedEmailId)
+        if (selectedEmailIds.value.size > 1) {
+          handleMoveToAsideSelected()
+        } else {
+          const emailId = Array.from(selectedEmailIds.value)[0]
+          handleMoveToAside(emailId)
+        }
       }
       break
     case 'm':
     case 'M':
-      if (props.selectedEmailId) {
+      if (selectedEmailIds.value.size > 0) {
         event.preventDefault()
         event.stopPropagation()
-        showFolderPickerForEmail(props.selectedEmailId)
+        if (selectedEmailIds.value.size > 1) {
+          handleMoveToFolderSelected()
+        } else {
+          const emailId = Array.from(selectedEmailIds.value)[0]
+          showFolderPickerForEmail(emailId)
+        }
       }
       break
   }
@@ -1802,26 +2407,54 @@ const refreshEmails = async () => {
   pendingSyncedEmails.value = []
   shortcutsCache.clear() // Clear shortcuts cache
   
-  // Store current selected email ID before refresh
-  const previousSelectedId = props.selectedEmailId
+  // Store current selected email IDs before refresh
+  const previousSelectedIds = Array.from(selectedEmailIds.value)
+  const previousSelectedId = props.selectedEmailId || (previousSelectedIds.length > 0 ? previousSelectedIds[0] : null)
   
   await loadEmails()
   
-  // After refresh, check if selected email still exists
-  // This handles cases where email was removed externally (e.g., from EmailViewer or another component)
+  // After refresh, check if selected emails still exist
+  // This handles cases where emails were removed externally (e.g., from EmailViewer or another component)
   // Note: EmailList's own delete handlers already handle selection, so this is a fallback
-  if (previousSelectedId) {
-    await nextTick()
-    const flatEmails = getAllEmailsFlat()
+  await nextTick()
+  const flatEmails = getAllEmailsFlat()
+  
+  if (previousSelectedIds.length > 0) {
+    // Filter out emails that no longer exist
+    const validSelectedIds = previousSelectedIds.filter(id => flatEmails.some(e => e.id === id))
+    
+    if (validSelectedIds.length > 0) {
+      // Restore valid selections
+      selectedEmailIds.value = new Set(validSelectedIds)
+      emit('select-email', validSelectedIds[0])
+      emit('select-emails', validSelectedIds)
+    } else {
+      // No valid selections, select first email if available
+      if (flatEmails.length > 0) {
+        selectedEmailIds.value = new Set([flatEmails[0].id])
+        emit('select-email', flatEmails[0].id)
+        emit('select-emails', [flatEmails[0].id])
+      } else {
+        selectedEmailIds.value.clear()
+        emit('select-email', '')
+        emit('select-emails', [])
+      }
+    }
+  } else if (previousSelectedId) {
+    // Backward compatibility: check single selected email
     const emailStillExists = flatEmails.some(e => e.id === previousSelectedId)
     
     if (!emailStillExists) {
       if (flatEmails.length > 0) {
         // Selected email was removed externally, select the first email
+        selectedEmailIds.value = new Set([flatEmails[0].id])
         emit('select-email', flatEmails[0].id)
+        emit('select-emails', [flatEmails[0].id])
       } else {
         // No emails left, clear selection
+        selectedEmailIds.value.clear()
         emit('select-email', '')
+        emit('select-emails', [])
       }
     }
   }
@@ -1842,14 +2475,26 @@ const handleRemoveEmailOptimistic = (event: CustomEvent) => {
     emails.value = emails.value.filter(e => e.id !== emailId)
     
     // Update selection if removed email was selected
-    if (props.selectedEmailId === emailId) {
+    if (selectedEmailIds.value.has(emailId)) {
+      selectedEmailIds.value.delete(emailId)
       const remainingEmails = getAllEmailsFlat()
-      if (remainingEmails.length > 0) {
-        // Select next email, or previous if at end
+      
+      if (remainingEmails.length > 0 && selectedEmailIds.value.size === 0) {
+        // No more selections, select next email
         const nextIndex = currentIndex < remainingEmails.length ? currentIndex : remainingEmails.length - 1
-        emit('select-email', remainingEmails[nextIndex].id)
+        const nextId = remainingEmails[nextIndex].id
+        selectedEmailIds.value.add(nextId)
+        emit('select-email', nextId)
+        emit('select-emails', [nextId])
+      } else if (selectedEmailIds.value.size > 0) {
+        // Still have other selections
+        const firstId = Array.from(selectedEmailIds.value)[0]
+        emit('select-email', firstId)
+        emit('select-emails', Array.from(selectedEmailIds.value))
       } else {
+        // No emails left
         emit('select-email', '')
+        emit('select-emails', [])
       }
     }
   }
@@ -1959,10 +2604,13 @@ watch(() => emails.value.length, () => {
         containerRef.value?.focus()
       }
       // Auto-select first email if none selected
-      if (!props.selectedEmailId) {
+      if (selectedEmailIds.value.size === 0 && !props.selectedEmailId) {
         const flatEmails = getAllEmailsFlat()
         if (flatEmails.length > 0) {
+          selectedEmailIds.value.add(flatEmails[0].id)
+          lastSelectedIndex.value = 0
           emit('select-email', flatEmails[0].id)
+          emit('select-emails', [flatEmails[0].id])
         }
       }
     })
