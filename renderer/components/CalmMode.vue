@@ -61,13 +61,17 @@
         </div>
       </div>
       <div ref="mailcontent" class="flex-1 min-w-0 overflow-hidden">
-        <EmailViewer 
+        <!-- <EmailViewer 
           :email-id="selectedEmailId" 
           @reply="handleReply" 
           @forward="handleForward" 
           @set-reminder="handleSetReminder" 
           @delete="handleDelete" 
           @select-thread-email="handleThreadEmailSelect" 
+        /> -->
+        <ExperimentalEmailViewer 
+          :email="selectedEmail"
+          :loading="loadingEmail"
         />
       </div>
     </div>
@@ -128,9 +132,10 @@ import { Email } from '@shared/types'
 import { useEmailActions } from '../composables/useEmailActions'
 import { useEmailCacheStore } from '../stores/emailCache'
 import EmailNavigation from './EmailNavigation.vue'
-import EmailViewer from './EmailViewer.vue'
+// import EmailViewer from './EmailViewer.vue'
 import ReminderModal from './ReminderModal.vue'
 import FolderPickerModal from './FolderPickerModal.vue'
+import ExperimentalEmailViewer from './ExperimentalEmailViewer.vue'
 import { computePosition, offset, shift, arrow as floatingArrow, flip } from '@floating-ui/dom'
 import type { Placement, MiddlewareData } from '@floating-ui/dom'
 
