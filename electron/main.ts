@@ -139,10 +139,8 @@ function createComposeWindow(accountId: string, replyTo?: any) {
     composeWindow.setBackgroundColor('#00000000')
   }
 
-  // Prevent white/black flash during load
-  composeWindow.once('ready-to-show', () => {
-    composeWindow.show()
-  })
+  // Show window immediately for faster perceived performance
+  composeWindow.show()
 
   // Prevent navigation to file:// URLs (prevents opening files when dragged)
   composeWindow.webContents.on('will-navigate', (event, url) => {
@@ -171,13 +169,6 @@ function createComposeWindow(accountId: string, replyTo?: any) {
       composeWindow.loadFile(fallbackPath, { query: { compose: 'true', accountId } })
     })
   }
-  
-  // Send replyTo data via IPC after window loads
-  composeWindow.webContents.once('did-finish-load', () => {
-    if (replyTo) {
-      composeWindow?.webContents.send('compose:reply-data', replyTo)
-    }
-  })
 
   composeWindow.on('closed', () => {
     composeWindows.delete(composeWindow)

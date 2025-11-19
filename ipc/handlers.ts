@@ -3068,34 +3068,63 @@ export function registerWindowHandlers() {
   ipcMain.handle('window:compose:create', async (_, accountId: string, replyTo?: any) => {
     const { createComposeWindow } = await import('../electron/main')
     
-    // If replyTo has emailId, fetch the email in main process
-    let emailData = replyTo
-    if (replyTo?.emailId) {
-      try {
-        const email = await emailStorage.getEmail(replyTo.emailId, { fetchRemoteBody: true, fetchTimeoutMs: 60000 })
-        if (email) {
-          // Only pass essential fields (exclude attachments to avoid cloning issues)
-          emailData = {
-            id: email.id,
-            from: email.from,
-            to: email.to,
-            cc: email.cc,
-            subject: email.subject,
-            date: email.date,
-            htmlBody: email.htmlBody,
-            textBody: email.textBody,
-            body: email.body,
-            forward: replyTo.forward || false
-          }
+    // Create window immediately - don't wait for email fetch
+    // This makes the window appear instantly
+    const composeWindow = createComposeWindow(accountId, replyTo)
+    
+    // Helper function to send data when window is ready
+    const sendReplyData = (data: any) => {
+      if (composeWindow.isDestroyed()) return
+      
+      const trySend = () => {
+        if (!composeWindow.isDestroyed()) {
+          composeWindow.webContents.send('compose:reply-data', data)
         }
-      } catch (error) {
-        console.error('Error fetching email for compose:', error)
-        // Fall back to just emailId if fetch fails
-        emailData = replyTo
+      }
+      
+      // If window is still loading, wait for it to finish
+      if (composeWindow.webContents.isLoading()) {
+        composeWindow.webContents.once('did-finish-load', trySend)
+      } else {
+        // Window already loaded, but wait a tiny bit to ensure renderer is ready
+        setTimeout(trySend, 100)
       }
     }
     
-    createComposeWindow(accountId, emailData)
+    // If replyTo has emailId, fetch the email asynchronously after window is shown
+    if (replyTo?.emailId) {
+      // Fetch email in background and send via IPC when ready
+      emailStorage.getEmail(replyTo.emailId, { fetchRemoteBody: true, fetchTimeoutMs: 60000 })
+        .then((email) => {
+          if (email && composeWindow && !composeWindow.isDestroyed()) {
+            // Only pass essential fields (exclude attachments to avoid cloning issues)
+            const emailData = {
+              id: email.id,
+              from: email.from,
+              to: email.to,
+              cc: email.cc,
+              subject: email.subject,
+              date: email.date,
+              htmlBody: email.htmlBody,
+              textBody: email.textBody,
+              body: email.body,
+              forward: replyTo.forward || false
+            }
+            sendReplyData(emailData)
+          }
+        })
+        .catch((error) => {
+          console.error('Error fetching email for compose:', error)
+          // Send error notification if window still exists
+          if (composeWindow && !composeWindow.isDestroyed()) {
+            sendReplyData({ error: 'Failed to load email' })
+          }
+        })
+    } else if (replyTo) {
+      // If replyTo data is already provided (not just emailId), send it immediately
+      sendReplyData(replyTo)
+    }
+    
     return { success: true }
   })
 

@@ -1,5 +1,5 @@
 <template>
-  <div class="h-screen flex flex-col bg-white dark:bg-gray-900 relative">
+  <div class="h-screen flex flex-col bg-white dark:bg-gray-900 relative overflow-hidden">
     <!-- Custom Title Bar -->
     <div class="app-drag-region bg-white/70 dark:bg-gray-800/70 backdrop-blur-xl border-b border-white/60 dark:border-gray-700 shadow-sm flex items-center justify-between px-4 py-2 h-12">
       <div class="app-no-drag flex items-center space-x-3 flex-1 min-w-0">
@@ -7,10 +7,33 @@
         <button
           @click="sendEmail"
           :disabled="sending || !form.to?.trim()"
-          class="p-2 rounded-md hover:text-primary-700 hover:-rotate-90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors transition-transform"
+          class="p-2 rounded-md hover:text-primary-700 hover:-rotate-90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors transition-transform relative"
           :title="sending ? 'Sending...' : (!form.to?.trim() ? 'Please enter a recipient' : 'Send')"
         >
-          <PaperAirplaneIcon class="w-5 h-5 text-primary-600" />
+          <PaperAirplaneIcon 
+            v-if="!sending"
+            class="w-5 h-5 text-primary-600" 
+          />
+          <svg 
+            v-else
+            class="w-5 h-5 text-primary-600 animate-spin"
+            fill="none"
+            viewBox="0 0 24 24"
+          >
+            <circle 
+              class="opacity-25" 
+              cx="12" 
+              cy="12" 
+              r="10" 
+              stroke="currentColor" 
+              stroke-width="4"
+            ></circle>
+            <path 
+              class="opacity-75" 
+              fill="currentColor" 
+              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+            ></path>
+          </svg>
         </button>
         <!-- <img src="../../assets/ilogo.png" alt="iMail" class="w-6 h-6 rounded-lg flex-shrink-0" /> -->
         <h2 class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate min-w-0 flex-1" :title="displayTitle">{{ displayTitle }}</h2>
@@ -85,6 +108,17 @@
         >
           <XMarkIcon class="w-4 h-4 text-gray-600 dark:text-gray-300 hover:text-red-600 dark:hover:text-red-400" />
         </button>
+      </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div 
+      v-if="isLoadingReplyData"
+      class="absolute inset-0 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm z-50 flex items-center justify-center"
+    >
+      <div class="flex flex-col items-center space-y-3">
+        <div class="w-8 h-8 border-4 border-primary-600 dark:border-primary-500 border-t-transparent rounded-full animate-spin"></div>
+        <p class="text-sm font-medium text-gray-700 dark:text-gray-300">Loading email...</p>
       </div>
     </div>
 
@@ -411,6 +445,7 @@ const fileInput = ref<HTMLInputElement | null>(null)
 const attachments = ref<Array<{ name: string; size: number; file: File }>>([])
 const isDragging = ref(false)
 const windowId = ref<number | null>(null)
+const isLoadingReplyData = ref(false)
 
 const accounts = ref<any[]>([])
 const selectedAccountId = ref<string>(props.accountId)
@@ -568,6 +603,28 @@ onMounted(async () => {
     console.error('Error getting window ID:', error)
   }
   
+  // Check if we're waiting for reply data (emailId but no full data)
+  if (props.replyTo?.emailId && !props.replyTo.from) {
+    isLoadingReplyData.value = true
+  }
+  
+  // Listen for reply data from IPC (for async email loading)
+  let unsubscribe: (() => void) | null = null
+  unsubscribe = window.electronAPI.window.onComposeReplyData((data: any) => {
+    if (data.error) {
+      console.error('Error loading reply data:', data.error)
+      isLoadingReplyData.value = false
+      return
+    }
+    
+    // Update form with loaded data
+    if (data) {
+      updateFormFromReplyTo(data)
+      updateEditorContent(data)
+      isLoadingReplyData.value = false
+    }
+  })
+  
   // Load all accounts
   try {
     accounts.value = await window.electronAPI.accounts.list()
@@ -578,9 +635,10 @@ onMounted(async () => {
     console.error('Error loading accounts:', error)
   }
   
-  // Initialize editor content if replyTo is already available
-  if (props.replyTo && editor.value) {
+  // Initialize editor content if replyTo is already available (not just emailId)
+  if (props.replyTo && props.replyTo.from && editor.value) {
     updateEditorContent(props.replyTo)
+    isLoadingReplyData.value = false
   }
   
   // Load signatures for initial account
@@ -599,6 +657,13 @@ onMounted(async () => {
   
   // Initial title update
   updateWindowTitle()
+  
+  // Cleanup IPC listener on unmount
+  onBeforeUnmount(() => {
+    if (unsubscribe) {
+      unsubscribe()
+    }
+  })
 })
 
 onUnmounted(() => {
