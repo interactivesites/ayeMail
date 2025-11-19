@@ -90,7 +90,10 @@ export class IMAPClient {
         host: this.account.imap.host,
         port: this.account.imap.port,
         tls: this.account.imap.secure,
-        tlsOptions: { rejectUnauthorized: true }
+        tlsOptions: { 
+          rejectUnauthorized: false, // Allow connections through proxies/VPNs that inject certificates
+          minVersion: 'TLSv1.2'
+        }
       }
 
       if (this.account.authType === 'oauth2' && xoauth2Token) {

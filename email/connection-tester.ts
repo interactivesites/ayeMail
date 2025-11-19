@@ -85,7 +85,10 @@ function testIMAPConnection(account: ConnectionTestAccount): Promise<ConnectionR
       host: account.imap.host,
       port: account.imap.port,
       tls: account.imap.secure,
-      tlsOptions: { rejectUnauthorized: false } // Allow self-signed certificates for testing
+      tlsOptions: { 
+        rejectUnauthorized: false, // Allow connections through proxies/VPNs that inject certificates
+        minVersion: 'TLSv1.2'
+      }
     }
 
     if (account.authType === 'oauth2' && xoauth2Token) {
