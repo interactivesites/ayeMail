@@ -105,8 +105,28 @@
                 :data-email-anchor="email.id"
               ></span>
               <div class="flex items-start gap-3">
+                <!-- Checked Circle (shown in Archive folder) -->
+                <div v-if="isArchiveFolder" class="flex-shrink-0 self-center relative">
+                  <div 
+                    class="w-5 h-5 rounded-full border-2 flex items-center justify-center"
+                    :class="selectedEmailIds.has(email.id) 
+                      ? 'bg-white dark:bg-white border-white dark:border-white' 
+                      : 'bg-primary-600 dark:bg-primary-500 border-primary-600 dark:border-primary-500'"
+                    title="Archived"
+                  >
+                    <svg 
+                      class="w-3 h-3" 
+                      :class="selectedEmailIds.has(email.id) ? 'text-primary-600 dark:text-primary-500' : 'text-white'"
+                      fill="none" 
+                      stroke="currentColor" 
+                      viewBox="0 0 24 24"
+                    >
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                </div>
                 <!-- Archive Button (shown when email is selected) -->
-                <div v-if="selectedEmailIds.has(email.id)" class="flex-shrink-0 self-center relative">
+                <div v-else-if="selectedEmailIds.has(email.id)" class="flex-shrink-0 self-center relative">
                   <button
                     @click.stop="showArchiveConfirm(email.id)"
                     class="w-5 h-5 rounded-full border-2 border-gray-300 dark:border-dark-gray-600 flex items-center justify-center transition-colors hover:border-primary-600 dark:hover:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-600 focus:ring-offset-1"
@@ -207,7 +227,8 @@
                     
                     <!-- Right Side: Reminder Icon or Time and Status Icons -->
                     <div class="flex items-center gap-2 flex-shrink-0">
-                      <!-- Reminder Icon (if email has reminder) -->
+                      <!-- Reminder Icon (if email has reminder - active or completed) -->
+                      <!-- Shows for active reminders (in Reminders folder) and completed reminders (moved back to inbox) -->
                       <svg 
                         v-if="email.hasReminder"
                         class="w-4 h-4"
@@ -215,7 +236,7 @@
                         fill="none"
                         stroke="currentColor"
                         viewBox="0 0 24 24"
-                        title="Reminder set"
+                        :title="email.reminderCompleted ? 'Reminder completed - moved back from Reminders' : 'Reminder set'"
                       >
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
@@ -508,6 +529,14 @@ const isSpamFolder = computed(() => {
   return folderNameLower === 'spam' || folderNameLower === 'junk' || 
          props.folderId.toLowerCase().includes('spam') || 
          props.folderId.toLowerCase().includes('junk')
+})
+
+// Check if we're in Archive folder (including unified Aside view)
+const isArchiveFolder = computed(() => {
+  const folderNameLower = props.folderName.toLowerCase()
+  // Only check for Archive folders, not Aside folders (they are separate)
+  return folderNameLower === 'archive' || 
+         props.folderId.toLowerCase().includes('archive')
 })
 
 // Check if we're in deleted/trash folder

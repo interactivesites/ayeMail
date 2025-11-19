@@ -722,14 +722,15 @@ export function registerEmailHandlers() {
     console.log(`Found ${emailsToReturn.length} emails ${threadView ? '(grouped by thread)' : '(ungrouped)'} in folder ${folder.name} (id: ${folderId})`)
     
     // Get all reminder info for emails in this folder (for showing reminder icons)
+    // Include both active and completed reminders - completed reminders indicate emails moved back from Reminders
     const emailIds = emailsToReturn.map(e => e.id)
     const reminderMap = new Map<string, any>()
     if (emailIds.length > 0) {
       const placeholders = emailIds.map(() => '?').join(',')
       const reminders = db.prepare(`
-        SELECT email_id, due_date, id
+        SELECT email_id, due_date, id, completed
         FROM reminders
-        WHERE email_id IN (${placeholders}) AND completed = 0
+        WHERE email_id IN (${placeholders})
       `).all(...emailIds) as any[]
       
       for (const reminder of reminders) {
@@ -774,7 +775,8 @@ export function registerEmailHandlers() {
         threadId: threadId,
         threadCount: threadCount,
         hasReminder: !!reminder,
-        reminderDueDate: reminder?.due_date || null
+        reminderDueDate: reminder?.due_date || null,
+        reminderCompleted: reminder?.completed === 1 || false
       }
     })
     
@@ -974,22 +976,24 @@ export function registerEmailHandlers() {
       `
       params = [limit, offset]
     } else if (type === 'aside') {
-      // Get all Archive folders for the specified accounts (or all accounts if empty)
-      // Aside folder shows all archived emails unified
-      let archiveFoldersQuery = `
+      // Get all Aside folders for the specified accounts (or all accounts if empty)
+      // Aside folder shows emails moved to Aside folders (separate from Archive)
+      let asideFoldersQuery = `
         SELECT id FROM folders 
-        WHERE (LOWER(name) = 'archive' OR LOWER(path) LIKE '%archive%')
+        WHERE (LOWER(name) = 'aside' OR LOWER(path) LIKE '%aside%')
+          AND LOWER(name) != 'archive'
+          AND LOWER(path) NOT LIKE '%archive%'
       `
-      let archiveFoldersParams: any[] = []
+      let asideFoldersParams: any[] = []
       
       if (accountIds.length > 0) {
-        archiveFoldersQuery += ` AND account_id IN (${accountIds.map(() => '?').join(',')})`
-        archiveFoldersParams = [...accountIds]
+        asideFoldersQuery += ` AND account_id IN (${accountIds.map(() => '?').join(',')})`
+        asideFoldersParams = [...accountIds]
       }
       
-      const archiveFolders = db.prepare(archiveFoldersQuery).all(...archiveFoldersParams) as any[]
+      const asideFolders = db.prepare(asideFoldersQuery).all(...asideFoldersParams) as any[]
       
-      const folderIds = archiveFolders.map(f => f.id)
+      const folderIds = asideFolders.map(f => f.id)
       if (folderIds.length === 0) {
         return []
       }
@@ -1046,14 +1050,15 @@ export function registerEmailHandlers() {
     const emails = db.prepare(query).all(...params) as any[]
     
     // Get reminder info for all emails (for showing reminder icons)
+    // Include both active and completed reminders - completed reminders indicate emails moved back from Reminders
     const emailIds = emails.map(e => e.id)
     const reminderMap = new Map<string, any>()
     if (emailIds.length > 0) {
       const placeholders = emailIds.map(() => '?').join(',')
       const reminders = db.prepare(`
-        SELECT email_id, due_date, id
+        SELECT email_id, due_date, id, completed
         FROM reminders
-        WHERE email_id IN (${placeholders}) AND completed = 0
+        WHERE email_id IN (${placeholders})
       `).all(...emailIds) as any[]
       
       for (const reminder of reminders) {
@@ -1136,7 +1141,8 @@ export function registerEmailHandlers() {
         threadCount: Number(threadCount?.count || 1),
         reminder_due_date: e.reminder_due_date ? Number(e.reminder_due_date) : undefined,
         hasReminder: !!reminderMap.get(e.id),
-        reminderDueDate: reminderMap.get(e.id)?.due_date || e.reminder_due_date || null
+        reminderDueDate: reminderMap.get(e.id)?.due_date || e.reminder_due_date || null,
+        reminderCompleted: reminderMap.get(e.id)?.completed === 1 || false
       }
       
       // Force serialization to ensure everything is cloneable
@@ -1897,13 +1903,30 @@ export function registerEmailHandlers() {
       return { success: false, message: 'Email not found' }
     }
 
+    // Check if email is already in an Archive folder
+    const currentFolder = db.prepare('SELECT * FROM folders WHERE id = ?').get(email.folder_id) as any
+    const isAlreadyInArchive = currentFolder && (
+      currentFolder.name.toLowerCase() === 'archive' || 
+      currentFolder.path.toLowerCase().includes('archive')
+    )
+    
+    // If already in Archive, just delete any reminders and return success (no-op)
+    if (isAlreadyInArchive) {
+      db.prepare('DELETE FROM reminders WHERE email_id = ? AND completed = 0').run(id)
+      return { success: true, message: 'Email already in Archive' }
+    }
+
     // Delete any reminders for this email when archiving
     db.prepare('DELETE FROM reminders WHERE email_id = ? AND completed = 0').run(id)
 
     // Find or create Archive folder
+    // Explicitly exclude Aside folders - only look for Archive
     let archiveFolder = db.prepare(`
       SELECT * FROM folders 
-      WHERE account_id = ? AND (LOWER(name) = 'archive' OR LOWER(path) LIKE '%archive%')
+      WHERE account_id = ? 
+        AND (LOWER(name) = 'archive' OR LOWER(path) LIKE '%archive%')
+        AND LOWER(name) != 'aside'
+        AND LOWER(path) NOT LIKE '%aside%'
       LIMIT 1
     `).get(email.account_id) as any
 
@@ -1915,8 +1938,11 @@ export function registerEmailHandlers() {
           const imapClient = getIMAPClient(account)
           await imapClient.connect()
           const folders = await imapClient.listFolders()
+          // Explicitly exclude Aside folders - only look for Archive
           let archiveFolderOnServer = folders.find(
-            f => f.name.toLowerCase() === 'archive' || f.path.toLowerCase().includes('archive')
+            f => (f.name.toLowerCase() === 'archive' || f.path.toLowerCase().includes('archive'))
+              && f.name.toLowerCase() !== 'aside'
+              && !f.path.toLowerCase().includes('aside')
           )
 
           // If Archive folder doesn't exist on server, create it
@@ -1994,9 +2020,28 @@ export function registerEmailHandlers() {
     const now = Date.now()
     
     if (existingArchivedEmail) {
-      // Email already exists in archive folder, just delete the current one
+      // Email already exists in archive folder, delete the current one (from Aside or wherever it is)
       db.prepare('DELETE FROM emails WHERE id = ?').run(id)
+      return { success: true, message: 'Email already in Archive, duplicate removed' }
     } else {
+      // Before moving, check if there are any other emails with same uid in Archive or Aside folders
+      // and delete them to prevent duplicates
+      const otherArchiveEmails = db.prepare(`
+        SELECT e.id, f.name, f.path FROM emails e
+        JOIN folders f ON e.folder_id = f.id
+        WHERE e.account_id = ? 
+          AND e.uid = ? 
+          AND e.id != ?
+          AND (
+            LOWER(f.name) = 'archive' OR LOWER(f.path) LIKE '%archive%' OR
+            LOWER(f.name) = 'aside' OR LOWER(f.path) LIKE '%aside%'
+          )
+      `).all(email.account_id, email.uid, id) as any[]
+      
+      // Delete any duplicates found in Archive or Aside folders
+      for (const dup of otherArchiveEmails) {
+        db.prepare('DELETE FROM emails WHERE id = ?').run(dup.id)
+      }
       // Move email to Archive folder
       try {
     db.prepare(`

@@ -237,7 +237,7 @@ const unifiedFolders = computed(() => {
     unread_count: 0
   })
   
-  // Aside folder (unified) - show all archived emails from all accounts
+  // Aside folder (unified) - show all aside emails from all accounts (separate from Archive)
   folders.push({
     id: 'unified-aside',
     name: 'Aside',

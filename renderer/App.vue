@@ -342,7 +342,7 @@ const handleFolderSelect = async (folder: any) => {
       unifiedFolderAccountIds.value = []
     } else if (folder.id === 'unified-aside') {
       unifiedFolderType.value = 'aside'
-      // Aside shows all archived emails from all accounts
+      // Aside shows all aside emails from all accounts (separate from Archive)
       const accounts = await window.electronAPI.accounts.list()
       unifiedFolderAccountIds.value = accounts.map((a: any) => a.id)
     }
