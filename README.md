@@ -8,7 +8,7 @@ A secure, feature-rich email client built with Electron, Vue 3, TypeScript, and 
 - **IMAP Folder Management**: Create, delete, rename, and subscribe to folders
 - **Email Reminders**: Set follow-up reminders for specific emails with notifications
 - **Email Signatures**: Multiple signatures per account with HTML and plain text support
-- **GPG Encryption**: Full GPG support for encrypting, decrypting, signing, and verifying emails
+- **GPG Encryption**: Full GPG support for encrypting, decrypting, signing, and verifying emails (NOT YET IMPLEMENTED. Are you interested to help out??)
 - **Security Features**:
   - Encrypted credential storage using Electron's safeStorage
   - Encrypted local database for email storage
