@@ -116,72 +116,6 @@
                 </div>
               </div>
               <div class="flex items-start gap-3">
-                <!-- Selection Checkbox -->
-                <div class="flex-shrink-0 self-center relative">
-                  <button
-                    @click.stop="handleCheckboxClick($event, email.id, getEmailGlobalIndex(group.emails, emailIndex, group))"
-                    class="w-5 h-5 rounded border-2 flex items-center justify-center transition-colors focus:outline-none focus:ring-2 focus:ring-primary-600 focus:ring-offset-1"
-                    :class="{
-                      'bg-primary-600 dark:bg-primary-500 border-primary-600 dark:border-primary-500': selectedEmailIds.has(email.id),
-                      'border-gray-300 dark:border-gray-600 hover:border-primary-600 dark:hover:border-primary-500': !selectedEmailIds.has(email.id),
-                      'hover:bg-gray-50 dark:hover:bg-gray-700': !selectedEmailIds.has(email.id)
-                    }"
-                    title="Select email"
-                  >
-                    <svg v-if="selectedEmailIds.has(email.id)" class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
-                    </svg>
-                  </button>
-                </div>
-                
-                <!-- Archive Button (shown when email is selected) -->
-                <div v-if="selectedEmailIds.has(email.id)" class="flex-shrink-0 self-center relative">
-                  <button
-                    @click.stop="showArchiveConfirm(email.id)"
-                    class="w-5 h-5 rounded-full border-2 border-gray-300 dark:border-gray-600 flex items-center justify-center transition-colors hover:border-primary-600 dark:hover:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-600 focus:ring-offset-1"
-                    :class="{
-                      'bg-primary-600 dark:bg-primary-500 border-primary-600 dark:border-primary-500': archiveConfirmId === email.id,
-                      'hover:bg-gray-50 dark:hover:bg-gray-700': archiveConfirmId !== email.id
-                    }"
-                    title="Archive email"
-                  >
-                    <svg v-if="archiveConfirmId === email.id" class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
-                    </svg>
-                  </button>
-                  
-                  <!-- Archive Confirmation Popover -->
-                  <Teleport to="body">
-                    <div
-                      v-if="archiveConfirmId === email.id" 
-                      :ref="(el: HTMLElement | null) => { if (el) { archivePopoverRefs.set(email.id, el) } else { archivePopoverRefs.delete(email.id) } }"
-                      class="popover-panel fixed z-50 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 p-3 min-w-[220px]"
-                      @click.stop
-                    >
-                      <div
-                        class="popover-arrow bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700"
-                        :ref="(el: HTMLElement | null) => { if (el) { archiveArrowRefs.set(email.id, el) } else { archiveArrowRefs.delete(email.id) } }"
-                      ></div>
-                      <div class="flex items-center gap-2 mb-3">
-                        <button
-                          @click="cancelArchive"
-                          class="px-3 py-1.5 text-sm rounded bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          @click="confirmArchive(email.id)"
-                          class="px-3 py-1.5 text-sm rounded bg-primary-600 dark:bg-primary-500 text-white hover:bg-primary-700 dark:hover:bg-primary-600 transition-colors"
-                        >
-                          Complete
-                        </button>
-                      </div>
-                      <p class="text-xs text-gray-500 dark:text-gray-400">Disable confirmation messages in Preferences</p>
-                    </div>
-                  </Teleport>
-                </div>
-                
-                
                 <!-- Email Content -->
                 <div class="flex-1 min-w-0">
                   <div class="flex items-start justify-between gap-2">
@@ -666,11 +600,6 @@ const handleEmailClick = (event: MouseEvent, emailId: string, emailIndex: number
   emit('select-emails', Array.from(selectedEmailIds.value))
 }
 
-// Handle checkbox click
-const handleCheckboxClick = (event: MouseEvent, emailId: string, emailIndex: number) => {
-  event.stopPropagation()
-  handleEmailClick(event, emailId, emailIndex)
-}
 
 const handleEmailDoubleClick = async (emailId: string) => {
   try {
