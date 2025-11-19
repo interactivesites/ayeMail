@@ -705,7 +705,8 @@ const createReminder = async (days: number) => {
   
   const dueDate = new Date()
   dueDate.setDate(dueDate.getDate() + days)
-  dueDate.setHours(23, 59, 59, 999)
+  // Set default reminder time to 10 AM
+  dueDate.setHours(10, 0, 0, 0)
   
   
   const result = await window.electronAPI.reminders.create({

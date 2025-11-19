@@ -2940,6 +2940,173 @@ export function registerReminderHandlers() {
   })
 }
 
+// Test handlers
+export function registerTestHandlers() {
+  ipcMain.handle('test:create-reminder-email', async (_, minutesFromNow: number = 5) => {
+    const db = getDatabase()
+    const { encryption } = require('../database')
+    
+    // Get the first available account
+    const accounts = db.prepare('SELECT * FROM accounts ORDER BY created_at DESC LIMIT 1').all() as any[]
+    
+    if (accounts.length === 0) {
+      throw new Error('No accounts found. Please add an account first.')
+    }
+    
+    const account = accounts[0]
+    
+    // Find or get inbox folder
+    const inboxFolder = db.prepare(`
+      SELECT * FROM folders 
+      WHERE account_id = ? AND (LOWER(name) = 'inbox' OR LOWER(path) = 'INBOX')
+      LIMIT 1
+    `).get(account.id) as any
+    
+    if (!inboxFolder) {
+      throw new Error('Inbox folder not found. Please sync your account first.')
+    }
+    
+    // Get the highest UID in the inbox to avoid conflicts
+    const maxUidResult = db.prepare(`
+      SELECT MAX(uid) as max_uid FROM emails 
+      WHERE account_id = ? AND folder_id = ?
+    `).get(account.id, inboxFolder.id) as any
+    
+    const nextUid = (maxUidResult?.max_uid || 0) + 1
+    
+    // Create test email
+    const emailId = randomUUID()
+    const messageId = `<test-${Date.now()}@ayemail.local>`
+    const now = Date.now()
+    
+    const testEmail = {
+      subject: `Test Reminder Email - ${minutesFromNow} Minutes`,
+      from: [{ name: 'Test Sender', address: 'test@example.com' }],
+      to: [{ name: account.name || 'You', address: account.email }],
+      body: `This is a test email with a reminder set for ${minutesFromNow} minutes from now.
+
+The reminder should trigger at: ${new Date(now + minutesFromNow * 60 * 1000).toLocaleString()}
+
+This email was created for testing the reminder functionality.`,
+      htmlBody: `<p>This is a test email with a reminder set for <strong>${minutesFromNow} minutes</strong> from now.</p>
+<p>The reminder should trigger at: <strong>${new Date(now + minutesFromNow * 60 * 1000).toLocaleString()}</strong></p>
+<p>This email was created for testing the reminder functionality.</p>`
+    }
+    
+    // Encrypt email body
+    const bodyEncrypted = encryption.encrypt(testEmail.body)
+    const htmlBodyEncrypted = encryption.encrypt(testEmail.htmlBody)
+    
+    // Insert email into database
+    db.prepare(`
+      INSERT INTO emails (
+        id, account_id, folder_id, uid, message_id, subject,
+        from_addresses, to_addresses, cc_addresses, bcc_addresses, reply_to_addresses,
+        date, body_encrypted, html_body_encrypted, text_body_encrypted, headers_encrypted,
+        flags, is_read, is_starred, thread_id, in_reply_to, email_references,
+        encrypted, signed, signature_verified, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      emailId,
+      account.id,
+      inboxFolder.id,
+      nextUid,
+      messageId,
+      testEmail.subject,
+      JSON.stringify(testEmail.from),
+      JSON.stringify(testEmail.to),
+      null, // cc
+      null, // bcc
+      null, // reply_to
+      now,
+      bodyEncrypted,
+      htmlBodyEncrypted,
+      null, // text_body (we have html_body)
+      null, // headers
+      JSON.stringify([]), // flags
+      0, // is_read
+      0, // is_starred
+      null, // thread_id
+      null, // in_reply_to
+      null, // email_references
+      0, // encrypted
+      0, // signed
+      null, // signature_verified
+      now,
+      now
+    )
+    
+    // Find or create Reminders folder
+    let remindersFolder = db.prepare(`
+      SELECT * FROM folders 
+      WHERE account_id = ? AND (LOWER(name) = 'reminders' OR LOWER(path) LIKE '%reminders%')
+      LIMIT 1
+    `).get(account.id) as any
+    
+    if (!remindersFolder) {
+      // Create local Reminders folder
+      const folderId = randomUUID()
+      const folderNow = Date.now()
+      db.prepare(`
+        INSERT INTO folders (id, account_id, name, path, subscribed, attributes, created_at, updated_at)
+        VALUES (?, ?, ?, ?, 1, ?, ?, ?)
+      `).run(
+        folderId,
+        account.id,
+        'Reminders',
+        'Reminders',
+        JSON.stringify([]),
+        folderNow,
+        folderNow
+      )
+      remindersFolder = { id: folderId, path: 'Reminders' }
+    }
+    
+    // Move email to Reminders folder
+    db.prepare(`
+      UPDATE emails 
+      SET folder_id = ?, updated_at = ?
+      WHERE id = ?
+    `).run(remindersFolder.id, now, emailId)
+    
+    // Create reminder
+    const reminderId = randomUUID()
+    const reminderDueDate = now + (minutesFromNow * 60 * 1000)
+    
+    // Store original folder in message field
+    const reminderMessage = JSON.stringify({ originalFolderId: inboxFolder.id })
+    
+    db.prepare(`
+      INSERT INTO reminders (id, email_id, account_id, due_date, message, completed, created_at)
+      VALUES (?, ?, ?, ?, ?, 0, ?)
+    `).run(
+      reminderId,
+      emailId,
+      account.id,
+      reminderDueDate,
+      reminderMessage,
+      now
+    )
+    
+    // Update folder counts
+    db.prepare(`
+      UPDATE folders 
+      SET total_count = total_count + 1, updated_at = ?
+      WHERE id = ?
+    `).run(now, remindersFolder.id)
+    
+    return {
+      success: true,
+      emailId,
+      reminderId,
+      dueDate: reminderDueDate,
+      dueDateFormatted: new Date(reminderDueDate).toLocaleString(),
+      accountEmail: account.email,
+      minutesFromNow
+    }
+  })
+}
+
 // Signature handlers
 export function registerSignatureHandlers() {
   ipcMain.handle('signatures:list', async (_, accountId: string) => {
@@ -3306,4 +3473,5 @@ export function registerAllHandlers() {
   registerWindowHandlers()
   registerContactHandlers()
   registerShellHandlers()
+  registerTestHandlers()
 }

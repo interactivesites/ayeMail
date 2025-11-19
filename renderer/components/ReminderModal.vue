@@ -249,7 +249,8 @@ const applyShortcut = async (days: number) => {
   if (target.getTime() < tomorrow.getTime()) {
     target.setTime(tomorrow.getTime())
   }
-  target.setHours(0, 0, 0, 0)
+  // Set default reminder time to 10 AM for shortcuts
+  target.setHours(10, 0, 0, 0)
   const normalizedTarget = new Date(target)
   isProcessing = true
   selectedDate.value = [normalizedTarget, normalizedTarget]
@@ -329,9 +330,12 @@ const handleDateSelect = async (value: string | string[] | Date | Date[] | any) 
     
     saving.value = true
     
-    // Convert date to end of day timestamp (23:59:59)
+    // Set default reminder time to 10 AM if time is midnight (from calendar selection)
+    // Otherwise preserve the time (e.g., 10 AM from shortcuts)
     const dueDateObj = new Date(selected)
-    dueDateObj.setHours(23, 59, 59, 999)
+    if (dueDateObj.getHours() === 0 && dueDateObj.getMinutes() === 0 && dueDateObj.getSeconds() === 0) {
+      dueDateObj.setHours(10, 0, 0, 0)
+    }
     const dueDate = dueDateObj.getTime()
     
     await window.electronAPI.reminders.create({

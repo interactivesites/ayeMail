@@ -174,5 +174,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // System operations
   shell: {
     openExternal: (url: string) => ipcRenderer.invoke('shell:openExternal', url)
+  },
+  
+  // Test utilities
+  test: {
+    createReminderEmail: (minutesFromNow?: number) => ipcRenderer.invoke('test:create-reminder-email', minutesFromNow)
   }
 })
