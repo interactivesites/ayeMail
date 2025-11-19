@@ -722,61 +722,20 @@ const attemptAutoConfiguration = async () => {
 
   if (!hasKnownProvider) {
     autoConfigState.status = 'failed'
-    autoConfigState.error = t('accounts.autoConfigNoProvider') || 'No provider preset found. Opening advanced settings.'
-    // Only switch to advanced mode after a delay to avoid jumping while user is typing
-    if (form.value.password) {
-      if (advancedModeTimeout) {
-        clearTimeout(advancedModeTimeout)
-      }
-      advancedModeTimeout = setTimeout(() => {
-        showAdvanced.value = true
-      }, 1500) // 1.5 second delay after password is entered
-    }
+    autoConfigState.error = t('accounts.autoConfigNoProvider') || 'No provider preset found. Please use Advanced Settings or click Test Connection.'
+    // Don't automatically switch to advanced mode - let user decide
     return
   }
 
   if (!form.value.password) {
     autoConfigState.status = 'success'
-    autoConfigState.message = t('accounts.autoConfigEnterPassword') || 'Enter your password so we can try connecting.'
+    autoConfigState.message = t('accounts.autoConfigEnterPassword') || 'Enter your password, then click Test Connection.'
     return
   }
 
-  autoConfigState.status = 'connecting'
-  autoConfigState.message = t('accounts.autoConfigTesting') || 'Testing the connection...'
-
-  try {
-    const result = await window.electronAPI.accounts.probe(buildProbePayload())
-    if (requestId !== autoConfigRequestId) {
-      return
-    }
-
-    if (result?.success) {
-      const successKey = detectedProvider.value ? 'accounts.autoConfigSuccessWithProvider' : 'accounts.autoConfigSuccess'
-      autoConfigState.status = 'success'
-      autoConfigState.message = t(successKey, { provider: detectedProvider.value }) ||
-        'Connection successful.'
-      showAdvanced.value = false
-    } else {
-      autoConfigState.status = 'failed'
-      autoConfigState.error = result?.message || t('accounts.autoConfigGenericError') ||
-        'Automatic setup failed. Opening advanced settings.'
-      // Add a small delay before switching to advanced mode to avoid jarring UI change
-      setTimeout(() => {
-        showAdvanced.value = true
-      }, 500)
-    }
-  } catch (error: any) {
-    if (requestId !== autoConfigRequestId) {
-      return
-    }
-    autoConfigState.status = 'failed'
-    autoConfigState.error = error?.message || t('accounts.autoConfigGenericError') ||
-      'Automatic setup failed. Opening advanced settings.'
-    // Add a small delay before switching to advanced mode to avoid jarring UI change
-    setTimeout(() => {
-      showAdvanced.value = true
-    }, 500)
-  }
+  // Provider detected and password entered - ready for user to test
+  autoConfigState.status = 'success'
+  autoConfigState.message = t('accounts.autoConfigReady') || 'Settings configured. Click Test Connection to verify.'
 }
 
 const scheduleAutoConfig = () => {
@@ -925,12 +884,8 @@ const testConnection = async () => {
     errorMessage.value = error?.message || t('accounts.testConnectionFailed') || 'Connection test failed. Please check your settings.'
     successMessage.value = ''
     
-    // Auto-open Gmail help modal if authentication fails for Gmail
-    const isGmail = form.value.email.toLowerCase().includes('@gmail.com') || 
-                    form.value.email.toLowerCase().includes('@googlemail.com')
-    if (isGmail && errorMessage.value.toLowerCase().includes('authentication')) {
-      showGmailHelpModal.value = true
-    }
+    // Don't auto-open the Gmail help modal - let users click the button if they need help
+    // The error message already contains detailed instructions for both 2FA and non-2FA scenarios
   } finally {
     testingConnection.value = false
   }

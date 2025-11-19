@@ -31,7 +31,7 @@
       </div>
       <div v-else>
         <!-- Favorites Section -->
-        <div v-if="favoriteFolders.length > 0" class="mb-4 border-b border-white/10 pb-4">
+        <div v-if="favoriteFolders.length > 0" class="mb-4 pb-4">
           <FolderTreeItem
             v-for="folder in favoriteFolders"
             :key="folder.id"

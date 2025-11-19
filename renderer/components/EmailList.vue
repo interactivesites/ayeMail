@@ -97,24 +97,13 @@
                 'bg-primary-900 dark:bg-primary-800 text-white': selectedEmailIds.has(email.id),
                 'hover:bg-primary-800/20 dark:hover:bg-primary-900/30': !selectedEmailIds.has(email.id),
                 'border-l-2 border-primary-600 dark:border-primary-500': isEmailUnread(email),
-                'opacity-50': isDragging === email.id,
-                'busy': busyEmailIds.has(email.id)
+                'opacity-50': isDragging === email.id
               }"
             >
               <span
                 class="email-popover-anchor absolute top-1/2 right-3 w-0 h-0 transform -translate-y-1/2 pointer-events-none"
                 :data-email-anchor="email.id"
               ></span>
-              <!-- Archive Loading Overlay -->
-              <div
-                v-if="archivingEmailId === email.id"
-                class="absolute inset-0 bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm z-10 flex items-center justify-center rounded-lg"
-              >
-                <div class="flex flex-col items-center space-y-2">
-                  <div class="w-8 h-8 border-4 border-primary-600 dark:border-primary-500 border-t-transparent rounded-full animate-spin"></div>
-                  <p class="text-gray-700 dark:text-gray-300 text-xs font-medium">Archiving...</p>
-                </div>
-              </div>
               <div class="flex items-start gap-3">
                 <!-- Archive Button (shown when email is selected) -->
                 <div v-if="selectedEmailIds.has(email.id)" class="flex-shrink-0 self-center relative">
@@ -530,10 +519,6 @@ const groupingMode = ref<'bydate'>('bydate')
 const archiveConfirmId = ref<string | null>(null)
 const archivePopoverRefs = new Map<string, HTMLElement>()
 const archiveArrowRefs = new Map<string, HTMLElement>()
-const archivingEmailId = ref<string | null>(null)
-
-// Track busy email IDs for immediate UI feedback
-const busyEmailIds = ref<Set<string>>(new Set())
 
 // Reminder modal state
 const showReminderModal = ref(false)
@@ -920,11 +905,22 @@ const handleArchiveSelected = async () => {
     // For multiple, skip confirmation and archive all
   }
   
-  // Mark all as busy
-  idsToArchive.forEach(id => {
-    archivingEmailId.value = id
-    busyEmailIds.value.add(id)
+  // Optimistically remove emails instantly
+  const emailsToRemove = idsToArchive.map(id => {
+    const emailToRemove = emails.value.find(e => e.id === id)
+    if (emailToRemove) {
+      removedEmails.value.set(id, emailToRemove)
+    }
+    return { id, emailToRemove }
   })
+  
+  emails.value = emails.value.filter(e => !idsToArchive.includes(e.id))
+  
+  // Clear selection
+  selectedEmailIds.value.clear()
+  lastSelectedIndex.value = -1
+  emit('select-email', '')
+  emit('select-emails', [])
   
   try {
     // Archive all selected emails
@@ -944,24 +940,31 @@ const handleArchiveSelected = async () => {
     })
     
     const results = await Promise.all(archivePromises)
-    const successful = results.filter(r => r.success).map(r => r.id)
+    const failed = results.filter(r => !r.success).map(r => r.id)
     
-    // Remove successfully archived emails from list
-    emails.value = emails.value.filter(e => !successful.includes(e.id))
+    // Restore failed emails
+    failed.forEach(emailId => {
+      const emailToRestore = removedEmails.value.get(emailId)
+      if (emailToRestore) {
+        emails.value.push(emailToRestore)
+        removedEmails.value.delete(emailId)
+      }
+    })
     
-    // Clear selection
-    selectedEmailIds.value.clear()
-    lastSelectedIndex.value = -1
-    emit('select-email', '')
-    emit('select-emails', [])
+    emails.value.sort((a, b) => (b.date || 0) - (a.date || 0))
     
     // Refresh email list
     window.dispatchEvent(new CustomEvent('refresh-emails'))
   } catch (error) {
     console.error('Error archiving emails:', error)
-  } finally {
-    idsToArchive.forEach(id => busyEmailIds.value.delete(id))
-    archivingEmailId.value = null
+    // Restore all emails on error
+    emailsToRemove.forEach(({ id, emailToRemove }) => {
+      if (emailToRemove) {
+        removedEmails.value.delete(id)
+        emails.value.push(emailToRemove)
+      }
+    })
+    emails.value.sort((a, b) => (b.date || 0) - (a.date || 0))
   }
 }
 
@@ -974,32 +977,57 @@ const confirmArchive = async (emailId: string) => {
     return
   }
   
-  archivingEmailId.value = emailId
-  busyEmailIds.value.add(emailId)
+  // Optimistically remove email instantly
+  const emailToRemove = emails.value.find(e => e.id === emailId)
+  if (emailToRemove) {
+    removedEmails.value.set(emailId, emailToRemove)
+  }
   
-  try {
-    const result = await window.electronAPI.emails.archive(emailId)
-    if (result.success) {
-      // Remove email from list
+  // Get flat list before filtering to find next email
+  const flatEmails = getAllEmailsFlat()
+  const currentIndex = flatEmails.findIndex(e => e.id === emailId)
+  
       emails.value = emails.value.filter(e => e.id !== emailId)
-      // Refresh email list
-      window.dispatchEvent(new CustomEvent('refresh-emails'))
-      // Clear selection if archived email was selected
+  
+  // Update selection if archived email was selected
       if (selectedEmailIds.value.has(emailId)) {
         selectedEmailIds.value.delete(emailId)
-        if (selectedEmailIds.value.size === 0) {
+    const remainingEmails = getAllEmailsFlat()
+    if (remainingEmails.length > 0) {
+      // Select next email, or previous if at end
+      const nextIndex = currentIndex < remainingEmails.length ? currentIndex : remainingEmails.length - 1
+      const nextId = remainingEmails[nextIndex].id
+      selectedEmailIds.value.clear()
+      selectedEmailIds.value.add(nextId)
+      emit('select-email', nextId)
+    } else {
           emit('select-email', '')
         }
         emit('select-emails', Array.from(selectedEmailIds.value))
       }
+  
+  try {
+    const result = await window.electronAPI.emails.archive(emailId)
+    if (result.success) {
+      // Refresh email list
+      window.dispatchEvent(new CustomEvent('refresh-emails'))
     } else {
       console.error('Failed to archive email:', result.message)
+      // Restore email on failure
+      if (emailToRemove) {
+        removedEmails.value.delete(emailId)
+        emails.value.push(emailToRemove)
+        emails.value.sort((a, b) => (b.date || 0) - (a.date || 0))
+      }
     }
   } catch (error) {
     console.error('Error archiving email:', error)
-  } finally {
-    archivingEmailId.value = null
-    busyEmailIds.value.delete(emailId)
+    // Restore email on error
+    if (emailToRemove) {
+      removedEmails.value.delete(emailId)
+      emails.value.push(emailToRemove)
+      emails.value.sort((a, b) => (b.date || 0) - (a.date || 0))
+    }
   }
 }
 
@@ -1008,8 +1036,22 @@ const handleDeleteSelected = async () => {
   const idsToDelete = Array.from(selectedEmailIds.value)
   if (idsToDelete.length === 0) return
   
-  // Mark all as busy
-  idsToDelete.forEach(id => busyEmailIds.value.add(id))
+  // Optimistically remove emails instantly
+  const emailsToRemove = idsToDelete.map(id => {
+    const emailToRemove = emails.value.find(e => e.id === id)
+    if (emailToRemove) {
+      removedEmails.value.set(id, emailToRemove)
+    }
+    return { id, emailToRemove }
+  })
+  
+  emails.value = emails.value.filter(e => !idsToDelete.includes(e.id))
+  
+  // Clear selection
+  selectedEmailIds.value.clear()
+  lastSelectedIndex.value = -1
+  emit('select-email', '')
+  emit('select-emails', [])
   
   try {
     // Delete all selected emails
@@ -1029,23 +1071,31 @@ const handleDeleteSelected = async () => {
     })
     
     const results = await Promise.all(deletePromises)
-    const successful = results.filter(r => r.success).map(r => r.id)
+    const failed = results.filter(r => !r.success).map(r => r.id)
     
-    // Remove successfully deleted emails from list
-    emails.value = emails.value.filter(e => !successful.includes(e.id))
+    // Restore failed emails
+    failed.forEach(emailId => {
+      const emailToRestore = removedEmails.value.get(emailId)
+      if (emailToRestore) {
+        emails.value.push(emailToRestore)
+        removedEmails.value.delete(emailId)
+      }
+    })
     
-    // Clear selection
-    selectedEmailIds.value.clear()
-    lastSelectedIndex.value = -1
-    emit('select-email', '')
-    emit('select-emails', [])
+    emails.value.sort((a, b) => (b.date || 0) - (a.date || 0))
     
     // Refresh email list
     window.dispatchEvent(new CustomEvent('refresh-emails'))
   } catch (error) {
     console.error('Error deleting emails:', error)
-  } finally {
-    idsToDelete.forEach(id => busyEmailIds.value.delete(id))
+    // Restore all emails on error
+    emailsToRemove.forEach(({ id, emailToRemove }) => {
+      if (emailToRemove) {
+        removedEmails.value.delete(id)
+        emails.value.push(emailToRemove)
+      }
+    })
+    emails.value.sort((a, b) => (b.date || 0) - (a.date || 0))
   }
 }
 
@@ -1058,19 +1108,17 @@ const handleDeleteEmail = async (emailId: string) => {
     return
   }
   
-  busyEmailIds.value.add(emailId)
+  // Optimistically remove email instantly
+  const emailToRemove = emails.value.find(e => e.id === emailId)
+  if (emailToRemove) {
+    removedEmails.value.set(emailId, emailToRemove)
+  }
   
-  try {
-    const result = await window.electronAPI.emails.delete(emailId)
-    if (result.success) {
       // Get flat list before filtering to find next email
       const flatEmails = getAllEmailsFlat()
       const currentIndex = flatEmails.findIndex(e => e.id === emailId)
       
-      // Remove email from list
       emails.value = emails.value.filter(e => e.id !== emailId)
-      // Refresh email list
-      window.dispatchEvent(new CustomEvent('refresh-emails'))
       
       // Update selection if deleted email was selected
       if (selectedEmailIds.value.has(emailId)) {
@@ -1089,13 +1137,29 @@ const handleDeleteEmail = async (emailId: string) => {
         }
         emit('select-emails', Array.from(selectedEmailIds.value))
       }
+  
+  try {
+    const result = await window.electronAPI.emails.delete(emailId)
+    if (result.success) {
+      // Refresh email list
+      window.dispatchEvent(new CustomEvent('refresh-emails'))
     } else {
       console.error('Failed to delete email:', result.message)
+      // Restore email on failure
+      if (emailToRemove) {
+        removedEmails.value.delete(emailId)
+        emails.value.push(emailToRemove)
+        emails.value.sort((a, b) => (b.date || 0) - (a.date || 0))
+      }
     }
   } catch (error) {
     console.error('Error deleting email:', error)
-  } finally {
-    busyEmailIds.value.delete(emailId)
+    // Restore email on error
+    if (emailToRemove) {
+      removedEmails.value.delete(emailId)
+      emails.value.push(emailToRemove)
+      emails.value.sort((a, b) => (b.date || 0) - (a.date || 0))
+    }
   }
 }
 
@@ -1104,8 +1168,22 @@ const handleSpamSelected = async () => {
   const idsToSpam = Array.from(selectedEmailIds.value)
   if (idsToSpam.length === 0) return
   
-  // Mark all as busy
-  idsToSpam.forEach(id => busyEmailIds.value.add(id))
+  // Optimistically remove emails instantly
+  const emailsToRemove = idsToSpam.map(id => {
+    const emailToRemove = emails.value.find(e => e.id === id)
+    if (emailToRemove) {
+      removedEmails.value.set(id, emailToRemove)
+    }
+    return { id, emailToRemove }
+  })
+  
+  emails.value = emails.value.filter(e => !idsToSpam.includes(e.id))
+  
+  // Clear selection
+  selectedEmailIds.value.clear()
+  lastSelectedIndex.value = -1
+  emit('select-email', '')
+  emit('select-emails', [])
   
   try {
     // Spam all selected emails
@@ -1125,23 +1203,31 @@ const handleSpamSelected = async () => {
     })
     
     const results = await Promise.all(spamPromises)
-    const successful = results.filter(r => r.success).map(r => r.id)
+    const failed = results.filter(r => !r.success).map(r => r.id)
     
-    // Remove successfully spammed emails from list
-    emails.value = emails.value.filter(e => !successful.includes(e.id))
+    // Restore failed emails
+    failed.forEach(emailId => {
+      const emailToRestore = removedEmails.value.get(emailId)
+      if (emailToRestore) {
+        emails.value.push(emailToRestore)
+        removedEmails.value.delete(emailId)
+      }
+    })
     
-    // Clear selection
-    selectedEmailIds.value.clear()
-    lastSelectedIndex.value = -1
-    emit('select-email', '')
-    emit('select-emails', [])
+    emails.value.sort((a, b) => (b.date || 0) - (a.date || 0))
     
     // Refresh email list
     window.dispatchEvent(new CustomEvent('refresh-emails'))
   } catch (error) {
     console.error('Error marking emails as spam:', error)
-  } finally {
-    idsToSpam.forEach(id => busyEmailIds.value.delete(id))
+    // Restore all emails on error
+    emailsToRemove.forEach(({ id, emailToRemove }) => {
+      if (emailToRemove) {
+        removedEmails.value.delete(id)
+        emails.value.push(emailToRemove)
+      }
+    })
+    emails.value.sort((a, b) => (b.date || 0) - (a.date || 0))
   }
 }
 
@@ -1154,19 +1240,17 @@ const handleSpamEmail = async (emailId: string) => {
     return
   }
   
-  busyEmailIds.value.add(emailId)
+  // Optimistically remove email instantly
+  const emailToRemove = emails.value.find(e => e.id === emailId)
+  if (emailToRemove) {
+    removedEmails.value.set(emailId, emailToRemove)
+  }
   
-  try {
-    const result = await window.electronAPI.emails.spam(emailId)
-    if (result.success) {
       // Get flat list before filtering to find next email
       const flatEmails = getAllEmailsFlat()
       const currentIndex = flatEmails.findIndex(e => e.id === emailId)
       
-      // Remove email from list
       emails.value = emails.value.filter(e => e.id !== emailId)
-      // Refresh email list
-      window.dispatchEvent(new CustomEvent('refresh-emails'))
       
       // Update selection if spammed email was selected
       if (selectedEmailIds.value.has(emailId)) {
@@ -1185,13 +1269,29 @@ const handleSpamEmail = async (emailId: string) => {
         }
         emit('select-emails', Array.from(selectedEmailIds.value))
       }
+  
+  try {
+    const result = await window.electronAPI.emails.spam(emailId)
+    if (result.success) {
+      // Refresh email list
+      window.dispatchEvent(new CustomEvent('refresh-emails'))
     } else {
       console.error('Failed to mark email as spam:', result.message)
+      // Restore email on failure
+      if (emailToRemove) {
+        removedEmails.value.delete(emailId)
+        emails.value.push(emailToRemove)
+        emails.value.sort((a, b) => (b.date || 0) - (a.date || 0))
+      }
     }
   } catch (error) {
     console.error('Error marking email as spam:', error)
-  } finally {
-    busyEmailIds.value.delete(emailId)
+    // Restore email on error
+    if (emailToRemove) {
+      removedEmails.value.delete(emailId)
+      emails.value.push(emailToRemove)
+      emails.value.sort((a, b) => (b.date || 0) - (a.date || 0))
+    }
   }
 }
 
@@ -1214,8 +1314,22 @@ const handleUnspamSelected = async () => {
     }
   })
   
-  // Mark all as busy
-  idsToUnspam.forEach(id => busyEmailIds.value.add(id))
+  // Optimistically remove emails instantly
+  const emailsToRemove = idsToUnspam.map(id => {
+    const emailToRemove = emails.value.find(e => e.id === id)
+    if (emailToRemove) {
+      removedEmails.value.set(id, emailToRemove)
+    }
+    return { id, emailToRemove }
+  })
+  
+  emails.value = emails.value.filter(e => !idsToUnspam.includes(e.id))
+  
+  // Clear selection
+  selectedEmailIds.value.clear()
+  lastSelectedIndex.value = -1
+  emit('select-email', '')
+  emit('select-emails', [])
   
   try {
     // Get inbox folders for all accounts
@@ -1257,88 +1371,31 @@ const handleUnspamSelected = async () => {
     })
     
     const results = await Promise.all(movePromises)
-    const successful = results.filter(r => r.success).map(r => r.id)
+    const failed = results.filter(r => !r.success).map(r => r.id)
     
-    // Remove successfully moved emails from list
-    emails.value = emails.value.filter(e => !successful.includes(e.id))
+    // Restore failed emails
+    failed.forEach(emailId => {
+      const emailToRestore = removedEmails.value.get(emailId)
+      if (emailToRestore) {
+        emails.value.push(emailToRestore)
+        removedEmails.value.delete(emailId)
+      }
+    })
     
-    // Clear selection
-    selectedEmailIds.value.clear()
-    lastSelectedIndex.value = -1
-    emit('select-email', '')
-    emit('select-emails', [])
+    emails.value.sort((a, b) => (b.date || 0) - (a.date || 0))
     
     // Refresh email list
     window.dispatchEvent(new CustomEvent('refresh-emails'))
   } catch (error) {
     console.error('Error un-spamming emails:', error)
-  } finally {
-    idsToUnspam.forEach(id => busyEmailIds.value.delete(id))
-  }
-}
-
-const handleUnspamEmail = async (emailId: string) => {
-  const email = getAllEmailsFlat().find(e => e.id === emailId)
-  if (!email || !email.accountId) {
-    console.error('Email not found or missing accountId', { emailId, email })
-    return
-  }
-  
-  // If this email is in selection, unspam all selected
-  if (selectedEmailIds.value.has(emailId) && selectedEmailIds.value.size > 1) {
-    await handleUnspamSelected()
-    return
-  }
-  
-  busyEmailIds.value.add(emailId)
-  
-  try {
-    // Get inbox folder for the account
-    const folders = await window.electronAPI.folders.list(email.accountId)
-    const inboxFolder = folders.find((f: any) => f.name.toLowerCase() === 'inbox')
-    
-    if (!inboxFolder) {
-      console.error('Inbox folder not found for account:', email.accountId)
-      busyEmailIds.value.delete(emailId)
-      return
-    }
-    
-    // Move email back to inbox
-    const result = await window.electronAPI.emails.moveToFolder(emailId, inboxFolder.id)
-    if (result.success) {
-      // Get flat list before filtering to find next email
-      const flatEmails = getAllEmailsFlat()
-      const currentIndex = flatEmails.findIndex(e => e.id === emailId)
-      
-      // Remove email from list
-      emails.value = emails.value.filter(e => e.id !== emailId)
-      // Refresh email list
-      window.dispatchEvent(new CustomEvent('refresh-emails'))
-      
-      // Update selection if un-spammed email was selected
-      if (selectedEmailIds.value.has(emailId)) {
-        selectedEmailIds.value.delete(emailId)
-        const remainingEmails = getAllEmailsFlat()
-        if (remainingEmails.length > 0) {
-          // Select next email, or previous if at end, or first if we were at first
-          const nextIndex = currentIndex < remainingEmails.length ? currentIndex : remainingEmails.length - 1
-          const nextId = remainingEmails[nextIndex].id
-          selectedEmailIds.value.clear()
-          selectedEmailIds.value.add(nextId)
-          emit('select-email', nextId)
-        } else {
-          selectedEmailIds.value.clear()
-          emit('select-email', '')
-        }
-        emit('select-emails', Array.from(selectedEmailIds.value))
+    // Restore all emails on error
+    emailsToRemove.forEach(({ id, emailToRemove }) => {
+      if (emailToRemove) {
+        removedEmails.value.delete(id)
+        emails.value.push(emailToRemove)
       }
-    } else {
-      console.error('Failed to un-spam email:', result.message)
-    }
-  } catch (error) {
-    console.error('Error un-spamming email:', error)
-  } finally {
-    busyEmailIds.value.delete(emailId)
+    })
+    emails.value.sort((a, b) => (b.date || 0) - (a.date || 0))
   }
 }
 
@@ -1591,10 +1648,7 @@ const handleMoveToAsideSelected = async () => {
     }
   })
   
-  // Mark all as busy
-  idsToMove.forEach(id => busyEmailIds.value.add(id))
-  
-  // Optimistically remove emails
+  // Optimistically remove emails instantly
   const emailsToRemove = emailsToMove.map(email => {
     const emailToRemove = emails.value.find(e => e.id === email.id)
     if (emailToRemove) {
@@ -1690,8 +1744,6 @@ const handleMoveToAsideSelected = async () => {
       }
     })
     emails.value.sort((a, b) => (b.date || 0) - (a.date || 0))
-  } finally {
-    idsToMove.forEach(id => busyEmailIds.value.delete(id))
   }
 }
 
@@ -1708,9 +1760,7 @@ const handleMoveToAside = async (emailId: string) => {
     return
   }
   
-  busyEmailIds.value.add(emailId)
-  
-  // Optimistically remove email
+  // Optimistically remove email instantly
   const emailToRemove = emails.value.find(e => e.id === emailId)
   if (emailToRemove) {
     // Get flat list before filtering to find next email
@@ -1775,8 +1825,6 @@ const handleMoveToAside = async (emailId: string) => {
       emails.value.push(emailToRemove)
       emails.value.sort((a, b) => (b.date || 0) - (a.date || 0))
     }
-  } finally {
-    busyEmailIds.value.delete(emailId)
   }
 }
 
@@ -1790,10 +1838,7 @@ const handleFolderSelected = async (folderId: string) => {
     ? Array.from(selectedEmailIds.value)
     : [emailId]
   
-  // Mark all as busy
-  idsToMove.forEach(id => busyEmailIds.value.add(id))
-  
-  // Optimistically remove emails
+  // Optimistically remove emails instantly
   const emailsToRemove = idsToMove.map(id => {
     const emailToRemove = emails.value.find(e => e.id === id)
     if (emailToRemove) {
@@ -1854,7 +1899,6 @@ const handleFolderSelected = async (folderId: string) => {
     emails.value.sort((a, b) => b.date - a.date)
     alert(`Failed to move emails: ${error.message || 'Unknown error'}`)
   } finally {
-    idsToMove.forEach(id => busyEmailIds.value.delete(id))
     closeFolderPickerPopover()
   }
 }
@@ -2557,7 +2601,6 @@ watch([() => props.folderId, () => props.unifiedFolderType, () => props.unifiedF
   pendingSyncedEmails.value = []
   loadEmails()
   closeArchivePopover() // Close popover when folder changes
-  archivingEmailId.value = null // Clear archiving state when folder changes
   closeReminderPopover()
   closeFolderPickerPopover()
   // Re-focus container when folder changes, but not when search query changes
@@ -2815,10 +2858,5 @@ onUnmounted(() => {
     opacity: 1;
     transform: translateY(0);
   }
-}
-
-.busy {
-  opacity: 0.5;
-  pointer-events: none;
 }
 </style>

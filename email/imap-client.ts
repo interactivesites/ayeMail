@@ -142,19 +142,25 @@ export class IMAPClient {
               errLower.includes('authentication failure') ||
               errLower.includes('wrong password') ||
               errLower.includes('incorrect password')) {
-            errorMessage = `Gmail authentication failed. Since you have 2-Step Verification enabled, you MUST use an App Password instead of your regular Gmail password.\n\n` +
-              `Steps to fix:\n` +
-              `1. Go to https://myaccount.google.com/apppasswords\n` +
-              `2. Sign in and select "Mail" and "Other (Custom name)"\n` +
-              `3. Enter "ayeMail" as the app name\n` +
-              `4. Click "Generate" and copy the 16-character password\n` +
-              `5. Use this App Password (not your regular password) in the password field\n\n` +
-              `Note: App Passwords are required for all email clients when 2FA is enabled.`
+            errorMessage = `Gmail authentication failed.\n\n` +
+              `IMPORTANT: As of May 2022, Google requires ALL Gmail accounts to use App Passwords for email clients (IMAP/SMTP). Regular passwords no longer work.\n\n` +
+              `To fix this:\n` +
+              `1. Enable 2-Step Verification on your Google Account (required by Google)\n` +
+              `   • Go to: https://myaccount.google.com/security\n` +
+              `   • Find "2-Step Verification" and turn it on\n\n` +
+              `2. Generate an App Password:\n` +
+              `   • Go to: https://myaccount.google.com/apppasswords\n` +
+              `   • Copy the generated 16-character password\n\n` +
+              `3. Use the App Password (not your regular password) in ayeMail\n\n` +
+              `Note: Google discontinued "Less Secure Apps" access. App Passwords are now required for all accounts.`
           } else if (errLower.includes('less secure') || errLower.includes('blocked') || errLower.includes('access denied')) {
-            errorMessage = `Gmail has blocked this login attempt. Please check:\n` +
-              `1. Enable IMAP in Gmail settings: Settings > See all settings > Forwarding and POP/IMAP > Enable IMAP\n` +
-              `2. Use an App Password (required with 2FA): https://myaccount.google.com/apppasswords\n` +
-              `3. Make sure you're using the App Password, not your regular Gmail password`
+            errorMessage = `Gmail has blocked this login attempt.\n\n` +
+              `Google no longer allows regular passwords for email clients. You must:\n\n` +
+              `1. Enable IMAP in Gmail: Settings > See all settings > Forwarding and POP/IMAP > Enable IMAP\n` +
+              `2. Enable 2-Step Verification: https://myaccount.google.com/security\n` +
+              `3. Generate an App Password: https://myaccount.google.com/apppasswords\n` +
+              `4. Use the App Password in ayeMail (not your regular Gmail password)\n\n` +
+              `Google requires this for all accounts - regular passwords no longer work with third-party email apps.`
           }
         }
         reject(new Error(errorMessage))

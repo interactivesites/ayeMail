@@ -7,6 +7,7 @@
 - Auto-Updater
 
 ## Bugs
+- using ctrl/cmd modifiers and command keys must not execute!
 - threads show 2x same mail
 
 ## UI
