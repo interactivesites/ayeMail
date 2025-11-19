@@ -6,12 +6,14 @@ import { getIMAPClient } from '../email/imap-client'
 export class ReminderScheduler {
   private checkInterval: NodeJS.Timeout | null = null
   private checkIntervalMs = 60000 // Check every minute
+  private checkCount = 0 // Track number of checks for logging
 
   start() {
     if (this.checkInterval) {
       return // Already started
     }
 
+    
     this.checkInterval = setInterval(() => {
       this.checkReminders()
     }, this.checkIntervalMs)
@@ -20,14 +22,30 @@ export class ReminderScheduler {
     this.checkReminders()
   }
 
+  // Public method to manually trigger a check (for testing)
+  checkNow() {
+    this.checkReminders()
+  }
+
   stop() {
     if (this.checkInterval) {
       clearInterval(this.checkInterval)
       this.checkInterval = null
+      this.checkCount = 0
+    }
+  }
+
+  // Get status for debugging
+  getStatus() {
+    return {
+      isRunning: this.checkInterval !== null,
+      checkCount: this.checkCount,
+      intervalMs: this.checkIntervalMs
     }
   }
 
   private async checkReminders() {
+    this.checkCount++
     const db = getDatabase()
     const now = Date.now()
 
@@ -129,12 +147,41 @@ export class ReminderScheduler {
 
     // Show notification
     if (Notification.isSupported()) {
+      // Parse reminder message if it's JSON (contains originalFolderId)
+      let notificationBody = `Follow up on: ${reminder.subject || 'email'}`
+      if (reminder.message) {
+        try {
+          const messageData = JSON.parse(reminder.message)
+          if (messageData.customMessage) {
+            notificationBody = messageData.customMessage
+          } else {
+            notificationBody = `Follow up on: ${reminder.subject || 'email'}`
+          }
+        } catch {
+          // Not JSON, use as-is
+          notificationBody = reminder.message
+        }
+      }
+      
+      console.log(`[ReminderScheduler] Triggering reminder for email: ${reminder.email_id}, subject: ${reminder.subject}`)
+      
       const notification = new Notification({
         title: 'Email Reminder',
-        body: reminder.message || `Follow up on: ${reminder.subject || 'email'}`,
+        body: notificationBody,
         silent: false
       })
+      
+      notification.on('click', () => {
+        console.log('[ReminderScheduler] Notification clicked')
+      })
+      
+      notification.on('show', () => {
+        console.log('[ReminderScheduler] Notification shown')
+      })
+      
       notification.show()
+    } else {
+      console.warn('[ReminderScheduler] Notifications not supported on this platform')
     }
 
     // Mark reminder as completed

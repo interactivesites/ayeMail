@@ -721,6 +721,22 @@ export function registerEmailHandlers() {
     
     console.log(`Found ${emailsToReturn.length} emails ${threadView ? '(grouped by thread)' : '(ungrouped)'} in folder ${folder.name} (id: ${folderId})`)
     
+    // Get all reminder info for emails in this folder (for showing reminder icons)
+    const emailIds = emailsToReturn.map(e => e.id)
+    const reminderMap = new Map<string, any>()
+    if (emailIds.length > 0) {
+      const placeholders = emailIds.map(() => '?').join(',')
+      const reminders = db.prepare(`
+        SELECT email_id, due_date, id
+        FROM reminders
+        WHERE email_id IN (${placeholders}) AND completed = 0
+      `).all(...emailIds) as any[]
+      
+      for (const reminder of reminders) {
+        reminderMap.set(reminder.email_id, reminder)
+      }
+    }
+    
     // Map to return format with decrypted body content
     const mappedEmails = emailsToReturn.map(e => {
       // Decrypt body with error handling
@@ -733,6 +749,7 @@ export function registerEmailHandlers() {
       
       const threadId = e.thread_id || e.message_id
       const threadCount = threadCounts.get(threadId) || 1
+      const reminder = reminderMap.get(e.id)
       
       return {
         id: e.id,
@@ -755,7 +772,9 @@ export function registerEmailHandlers() {
         status: e.status || null,
         attachmentCount: e.attachmentCount || 0,
         threadId: threadId,
-        threadCount: threadCount
+        threadCount: threadCount,
+        hasReminder: !!reminder,
+        reminderDueDate: reminder?.due_date || null
       }
     })
     
@@ -898,7 +917,9 @@ export function registerEmailHandlers() {
         signed: e.signed === 1,
         signatureVerified: e.signature_verified !== null ? e.signature_verified === 1 : undefined,
         status: e.status || null,
-        attachmentCount: e.attachmentCount || 0
+        attachmentCount: e.attachmentCount || 0,
+        hasReminder: !!reminderMap.get(e.id),
+        reminderDueDate: reminderMap.get(e.id)?.due_date || e.reminder_due_date || null
       }
     })
     
@@ -1024,6 +1045,22 @@ export function registerEmailHandlers() {
 
     const emails = db.prepare(query).all(...params) as any[]
     
+    // Get reminder info for all emails (for showing reminder icons)
+    const emailIds = emails.map(e => e.id)
+    const reminderMap = new Map<string, any>()
+    if (emailIds.length > 0) {
+      const placeholders = emailIds.map(() => '?').join(',')
+      const reminders = db.prepare(`
+        SELECT email_id, due_date, id
+        FROM reminders
+        WHERE email_id IN (${placeholders}) AND completed = 0
+      `).all(...emailIds) as any[]
+      
+      for (const reminder of reminders) {
+        reminderMap.set(reminder.email_id, reminder)
+      }
+    }
+    
     // Map to return format with decrypted body content
     // Ensure all values are serializable for IPC
     const mappedEmails = emails.map(e => {
@@ -1097,7 +1134,9 @@ export function registerEmailHandlers() {
         attachmentCount: Number(e.attachmentCount || 0),
         threadId: threadId,
         threadCount: Number(threadCount?.count || 1),
-        reminder_due_date: e.reminder_due_date ? Number(e.reminder_due_date) : undefined
+        reminder_due_date: e.reminder_due_date ? Number(e.reminder_due_date) : undefined,
+        hasReminder: !!reminderMap.get(e.id),
+        reminderDueDate: reminderMap.get(e.id)?.due_date || e.reminder_due_date || null
       }
       
       // Force serialization to ensure everything is cloneable
@@ -2966,77 +3005,7 @@ export function registerTestHandlers() {
       throw new Error('Inbox folder not found. Please sync your account first.')
     }
     
-    // Get the highest UID in the inbox to avoid conflicts
-    const maxUidResult = db.prepare(`
-      SELECT MAX(uid) as max_uid FROM emails 
-      WHERE account_id = ? AND folder_id = ?
-    `).get(account.id, inboxFolder.id) as any
-    
-    const nextUid = (maxUidResult?.max_uid || 0) + 1
-    
-    // Create test email
-    const emailId = randomUUID()
-    const messageId = `<test-${Date.now()}@ayemail.local>`
-    const now = Date.now()
-    
-    const testEmail = {
-      subject: `Test Reminder Email - ${minutesFromNow} Minutes`,
-      from: [{ name: 'Test Sender', address: 'test@example.com' }],
-      to: [{ name: account.name || 'You', address: account.email }],
-      body: `This is a test email with a reminder set for ${minutesFromNow} minutes from now.
-
-The reminder should trigger at: ${new Date(now + minutesFromNow * 60 * 1000).toLocaleString()}
-
-This email was created for testing the reminder functionality.`,
-      htmlBody: `<p>This is a test email with a reminder set for <strong>${minutesFromNow} minutes</strong> from now.</p>
-<p>The reminder should trigger at: <strong>${new Date(now + minutesFromNow * 60 * 1000).toLocaleString()}</strong></p>
-<p>This email was created for testing the reminder functionality.</p>`
-    }
-    
-    // Encrypt email body
-    const bodyEncrypted = encryption.encrypt(testEmail.body)
-    const htmlBodyEncrypted = encryption.encrypt(testEmail.htmlBody)
-    
-    // Insert email into database
-    db.prepare(`
-      INSERT INTO emails (
-        id, account_id, folder_id, uid, message_id, subject,
-        from_addresses, to_addresses, cc_addresses, bcc_addresses, reply_to_addresses,
-        date, body_encrypted, html_body_encrypted, text_body_encrypted, headers_encrypted,
-        flags, is_read, is_starred, thread_id, in_reply_to, email_references,
-        encrypted, signed, signature_verified, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      emailId,
-      account.id,
-      inboxFolder.id,
-      nextUid,
-      messageId,
-      testEmail.subject,
-      JSON.stringify(testEmail.from),
-      JSON.stringify(testEmail.to),
-      null, // cc
-      null, // bcc
-      null, // reply_to
-      now,
-      bodyEncrypted,
-      htmlBodyEncrypted,
-      null, // text_body (we have html_body)
-      null, // headers
-      JSON.stringify([]), // flags
-      0, // is_read
-      0, // is_starred
-      null, // thread_id
-      null, // in_reply_to
-      null, // email_references
-      0, // encrypted
-      0, // signed
-      null, // signature_verified
-      now,
-      now
-    )
-    
-    // Find or create Reminders folder
+    // Find or create Reminders folder first (we'll move email there)
     let remindersFolder = db.prepare(`
       SELECT * FROM folders 
       WHERE account_id = ? AND (LOWER(name) = 'reminders' OR LOWER(path) LIKE '%reminders%')
@@ -3062,12 +3031,82 @@ This email was created for testing the reminder functionality.`,
       remindersFolder = { id: folderId, path: 'Reminders' }
     }
     
-    // Move email to Reminders folder
+    // Get the highest UID in the Reminders folder to avoid conflicts
+    // Use a very high base number (1000000) plus timestamp to ensure uniqueness for test emails
+    const maxUidResult = db.prepare(`
+      SELECT MAX(uid) as max_uid FROM emails 
+      WHERE account_id = ? AND folder_id = ?
+    `).get(account.id, remindersFolder.id) as any
+    
+    // Use timestamp-based UID for test emails to ensure uniqueness
+    // This avoids conflicts with real emails
+    const testUidBase = 1000000000 // High base number for test emails
+    const nextUid = Math.max(
+      (maxUidResult?.max_uid || 0) + 1,
+      testUidBase + Math.floor(Date.now() / 1000) // Use seconds timestamp to keep it reasonable
+    )
+    
+    // Create test email
+    const emailId = randomUUID()
+    const messageId = `<test-${Date.now()}@ayemail.local>`
+    const now = Date.now()
+    
+    const testEmail = {
+      subject: `Test Reminder Email - ${minutesFromNow} Minutes`,
+      from: [{ name: 'Test Sender', address: 'test@example.com' }],
+      to: [{ name: account.name || 'You', address: account.email }],
+      body: `This is a test email with a reminder set for ${minutesFromNow} minutes from now.
+
+The reminder should trigger at: ${new Date(now + minutesFromNow * 60 * 1000).toLocaleString()}
+
+This email was created for testing the reminder functionality.`,
+      htmlBody: `<p>This is a test email with a reminder set for <strong>${minutesFromNow} minutes</strong> from now.</p>
+<p>The reminder should trigger at: <strong>${new Date(now + minutesFromNow * 60 * 1000).toLocaleString()}</strong></p>
+<p>This email was created for testing the reminder functionality.</p>`
+    }
+    
+    // Encrypt email body
+    const bodyEncrypted = encryption.encrypt(testEmail.body)
+    const htmlBodyEncrypted = encryption.encrypt(testEmail.htmlBody)
+    
+    // Insert email directly into Reminders folder (not inbox first)
     db.prepare(`
-      UPDATE emails 
-      SET folder_id = ?, updated_at = ?
-      WHERE id = ?
-    `).run(remindersFolder.id, now, emailId)
+      INSERT INTO emails (
+        id, account_id, folder_id, uid, message_id, subject,
+        from_addresses, to_addresses, cc_addresses, bcc_addresses, reply_to_addresses,
+        date, body_encrypted, html_body_encrypted, text_body_encrypted, headers_encrypted,
+        flags, is_read, is_starred, thread_id, in_reply_to, email_references,
+        encrypted, signed, signature_verified, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      emailId,
+      account.id,
+      remindersFolder.id, // Insert directly into Reminders folder
+      nextUid,
+      messageId,
+      testEmail.subject,
+      JSON.stringify(testEmail.from),
+      JSON.stringify(testEmail.to),
+      null, // cc
+      null, // bcc
+      null, // reply_to
+      now,
+      bodyEncrypted,
+      htmlBodyEncrypted,
+      null, // text_body (we have html_body)
+      null, // headers
+      JSON.stringify([]), // flags
+      0, // is_read
+      0, // is_starred
+      null, // thread_id
+      null, // in_reply_to
+      null, // email_references
+      0, // encrypted
+      0, // signed
+      null, // signature_verified
+      now,
+      now
+    )
     
     // Create reminder
     const reminderId = randomUUID()
@@ -3103,6 +3142,42 @@ This email was created for testing the reminder functionality.`,
       dueDateFormatted: new Date(reminderDueDate).toLocaleString(),
       accountEmail: account.email,
       minutesFromNow
+    }
+  })
+  
+  // Test handler to get reminder scheduler status
+  ipcMain.handle('test:reminder-scheduler-status', async () => {
+    const { reminderScheduler } = require('../reminders/scheduler')
+    return reminderScheduler.getStatus()
+  })
+
+  // Test handler to trigger reminders immediately (for testing)
+  ipcMain.handle('test:trigger-reminders-now', async () => {
+    const db = getDatabase()
+    const now = Date.now()
+    
+    // Get all incomplete reminders and set their due_date to now
+    const reminders = db.prepare(`
+      SELECT id FROM reminders WHERE completed = 0
+    `).all() as any[]
+    
+    if (reminders.length === 0) {
+      return { success: false, message: 'No incomplete reminders found' }
+    }
+    
+    // Set all reminders to trigger now
+    for (const reminder of reminders) {
+      db.prepare('UPDATE reminders SET due_date = ? WHERE id = ?').run(now, reminder.id)
+    }
+    
+    // Manually trigger the scheduler check
+    const { reminderScheduler } = require('../reminders/scheduler')
+    reminderScheduler.checkNow()
+    
+    return {
+      success: true,
+      message: `Triggered ${reminders.length} reminder(s)`,
+      count: reminders.length
     }
   })
 }

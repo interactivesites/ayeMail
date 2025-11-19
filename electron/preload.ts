@@ -178,6 +178,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   // Test utilities
   test: {
-    createReminderEmail: (minutesFromNow?: number) => ipcRenderer.invoke('test:create-reminder-email', minutesFromNow)
+    createReminderEmail: (minutesFromNow?: number) => ipcRenderer.invoke('test:create-reminder-email', minutesFromNow),
+    triggerRemindersNow: () => ipcRenderer.invoke('test:trigger-reminders-now'),
+    reminderSchedulerStatus: () => ipcRenderer.invoke('test:reminder-scheduler-status')
   }
 })

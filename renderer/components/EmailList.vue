@@ -205,10 +205,23 @@
                       </div>
                     </div>
                     
-                    <!-- Right Side: Time and Status Icons -->
+                    <!-- Right Side: Reminder Icon or Time and Status Icons -->
                     <div class="flex items-center gap-2 flex-shrink-0">
-                      <!-- Time Display -->
+                      <!-- Reminder Icon (if email has reminder) -->
+                      <svg 
+                        v-if="email.hasReminder"
+                        class="w-4 h-4"
+                        :class="selectedEmailIds.has(email.id) ? 'text-white/80' : 'text-primary-600 dark:text-primary-400'"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                        title="Reminder set"
+                      >
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <!-- Time Display (if no reminder) -->
                       <span 
+                        v-else
                         class="text-xs"
                         :class="selectedEmailIds.has(email.id) ? 'text-white/60' : 'text-gray-500 dark:text-dark-gray-400'"
                       >
