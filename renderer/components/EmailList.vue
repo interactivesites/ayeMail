@@ -10,7 +10,7 @@
             :aria-pressed="previewLevel === 1"
             class="p-1.5 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
             :class="previewLevel === 1 ? 'bg-white dark:bg-dark-gray-700 text-gray-900 dark:text-dark-gray-100 shadow-sm' : 'text-gray-600 dark:text-dark-gray-400 hover:text-gray-900 dark:hover:text-dark-gray-100'"
-            title="Title only"
+            :title="$t('email.titleOnly')"
           >
             <span class="text-xs font-medium w-4 h-4 flex items-center justify-center">1</span>
           </button>
@@ -20,7 +20,7 @@
             :aria-pressed="previewLevel === 2"
             class="p-1.5 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
             :class="previewLevel === 2 ? 'bg-white dark:bg-dark-gray-700 text-gray-900 dark:text-dark-gray-100 shadow-sm' : 'text-gray-600 dark:text-dark-gray-400 hover:text-gray-900 dark:hover:text-dark-gray-100'"
-            title="2 lines preview"
+            :title="$t('email.twoLinesPreview')"
           >
             <span class="text-xs font-medium w-4 h-4 flex items-center justify-center">2</span>
           </button>
@@ -31,7 +31,7 @@
           :aria-pressed="threadView"
           class="p-1.5 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
           :class="threadView ? 'bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300' : 'bg-gray-100 dark:bg-dark-gray-800 text-gray-600 dark:text-dark-gray-400 hover:text-gray-900 dark:hover:text-dark-gray-100'"
-          title="Thread view"
+          :title="$t('email.threadView')"
         >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
@@ -46,29 +46,29 @@
           :class="deletingAllEmails || emails.length === 0 
             ? 'bg-gray-200 dark:bg-dark-gray-700 text-gray-400 dark:text-dark-gray-500' 
             : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/50'"
-          title="Delete all emails in this folder"
+          :title="$t('email.deleteAllEmails')"
         >
           <span v-if="deletingAllEmails" class="flex items-center gap-2">
             <svg class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
-            Deleting...
+            {{ $t('email.deleting') }}
           </span>
           <span v-else class="flex items-center gap-2">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
             </svg>
-            Delete All ({{ emails.length }})
+            {{ $t('email.deleteAll') }} ({{ emails.length }})
           </span>
         </button>
       </div>
     </div>
     <ThinScrollbar class="flex-1">
       <div v-if="loading" class="p-4 text-center text-gray-500 dark:text-dark-gray-400">
-        Loading emails...
+        {{ $t('email.loadingEmails') }}
       </div>
       <div v-else-if="emails.length === 0" class="p-4 text-center text-gray-500 dark:text-dark-gray-400">
-        No emails in this folder
+        {{ $t('email.noEmailsInFolder') }}
       </div>
       <div v-else>
         <div v-for="group in groupedEmails" :key="group.key" class="mb-6">
@@ -112,7 +112,7 @@
                     :class="selectedEmailIds.has(email.id) 
                       ? 'bg-white dark:bg-white border-white dark:border-white' 
                       : 'bg-primary-600 dark:bg-primary-500 border-primary-600 dark:border-primary-500'"
-                    title="Archived"
+                    :title="$t('emailList.archived')"
                   >
                     <svg 
                       class="w-3 h-3" 
@@ -134,7 +134,7 @@
                       'bg-primary-600 dark:bg-primary-500 border-primary-600 dark:border-primary-500': archiveConfirmId === email.id,
                       'hover:bg-gray-50 dark:hover:bg-dark-gray-700': archiveConfirmId !== email.id
                     }"
-                    title="Archive email"
+                    :title="$t('email.archiveEmail')"
                   >
                     <svg v-if="archiveConfirmId === email.id" class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
@@ -150,24 +150,24 @@
                       @click.stop
                     >
                       <div
-                        class="popover-arrow bg-white dark:bg-dark-gray-800 border border-gray-200 dark:border-dark-gray-700"
+                        class="popover-arrow bg-white dark:bg-dark-gray-800 border border-gray-200 dark:border-dark-gray-700 absolute -z-10 -mt-6"
                         :ref="(el: HTMLElement | null) => { if (el) { archiveArrowRefs.set(email.id, el) } else { archiveArrowRefs.delete(email.id) } }"
                       ></div>
-                      <div class="flex items-center gap-2 mb-3">
+                      <div class="flex items-center gap-2 relative z-10">
                         <button
                           @click="cancelArchive"
                           class="px-3 py-1.5 text-sm rounded bg-gray-200 dark:bg-dark-gray-700 text-gray-700 dark:text-dark-gray-200 hover:bg-gray-300 dark:hover:bg-dark-gray-600 transition-colors"
                         >
-                          Cancel
+                          {{ $t('common.cancel') }}
                         </button>
                         <button
                           @click="confirmArchive(email.id)"
-                          class="px-3 py-1.5 text-sm rounded bg-primary-600 dark:bg-primary-500 text-white hover:bg-primary-700 dark:hover:bg-primary-600 transition-colors"
+                          class="px-3 py-1.5 text-sm rounded bg-primary-600 dark:bg-primary-500 text-white hover:bg-primary-700 dark:hover:bg-primary-600 transition-colors w-full"
                         >
-                          Complete
+                          {{ $t('common.complete') }}
                         </button>
                       </div>
-                      <p class="text-xs text-gray-500 dark:text-dark-gray-400">Disable confirmation messages in Preferences</p>
+                      <!-- <p class="text-xs text-gray-500 dark:text-dark-gray-400">Disable confirmation messages in Preferences</p> -->
                     </div>
                   </Teleport>
                 </div>
@@ -190,13 +190,13 @@
                           v-if="email.encrypted" 
                           class="text-xs" 
                           :class="selectedEmailIds.has(email.id) ? 'text-white/80' : 'text-primary-600'"
-                          title="Encrypted"
+                          :title="$t('email.encrypted')"
                         >🔒</span>
                         <span 
                           v-if="email.signed" 
                           class="text-xs" 
                           :class="selectedEmailIds.has(email.id) ? 'text-green-300' : 'text-green-600'"
-                          title="Signed"
+                          :title="$t('email.signed')"
                         >✓</span>
                       </div>
                       
@@ -236,7 +236,7 @@
                         fill="none"
                         stroke="currentColor"
                         viewBox="0 0 24 24"
-                        :title="email.reminderCompleted ? 'Reminder completed - moved back from Reminders' : 'Reminder set'"
+                        :title="email.reminderCompleted ? $t('emailList.reminderCompleted') : $t('reminder.reminderSet')"
                       >
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
@@ -251,18 +251,18 @@
                       
                       <!-- Status Icons - Show only on hover -->
                       <div class="hidden group-hover:flex items-center gap-2 transition-all duration-200">
-                        <span v-if="email.isStarred" class="text-yellow-500 text-sm" title="Starred">★</span>
+                        <span v-if="email.isStarred" class="text-yellow-500 text-sm" :title="$t('emailList.starred')">★</span>
                         <span 
                           v-if="email.attachmentCount && email.attachmentCount > 0" 
                           class="text-xs"
                           :class="selectedEmailId === email.id ? 'text-white/80' : 'text-gray-500 dark:text-dark-gray-400'"
-                          title="Has attachments"
+                          :title="$t('emailList.hasAttachments')"
                         >📎</span>
                         <span 
                           v-if="email.threadCount && email.threadCount > 1" 
                           class="text-xs"
                           :class="selectedEmailId === email.id ? 'text-white/80' : 'text-gray-500 dark:text-dark-gray-400'"
-                          title="Thread"
+                          :title="$t('emailList.thread')"
                         >
                           {{ email.threadCount }}
                         </span>
@@ -273,7 +273,7 @@
                           fill="none" 
                           stroke="currentColor" 
                           viewBox="0 0 24 24"
-                          title="Draft"
+                          :title="$t('emailList.draft')"
                         >
                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                         </svg>
@@ -294,7 +294,7 @@
                     :class="selectedEmailIds.has(email.id) 
                       ? 'text-white/80 hover:text-white' 
                       : 'text-gray-500 hover:text-gray-700'"
-                    title="Archive"
+                    :title="$t('navigation.archive')"
                   >
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
@@ -306,7 +306,7 @@
                     :class="selectedEmailIds.has(email.id) 
                       ? 'text-white/80 hover:text-white' 
                       : 'text-gray-500 hover:text-gray-700'"
-                    title="Delete"
+                    :title="$t('common.delete')"
                   >
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -319,7 +319,7 @@
                     :class="selectedEmailIds.has(email.id) 
                       ? 'text-white/80 hover:text-white' 
                       : 'text-gray-500 hover:text-gray-700'"
-                    title="Set Reminder"
+                    :title="$t('navigation.setReminder')"
                   >
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -332,7 +332,7 @@
                     :class="selectedEmailIds.has(email.id) 
                       ? 'text-white/80 hover:text-white' 
                       : 'text-gray-500 hover:text-gray-700'"
-                    title="Move to Aside (A)"
+                    :title="$t('emailList.moveToAsideShort')"
                   >
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
@@ -345,7 +345,7 @@
                     :class="selectedEmailIds.has(email.id) 
                       ? 'text-white/80 hover:text-white' 
                       : 'text-gray-500 hover:text-gray-700'"
-                    title="Move to Folder (M)"
+                    :title="$t('navigation.moveToFolder') + ' (M)'"
                   >
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
@@ -365,7 +365,7 @@
                     :class="selectedEmailIds.has(email.id) 
                       ? 'text-white/80 hover:text-white' 
                       : 'text-gray-500 hover:text-gray-700'"
-                    title="Move to Inbox (Un-spam)"
+                    :title="$t('emailList.moveToInbox')"
                   >
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -475,6 +475,7 @@
 import { ref, computed, onMounted, watch, onUnmounted, nextTick } from 'vue'
 import type { Ref } from 'vue'
 import { storeToRefs } from 'pinia'
+import { useI18n } from 'vue-i18n'
 import { usePreferencesStore } from '../stores/preferences'
 import { formatTime } from '../utils/formatters'
 import ReminderModal from './ReminderModal.vue'
@@ -482,6 +483,8 @@ import FolderPickerModal from './FolderPickerModal.vue'
 import ThinScrollbar from './ThinScrollbar.vue'
 import { computePosition, offset, shift, arrow as floatingArrow } from '@floating-ui/dom'
 import type { Placement, MiddlewareData } from '@floating-ui/dom'
+
+const { t: $t } = useI18n()
 
 const props = defineProps<{
   folderId: string
@@ -903,7 +906,7 @@ const showArchiveConfirm = async (emailId: string) => {
   
   const emailElement = getEmailElement(emailId)
   const anchorElement = getEmailAnchorElement(emailId)
-  const archiveButton = emailElement?.querySelector('button[title="Archive email"]') as HTMLElement
+  const archiveButton = emailElement?.querySelector(`button[title="${$t('email.archiveEmail')}"]`) as HTMLElement
   const popoverElement = archivePopoverRefs.get(emailId)
   
   const referenceElement = anchorElement || emailElement || archiveButton
@@ -1445,7 +1448,11 @@ const handleDeleteAllEmails = async () => {
   if (emails.value.length === 0) return
   
   // Confirm deletion
-  const confirmMessage = `Are you sure you want to permanently delete all ${emails.value.length} email${emails.value.length === 1 ? '' : 's'} in this folder? This action cannot be undone.`
+  const count = emails.value.length
+  const confirmMessage = $t('emailList.confirmDeleteAll', { 
+    count, 
+    plural: count === 1 ? '' : 's' 
+  })
   if (!confirm(confirmMessage)) {
     return
   }
@@ -1495,11 +1502,16 @@ const handleDeleteAllEmails = async () => {
     window.dispatchEvent(new CustomEvent('refresh-emails'))
     
     if (errorCount > 0) {
-      alert(`Deleted ${successCount} email${successCount === 1 ? '' : 's'}. ${errorCount} email${errorCount === 1 ? '' : 's'} could not be deleted.`)
+      alert($t('emailList.deleteAllResult', { 
+        success: successCount, 
+        successPlural: successCount === 1 ? '' : 's',
+        error: errorCount,
+        errorPlural: errorCount === 1 ? '' : 's'
+      }))
     }
   } catch (error) {
     console.error('Error deleting all emails:', error)
-    alert('An error occurred while deleting emails. Please try again.')
+    alert($t('emailList.deleteAllError'))
   } finally {
     deletingAllEmails.value = false
   }
@@ -1927,7 +1939,10 @@ const handleFolderSelected = async (folderId: string) => {
     window.dispatchEvent(new CustomEvent('refresh-emails'))
     
     if (failed.length > 0) {
-      alert(`Failed to move ${failed.length} email${failed.length === 1 ? '' : 's'}.`)
+      alert($t('emailList.moveFailed', { 
+        count: failed.length, 
+        plural: failed.length === 1 ? '' : 's' 
+      }))
     }
   } catch (error: any) {
     console.error('Error moving emails to folder:', error)
@@ -1939,7 +1954,7 @@ const handleFolderSelected = async (folderId: string) => {
       }
     })
     emails.value.sort((a, b) => b.date - a.date)
-    alert(`Failed to move emails: ${error.message || 'Unknown error'}`)
+    alert($t('emailList.moveError', { error: error.message || $t('common.error') }))
   } finally {
     closeFolderPickerPopover()
   }
@@ -2107,6 +2122,8 @@ const handleKeyDown = (event: KeyboardEvent) => {
       break
     case 't':
     case 'T':
+    case 'r':
+    case 'R':
       if (selectedEmailIds.value.size > 0) {
         event.preventDefault()
         event.stopPropagation()
@@ -2269,27 +2286,27 @@ const getGroupHeader = (key: string, emails: any[], isFutureDate: boolean = fals
     if (key.startsWith('day-')) {
       if (isToday) {
         return {
-          dayName: 'Today',
+          dayName: $t('emailList.today'),
           dateString: date.toLocaleDateString([], { month: 'long', day: 'numeric', year: 'numeric' })
         }
       } else if (isTomorrow) {
         return {
-          dayName: 'Tomorrow',
+          dayName: $t('emailList.tomorrow'),
           dateString: date.toLocaleDateString([], { month: 'long', day: 'numeric', year: 'numeric' })
         }
       } else if (daysDiff === 2) {
         return {
-          dayName: 'In 2 Days',
+          dayName: $t('emailList.in2Days'),
           dateString: date.toLocaleDateString([], { month: 'long', day: 'numeric', year: 'numeric' })
         }
       } else if (daysDiff === 3) {
         return {
-          dayName: 'In 3 Days',
+          dayName: $t('emailList.in3Days'),
           dateString: date.toLocaleDateString([], { month: 'long', day: 'numeric', year: 'numeric' })
         }
       } else if (daysDiff > 0 && daysDiff <= 6) {
         return {
-          dayName: `In ${daysDiff} Days`,
+          dayName: $t('emailList.inDays', { count: daysDiff }),
           dateString: date.toLocaleDateString([], { month: 'long', day: 'numeric', year: 'numeric' })
         }
       } else if (daysDiff < 0 && daysDiff >= -6) {
@@ -2297,12 +2314,12 @@ const getGroupHeader = (key: string, emails: any[], isFutureDate: boolean = fals
         const absDays = Math.abs(daysDiff)
         if (absDays === 1) {
           return {
-            dayName: 'Overdue (Yesterday)',
+            dayName: $t('emailList.overdueYesterday'),
             dateString: date.toLocaleDateString([], { month: 'long', day: 'numeric', year: 'numeric' })
           }
         } else {
           return {
-            dayName: `Overdue (${absDays} Days Ago)`,
+            dayName: $t('emailList.overdueDaysAgo', { count: absDays }),
             dateString: date.toLocaleDateString([], { month: 'long', day: 'numeric', year: 'numeric' })
           }
         }
@@ -2325,12 +2342,12 @@ const getGroupHeader = (key: string, emails: any[], isFutureDate: boolean = fals
       
       if (isNextWeek) {
         return {
-          dayName: 'Next Week',
+          dayName: $t('emailList.nextWeek'),
           dateString: `${weekStart.toLocaleDateString([], { month: 'long', day: 'numeric' })} - ${weekEnd.toLocaleDateString([], { day: 'numeric', year: 'numeric' })}`
         }
       } else {
         return {
-          dayName: 'Week of',
+          dayName: $t('emailList.weekOf'),
           dateString: `${weekStart.toLocaleDateString([], { month: 'long', day: 'numeric' })} - ${weekEnd.toLocaleDateString([], { day: 'numeric', year: 'numeric' })}`
         }
       }
@@ -2342,7 +2359,7 @@ const getGroupHeader = (key: string, emails: any[], isFutureDate: boolean = fals
       
       if (isNextMonth) {
         return {
-          dayName: 'Next Month',
+          dayName: $t('emailList.nextMonth'),
           dateString: date.toLocaleDateString([], { month: 'long', year: 'numeric' })
         }
       } else {
@@ -2356,14 +2373,14 @@ const getGroupHeader = (key: string, emails: any[], isFutureDate: boolean = fals
 
   // Handle past dates (regular email view)
   if (key.startsWith('day-')) {
-    if (isToday) {
+      if (isToday) {
+        return {
+          dayName: $t('emailList.today'),
+          dateString: date.toLocaleDateString([], { month: 'long', day: 'numeric', year: 'numeric' })
+        }
+      } else if (isYesterday) {
       return {
-        dayName: 'Today',
-        dateString: date.toLocaleDateString([], { month: 'long', day: 'numeric', year: 'numeric' })
-      }
-    } else if (isYesterday) {
-      return {
-        dayName: 'Yesterday',
+          dayName: $t('emailList.yesterday'),
         dateString: date.toLocaleDateString([], { month: 'long', day: 'numeric', year: 'numeric' })
       }
     } else {
@@ -2711,21 +2728,21 @@ const getEmailShortcuts = async (email: any): Promise<Array<{ key: string; label
       shortcuts.push({ key: 'S', label: 'S', action: 'Mark spam' })
     }
     
-    shortcuts.push({ key: 'T', label: 'T', action: 'Set reminder' })
-    shortcuts.push({ key: 'A', label: 'A', action: 'Move to Aside' })
+    shortcuts.push({ key: 'T', label: 'T', action: $t('navigation.setReminder') })
+    shortcuts.push({ key: 'A', label: 'A', action: $t('emailList.moveToAside') })
     
     // Check if account is IMAP for move to folder
     try {
       const account = await window.electronAPI.accounts.get(email.accountId)
       if (account && account.type === 'imap') {
-        shortcuts.push({ key: 'M', label: 'M', action: 'Move to folder' })
+        shortcuts.push({ key: 'M', label: 'M', action: $t('navigation.moveToFolder') })
       }
     } catch (error) {
       // If we can't check, don't show the shortcut
     }
   }
   
-  shortcuts.push({ key: 'Delete', label: 'Delete', action: 'Delete' })
+  shortcuts.push({ key: 'Delete', label: 'Delete', action: $t('common.delete') })
   
   return shortcuts
 }
@@ -2746,16 +2763,16 @@ const getEmailShortcutsSync = (email: any): Array<{ key: string; label: string; 
   // shortcuts.push({ key: '↓', label: '↓', action: 'Next email' })
   
   if (email.accountId) {
-    shortcuts.push({ key: 'A', label: 'A', action: 'Move aside' })
-    shortcuts.push({ key: 'T', label: 'T', action: 'Set reminder' })
-    shortcuts.push({ key: 'M', label: 'M', action: 'Move to folder' })
+    shortcuts.push({ key: 'A', label: 'A', action: $t('emailList.moveToAside') })
+    shortcuts.push({ key: 'T', label: 'T', action: $t('navigation.setReminder') })
+    shortcuts.push({ key: 'M', label: 'M', action: $t('navigation.moveToFolder') })
     if (!isSpamFolder.value) {
-      shortcuts.push({ key: 'Space', label: 'Space', action: 'Archive' })
-      shortcuts.push({ key: 'S', label: 'S', action: 'Mark spam' })
+      shortcuts.push({ key: 'Space', label: 'Space', action: $t('navigation.archive') })
+      shortcuts.push({ key: 'S', label: 'S', action: $t('emailList.markSpam') })
     }
   }
   
-  shortcuts.push({ key: 'Delete', label: 'Delete', action: 'Delete' })
+  shortcuts.push({ key: 'Delete', label: 'Delete', action: $t('common.delete') })
   
   // Cache and update async
   shortcutsCache.set(email.id, shortcuts)

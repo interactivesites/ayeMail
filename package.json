@@ -24,7 +24,7 @@
     "build:mac:arm64": "npm run build && electron-builder --mac --arm64",
     "build:mac:x64": "npm run build && electron-builder --mac --x64",
     "build:win": "npm run build && (rm -rf node_modules/node-mac-contacts 2>/dev/null || true) && electron-builder --win && npm install --no-save node-mac-contacts@^1.7.2 2>/dev/null || true",
-    "postinstall": "PYTHON=$(which python3.11 || which python3) electron-rebuild",
+    "postinstall": "PYTHON=$(which python3.11 || which python3) electron-rebuild -f -w better-sqlite3",
     "preview": "vite preview",
     "test": "vitest",
     "test:ui": "vitest --ui",

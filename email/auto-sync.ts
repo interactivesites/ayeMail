@@ -77,13 +77,24 @@ export class AutoSyncScheduler {
 
           console.log(`Auto-sync: Syncing inbox for account ${account.email}`)
           
-          // Get inbox folder
-          const inboxFolder = db.prepare(
+          let inboxFolder = db.prepare(
             "SELECT * FROM folders WHERE account_id = ? AND (LOWER(name) = 'inbox' OR LOWER(path) = 'inbox') LIMIT 1"
           ).get(account.id) as any
 
           if (!inboxFolder) {
-            console.warn(`Auto-sync: No inbox found for account ${account.email}`)
+            console.warn(`Auto-sync: No inbox found for account ${account.email}, attempting to sync folders`)
+            try {
+              await emailStorage.syncFoldersOnly(account.id)
+              inboxFolder = db.prepare(
+                "SELECT * FROM folders WHERE account_id = ? AND (LOWER(name) = 'inbox' OR LOWER(path) = 'inbox') LIMIT 1"
+              ).get(account.id) as any
+            } catch (folderSyncError) {
+              console.error(`Auto-sync: Failed to sync folders for ${account.email}:`, folderSyncError)
+            }
+          }
+
+          if (!inboxFolder) {
+            console.warn(`Auto-sync: Still no inbox found for account ${account.email} after attempting folder sync`)
             continue
           }
 
@@ -168,4 +179,3 @@ export class AutoSyncScheduler {
 }
 
 export const autoSyncScheduler = new AutoSyncScheduler()
-

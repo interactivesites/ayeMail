@@ -278,7 +278,7 @@ export class IMAPClient {
     })
   }
 
-  async getFolderStatus(folderName: string): Promise<{ messages: number; unseen: number }> {
+  async getFolderStatus(folderName: string): Promise<{ messages: number; unseen: number; uidnext?: number; uidvalidity?: number }> {
     await this.ensureConnected()
 
     return new Promise((resolve, reject) => {
@@ -291,7 +291,25 @@ export class IMAPClient {
         const statusObj = status as any
         resolve({
           messages: typeof statusObj.messages === 'object' ? (statusObj.messages?.total || 0) : (statusObj.messages || 0),
-          unseen: statusObj.unseen || statusObj.messages?.unseen || 0
+          unseen: statusObj.unseen || statusObj.messages?.unseen || 0,
+          uidnext: statusObj.uidnext || statusObj.uidNext,
+          uidvalidity: statusObj.uidvalidity || statusObj.uidValidity
+        })
+      })
+    })
+  }
+
+  async listMessageUids(folderName: string): Promise<number[]> {
+    return this.withMailbox(folderName, true, () => {
+      const connection = this.getConnectionOrThrow()
+      return new Promise((resolve, reject) => {
+        connection.search(['ALL'], (err, results) => {
+          if (err) {
+            reject(err)
+            return
+          }
+          const uids = (results || []).map((value: any) => Number(value)).filter((value) => Number.isFinite(value))
+          resolve(uids)
         })
       })
     })
@@ -300,7 +318,8 @@ export class IMAPClient {
   async fetchEmailMetadata(
     folderName: string,
     start: number = 1,
-    end: number = 50
+    end: number = 50,
+    options?: { uids?: number[] }
   ): Promise<Email[]> {
     return this.withMailbox(folderName, true, ({ box, path }) => {
       return new Promise((resolve, reject) => {
@@ -323,33 +342,46 @@ export class IMAPClient {
 
         console.log(`Opened box ${box.name} (path=${path}): total=${box.messages.total}, unseen=${box.messages.unseen}`)
 
-        const totalMessages = box.messages.total || 0
+        const explicitUids = (options?.uids || []).filter((value) => Number.isFinite(value))
+        const hasExplicitUids = explicitUids.length > 0
+
+        const totalMessages = hasExplicitUids ? explicitUids.length : (box.messages.total || 0)
         if (totalMessages === 0) {
           cleanup()
           resolve([])
           return
         }
 
-        const fetchAll = end >= 10000 || end === 999999
-        const sequenceRange = fetchAll
-          ? '1:*'
-          : this.calculateSequenceRange(totalMessages, start, end)
+        const fetchAll = !hasExplicitUids && (end >= 10000 || end === 999999)
+        const sequenceRange = hasExplicitUids
+          ? null
+          : fetchAll
+            ? '1:*'
+            : this.calculateSequenceRange(totalMessages, start, end)
 
-        if (!sequenceRange) {
+        if (!hasExplicitUids && !sequenceRange) {
           cleanup()
           resolve([])
           return
         }
 
-        console.log(`Fetching metadata from ${path} using sequence range ${sequenceRange}`)
+        if (hasExplicitUids) {
+          console.log(`Fetching metadata for ${explicitUids.length} explicit UIDs from ${path}`)
+        } else {
+          console.log(`Fetching metadata from ${path} using sequence range ${sequenceRange}`)
+        }
 
         const emails: Email[] = []
 
-        const fetch = connection.seq.fetch(sequenceRange, {
+        const fetchOptions = {
           bodies: METADATA_HEADER_FIELDS,
           struct: true,
           envelope: true
-        })
+        }
+
+        const fetch = hasExplicitUids
+          ? connection.fetch(explicitUids, fetchOptions)
+          : connection.seq.fetch(sequenceRange!, fetchOptions)
 
         fetch.on('message', (msg, seqno) => {
           let uid: number | null = null
@@ -482,17 +514,19 @@ export class IMAPClient {
     return `${seqLow}:${seqHigh}`
   }
 
+
   async fetchEmails(
     folderName: string,
     start: number = 1,
-    end: number = 50
+    end: number = 50,
+    options?: { uids?: number[] }
   ): Promise<Email[]> {
     return this.withMailbox(folderName, true, ({ box, path }) => {
       return new Promise((resolve, reject) => {
         const connection = this.getConnectionOrThrow()
         const timeout = setTimeout(() => {
           reject(new Error('IMAP fetch timeout'))
-        }, 120000) // 120 second timeout for large folders
+        }, 120000)
 
         const errorHandler = (err: Error) => {
           cleanup()
@@ -506,77 +540,58 @@ export class IMAPClient {
 
         connection.once('error', errorHandler)
 
-        try {
-          console.log(`Opened box ${box.name} (path=${path}): total=${box.messages.total}, unseen=${box.messages.unseen}`)
+        console.log(`Opened box ${box.name} (path=${path}): total=${box.messages.total}, unseen=${box.messages.unseen}`)
+
+        const explicitUids = (options?.uids || []).filter((value) => Number.isFinite(value))
+        const hasExplicitUids = explicitUids.length > 0
+        const fetchAll = end >= 10000 || end === 999999
+
+        const getUidsToFetch = async (): Promise<number[]> => {
+          if (hasExplicitUids) {
+            return explicitUids
+          }
 
           if (!box || box.messages.total === 0) {
-            cleanup()
-            resolve([])
-            return
+            return []
           }
 
-          // Fetch all messages by sequence number to get all UIDs
-          const seqRange = '1:*'
-          console.log(`Fetching UIDs for all ${box.messages.total} messages using sequence range ${seqRange}`)
-
-          const allUids: number[] = []
-
-          if (connection.state === 'disconnected') {
-            cleanup()
-            reject(new Error('IMAP connection lost before fetch'))
-            return
-          }
-
-          // First, fetch UIDs by fetching sequence numbers and extracting UIDs
-          const uidFetch = connection.fetch(seqRange, {
-            bodies: '',
-            struct: false
-          })
-
-          uidFetch.on('message', (msg) => {
-            msg.on('attributes', (attrs) => {
-              if (attrs.uid) {
-                allUids.push(attrs.uid)
+          const allUids = await new Promise<number[]>((resolveUids, rejectUids) => {
+            connection.search(['ALL'], (err, results) => {
+              if (err) {
+                rejectUids(err)
+                return
               }
+              const normalized = (results || [])
+                .map((value: any) => Number(value))
+                .filter((value) => Number.isFinite(value))
+              resolveUids(normalized)
             })
           })
 
-          uidFetch.once('error', (fetchErr) => {
-            cleanup()
-            console.error(`Error fetching UIDs:`, fetchErr)
-            reject(fetchErr)
-          })
+          if (allUids.length === 0) {
+            return []
+          }
 
-          uidFetch.once('end', () => {
-            console.log(`Collected ${allUids.length} UIDs from ${box.messages.total} messages`)
+          const sortedUids = allUids.sort((a, b) => b - a)
+          if (fetchAll) {
+            return sortedUids
+          }
 
-            if (allUids.length === 0) {
+          const startIdx = Math.max(0, start - 1)
+          const endIdx = Math.min(sortedUids.length, end)
+          return sortedUids.slice(startIdx, endIdx)
+        }
+
+        const beginFetch = async () => {
+          try {
+            const uidsToFetch = await getUidsToFetch()
+            if (uidsToFetch.length === 0) {
               cleanup()
-              console.warn(`No UIDs found in ${path} despite ${box.messages.total} messages`)
               resolve([])
               return
             }
 
-            if (connection.state === 'disconnected') {
-              cleanup()
-              reject(new Error('IMAP connection lost before fetching emails'))
-              return
-            }
-
-            // Sort UIDs descending (most recent first)
-            const sortedUids = allUids.sort((a, b) => b - a)
-
-            // Apply pagination: start and end parameters
-            let uidsToFetch: number[]
-            if (end >= 10000) {
-              uidsToFetch = sortedUids
-            } else {
-              const startIdx = Math.max(0, start - 1)
-              const endIdx = Math.min(sortedUids.length, end)
-              uidsToFetch = sortedUids.slice(startIdx, endIdx)
-            }
-
-            console.log(`Fetching ${uidsToFetch.length} emails (range ${start}-${end}) from ${sortedUids.length} total UIDs in ${path}`)
+            console.log(`Fetching ${uidsToFetch.length} emails from ${path}${hasExplicitUids ? ' (explicit UID list)' : ''}`)
 
             const emails: Email[] = []
             let emailCount = 0
@@ -703,22 +718,24 @@ export class IMAPClient {
                         bcc: envelope?.bcc ? this.parseAddresses(envelope.bcc) : undefined,
                         replyTo: envelope?.replyTo ? this.parseAddresses(envelope.replyTo) : undefined,
                         date: envelope?.date ? new Date(envelope.date).getTime() : Date.now(),
-                        body: '',
-                        htmlBody: undefined,
-                        textBody: undefined,
+                        body: body,
+                        htmlBody: parsed?.html || undefined,
+                        textBody: parsed?.text,
                         attachments: [],
                         flags: flags,
                         isRead: flags.includes('\\Seen'),
                         isStarred: flags.includes('\\Flagged'),
-                        threadId: envelope?.inReplyTo || undefined,
-                        inReplyTo: envelope?.inReplyTo || undefined,
-                        references: envelope?.references ? (Array.isArray(envelope.references) ? envelope.references : [envelope.references]) : undefined,
+                        threadId: parsed?.inReplyTo || envelope?.inReplyTo || undefined,
+                        inReplyTo: parsed?.inReplyTo || envelope?.inReplyTo || undefined,
+                        references: parsed?.references ? (Array.isArray(parsed.references) ? parsed.references : [parsed.references]) : (envelope?.references ? (Array.isArray(envelope.references) ? envelope.references : [envelope.references]) : undefined),
                         encrypted: false,
                         signed: false,
                         signatureVerified: undefined,
+                        headers: headers,
                         createdAt: Date.now(),
                         updatedAt: Date.now()
                       }
+
                       emails.push(email)
                       emailCount++
                       console.log(`Processed email ${emailCount}/${totalToFetch} (UID: ${uid || seqno}, envelope only) in ${folderName}`)
@@ -751,15 +768,19 @@ export class IMAPClient {
               cleanup()
               resolve(emails)
             })
-          })
-        } catch (e) {
-          cleanup()
-          reject(e)
+          } catch (err) {
+            cleanup()
+            reject(err)
+          }
         }
+
+        beginFetch().catch((err) => {
+          cleanup()
+          reject(err)
+        })
       })
     })
   }
-
   async fetchEmailByUid(folderName: string, uid: number): Promise<Email | null> {
     console.log(`[IMAPClient.fetchEmailByUid] Starting fetch for UID ${uid} in folder ${folderName}`)
 

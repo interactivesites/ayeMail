@@ -1,6 +1,5 @@
 
 ## Functionality
-- image resizing in mail (attachments)
 - bg image
 - GPG: plan, check, implement.
 - Auto-Updater

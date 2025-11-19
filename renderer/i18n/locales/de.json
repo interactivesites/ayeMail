@@ -197,7 +197,7 @@
     "in3Days": "in 3 Tagen",
     "nextWeek": "nächste Woche",
     "sometime": "irgendwann (ca. 2 Wochen)",
-    "puttingAside": "Zur Seite legen...",
+    "settingReminder": "Erstelle Erinnerung...",
     "selectDateFromTomorrow": "Bitte wählen Sie ein Datum ab morgen aus",
     "selectDateAndTime": "Bitte wählen Sie ein Datum und eine Uhrzeit aus",
     "failedToCreateReminder": "Erinnerung konnte nicht erstellt werden: {message}",

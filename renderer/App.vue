@@ -8,7 +8,7 @@
     <!-- Custom Title Bar -->
     <div class="app-drag-region bg-white/70 dark:bg-dark-gray-800/70 backdrop-blur-xl border-b border-white/60 dark:border-dark-gray-700 shadow-sm flex items-center justify-between px-4 py-2 h-12 flex-shrink-0">
       <div class=" flex items-center space-x-3 flex-1 min-w-0">
-        <img src="../../assets/ilogo.png" alt="iMail" class="w-6 h-6" />
+        <img :src="logoPath" alt="iMail" class="w-6 h-6" />
         <h2 class="text-sm font-medium text-gray-900 dark:text-dark-gray-100 truncate min-w-0">iMail</h2>
       </div>
       <div class="app-no-drag flex items-center space-x-3">
@@ -157,6 +157,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, onBeforeUnmount, watch, nextTick } from 'vue'
 import { MinusIcon, ArrowsPointingOutIcon, XMarkIcon, MagnifyingGlassIcon, CogIcon } from '@heroicons/vue/24/outline'
+import logoPath from '../assets/ilogo.png'
 import FolderList from './components/FolderList.vue'
 import EmailList from './components/EmailList.vue'
 import CalmMode from './components/CalmMode.vue'
@@ -310,6 +311,7 @@ const handleFolderSelect = async (folder: any) => {
   selectedFolderId.value = folder.id
   selectedFolderName.value = folder.name
   selectedEmailId.value = ''
+  selectedEmail.value = null
   unifiedFolderType.value = null
   unifiedFolderAccountIds.value = []
 

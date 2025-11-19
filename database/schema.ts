@@ -16,10 +16,16 @@ const getDbPath = () => {
 export function createDatabase(): Database.Database {
   const dbPath = getDbPath()
   const db = new Database(dbPath)
-  
+
   // Enable foreign keys
   db.pragma('foreign_keys = ON')
-  
+  const ensureColumn = (table: string, column: string, definition: string) => {
+    const existingColumns = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>
+    if (!existingColumns.some(col => col.name === column)) {
+      db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`)
+    }
+  }
+
   // Create tables
   db.exec(`
     CREATE TABLE IF NOT EXISTS accounts (
@@ -287,6 +293,15 @@ export function createDatabase(): Database.Database {
     console.error('Error creating spam_greylist table:', error)
   }
 
+  // Migration: ensure folder sync metadata columns exist on upgraded installs
+  try {
+    ensureColumn('folders', 'uid_validity', 'INTEGER')
+    ensureColumn('folders', 'highest_uid', 'INTEGER DEFAULT 0')
+    ensureColumn('folders', 'last_sync_at', 'INTEGER')
+  } catch (error) {
+    console.error('Error ensuring folder sync metadata columns:', error)
+  }
+
   // Migration: Ensure account_from_addresses table exists and migrate existing accounts
   try {
     const tableInfo = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='account_from_addresses'").get()
@@ -335,4 +350,3 @@ export function getDatabase(): Database.Database {
   }
   return dbInstance
 }
-

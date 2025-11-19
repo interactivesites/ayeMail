@@ -869,6 +869,23 @@ export function registerEmailHandlers() {
       }
     }
     
+    // Get all reminder info for emails in search results (for showing reminder icons)
+    // Include both active and completed reminders - completed reminders indicate emails moved back from Reminders
+    const emailIds = matchingEmails.map(e => e.id)
+    const reminderMap = new Map<string, any>()
+    if (emailIds.length > 0) {
+      const placeholders = emailIds.map(() => '?').join(',')
+      const reminders = db.prepare(`
+        SELECT email_id, due_date, id, completed
+        FROM reminders
+        WHERE email_id IN (${placeholders})
+      `).all(...emailIds) as any[]
+      
+      for (const reminder of reminders) {
+        reminderMap.set(reminder.email_id, reminder)
+      }
+    }
+    
     // Map to return format with decrypted body content
     const mappedEmails = matchingEmails.map(e => {
       let body: string | undefined

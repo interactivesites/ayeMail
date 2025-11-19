@@ -21,6 +21,24 @@ const SYNC_YIELD_INTERVAL = 25
 export class EmailStorage {
   private db = getDatabase()
   private cancellationTokens = new Map<string, { cancelled: boolean }>()
+  private createCancellationToken(keys: string[]): { cancelled: boolean } {
+    const token = { cancelled: false }
+    for (const key of keys) {
+      this.cancellationTokens.set(key, token)
+    }
+    return token
+  }
+
+  private releaseCancellationToken(token?: { cancelled: boolean }) {
+    if (!token) {
+      return
+    }
+    for (const [key, value] of Array.from(this.cancellationTokens.entries())) {
+      if (value === token) {
+        this.cancellationTokens.delete(key)
+      }
+    }
+  }
 
   private isMailboxNotExistError(err: any): boolean {
     // Check for IMAP "mailbox doesn't exist" errors
@@ -713,7 +731,15 @@ export class EmailStorage {
     return emails.map(e => this.mapDbEmailToEmail(e))
   }
 
-  async syncFolderEmails(imapClient: any, accountId: string, folder: any, progressCallback?: SyncProgressCallback, fetchFullBodies: boolean = false, cancelToken?: { cancelled: boolean }): Promise<{ synced: number; errors: number }> {
+  async syncFolderEmails(
+    imapClient: any,
+    accountId: string,
+    folder: any,
+    progressCallback?: SyncProgressCallback,
+    fetchFullBodies: boolean = false,
+    cancelToken?: { cancelled: boolean },
+    uids?: number[]
+  ): Promise<{ synced: number; errors: number }> {
     let synced = 0
     let errors = 0
 
@@ -725,14 +751,20 @@ export class EmailStorage {
 
       // Use folder name for IMAP operations, ensure INBOX is uppercase
       const imapFolderName = folder.name.toUpperCase() === 'INBOX' ? 'INBOX' : folder.path
-      console.log(`Fetching emails for folder: ${folder.name}, path: ${folder.path}, using IMAP name: ${imapFolderName}, id: ${folder.id}, fetchFullBodies: ${fetchFullBodies}`)
+      console.log(`Fetching emails for folder: ${folder.name}, path: ${folder.path}, using IMAP name: ${imapFolderName}, id: ${folder.id}, fetchFullBodies: ${fetchFullBodies}, uids filter: ${uids ? uids.length : 'all'}`)
+
+      if (uids && uids.length === 0) {
+        console.log(`No UIDs provided for folder ${folder.name}, skipping fetch`)
+        return { synced: 0, errors: 0 }
+      }
 
       // Default: metadata-only for fast initial sync, bodies loaded on-demand when viewing
       // Full bodies only when explicitly requested (e.g., rebuild operation)
       // Using 999999 to ensure we fetch all emails
-      const emails = fetchFullBodies 
-        ? await imapClient.fetchEmails(imapFolderName, 1, 999999)
-        : await imapClient.fetchEmailMetadata(imapFolderName, 1, 999999)
+      const fetchLimit = uids && uids.length > 0 ? uids.length : 999999
+      const emails = fetchFullBodies
+        ? await imapClient.fetchEmails(imapFolderName, 1, fetchLimit, uids && uids.length > 0 ? { uids } : undefined)
+        : await imapClient.fetchEmailMetadata(imapFolderName, 1, fetchLimit, uids && uids.length > 0 ? { uids } : undefined)
 
       // Check cancellation after fetching emails list
       if (cancelToken?.cancelled) {
@@ -806,16 +838,19 @@ export class EmailStorage {
     return { synced, errors }
   }
 
+
   async syncFolder(accountId: string, folderId: string, progressCallback?: SyncProgressCallback, options?: { fetchFullBodies?: boolean }): Promise<{ synced: number; errors: number }> {
     const account = await accountManager.getAccount(accountId)
     if (!account) {
       throw new Error('Account not found')
     }
 
-    // Check if sync was cancelled
-    const cancelToken = this.cancellationTokens.get(accountId)
-    if (cancelToken?.cancelled) {
-      return { synced: 0, errors: 0 }
+    // Ensure we have a cancellation token entry for this account so other callers can signal cancellation
+    let cancelToken = this.cancellationTokens.get(accountId)
+    let ownsToken = false
+    if (!cancelToken || cancelToken.cancelled) {
+      cancelToken = this.createCancellationToken([accountId])
+      ownsToken = true
     }
 
     const folder = this.db.prepare('SELECT * FROM folders WHERE id = ? AND account_id = ?').get(folderId, accountId) as any
@@ -831,44 +866,123 @@ export class EmailStorage {
         const imapClient = getIMAPClient(account)
         await imapClient.connect()
 
-        // Check cancellation again after connection
-        if (cancelToken?.cancelled) {
-          await imapClient.disconnect()
-          return { synced: 0, errors: 0 }
-        }
-
-        // Show connecting status
-        progressCallback?.({ folder: folder.name, folderId: folder.id, accountId, current: 0, total: undefined })
-
-        // Get total count before fetching emails
         try {
-          const imapFolderName = folder.name.toUpperCase() === 'INBOX' ? 'INBOX' : folder.path
-          const status = await imapClient.getFolderStatus(imapFolderName)
-          if (status.messages > 0) {
-            // Send progress update with total count
-            progressCallback?.({ folder: folder.name, folderId: folder.id, accountId, current: 0, total: status.messages })
+          if (cancelToken?.cancelled) {
+            return { synced: 0, errors: 0 }
           }
-        } catch (statusError) {
-          console.warn(`Could not get folder status for ${folder.name}, will get total from fetch:`, statusError)
-          // Continue without total - will be set when emails are fetched
+
+          // Show connecting status
+          progressCallback?.({ folder: folder.name, folderId: folder.id, accountId, current: 0, total: undefined })
+
+          const imapFolderName = folder.name.toUpperCase() === 'INBOX' ? 'INBOX' : folder.path
+          let folderStatus: { messages: number; unseen: number; uidnext?: number; uidvalidity?: number } | null = null
+          try {
+            folderStatus = await imapClient.getFolderStatus(imapFolderName)
+            if (folderStatus.messages > 0) {
+              progressCallback?.({ folder: folder.name, folderId: folder.id, accountId, current: 0, total: folderStatus.messages })
+            }
+          } catch (statusError) {
+            console.warn(`Could not get folder status for ${folder.name}, proceeding without message counts:`, statusError)
+          }
+
+          let serverUids: number[] = []
+          try {
+            serverUids = await imapClient.listMessageUids(imapFolderName)
+          } catch (uidError: any) {
+            if (this.isMailboxNotExistError(uidError)) {
+              console.warn(`Folder ${folder.name} no longer exists on server, removing local entry`)
+              this.db.prepare('DELETE FROM folders WHERE id = ?').run(folder.id)
+              return { synced: 0, errors: 0 }
+            }
+            throw uidError
+          }
+
+          const sortedServerUids = serverUids.sort((a, b) => a - b)
+          const folderState = this.db.prepare('SELECT uid_validity, highest_uid FROM folders WHERE id = ?').get(folder.id) as any
+          let requiresFullResync = options?.fetchFullBodies ?? false
+
+          if (!requiresFullResync && folderStatus?.uidvalidity && folderState?.uid_validity && folderState.uid_validity !== folderStatus.uidvalidity) {
+            console.log(`UIDVALIDITY changed for ${folder.name} (${folder.uid_validity} -> ${folderStatus.uidvalidity}), performing full resync`)
+            requiresFullResync = true
+          }
+
+          if (requiresFullResync) {
+            this.db.prepare('DELETE FROM emails WHERE folder_id = ?').run(folder.id)
+          }
+
+          let localUidSet = new Set<number>()
+          if (!requiresFullResync) {
+            const localEmails = this.db.prepare('SELECT id, uid FROM emails WHERE folder_id = ?').all(folder.id) as Array<{ id: string; uid: number }>
+            localUidSet = new Set(localEmails.map(e => e.uid))
+
+            if (localEmails.length > 0) {
+              const serverUidSet = new Set(sortedServerUids)
+              const deleteStmt = this.db.prepare('DELETE FROM emails WHERE id = ?')
+              let removedCount = 0
+              for (const email of localEmails) {
+                if (!serverUidSet.has(email.uid)) {
+                  deleteStmt.run(email.id)
+                  removedCount++
+                }
+              }
+
+              if (removedCount > 0) {
+                console.log(`Removed ${removedCount} stale emails from folder ${folder.name} that no longer exist on the server`)
+              }
+            }
+          }
+
+          let uidsToFetch: number[] | undefined = undefined
+          if (!requiresFullResync) {
+            const newUids = sortedServerUids.filter((uid) => !localUidSet.has(uid))
+            uidsToFetch = newUids
+          }
+
+          if (requiresFullResync || (uidsToFetch && uidsToFetch.length > 0)) {
+            const result = await this.syncFolderEmails(
+              imapClient,
+              accountId,
+              folder,
+              progressCallback,
+              options?.fetchFullBodies ?? false,
+              cancelToken,
+              requiresFullResync ? undefined : uidsToFetch
+            )
+            synced += result.synced
+            errors += result.errors
+          } else {
+            console.log(`Folder ${folder.name} is already up to date (no new UIDs).`)
+          }
+
+          const highestUid = sortedServerUids.length > 0 ? sortedServerUids[sortedServerUids.length - 1] : 0
+          const now = Date.now()
+          this.db.prepare(`
+            UPDATE folders SET uid_validity = ?, highest_uid = ?, last_sync_at = ?, total_count = ?, unread_count = ?, updated_at = ?
+            WHERE id = ?
+          `).run(
+            folderStatus?.uidvalidity || folder.uid_validity || null,
+            highestUid,
+            now,
+            folderStatus?.messages ?? sortedServerUids.length,
+            folderStatus?.unseen ?? folder.unread_count ?? 0,
+            now,
+            folder.id
+          )
+        } finally {
+          await imapClient.disconnect()
         }
-
-        // Default to metadata-only for fast sync - bodies fetched on-demand when viewing emails
-        const result = await this.syncFolderEmails(imapClient, accountId, folder, progressCallback, options?.fetchFullBodies ?? false, cancelToken)
-        synced += result.synced
-        errors += result.errors
-
-        await imapClient.disconnect()
       }
     } catch (error) {
       console.error('Error syncing folder:', error)
       errors++
-      // Don't send progress callback on error - let the frontend handle the error from the return value
+    } finally {
+      if (ownsToken) {
+        this.releaseCancellationToken(cancelToken)
+      }
     }
 
     return { synced, errors }
   }
-
   async clearAndResyncFolder(accountId: string, folderId: string, progressCallback?: SyncProgressCallback): Promise<{ synced: number; errors: number }> {
     console.log(`Clearing emails from folder ${folderId} and re-syncing with full bodies...`)
     
@@ -884,6 +998,7 @@ export class EmailStorage {
     const token = this.cancellationTokens.get(accountId)
     if (token) {
       token.cancelled = true
+      this.releaseCancellationToken(token)
     }
   }
 
@@ -895,8 +1010,7 @@ export class EmailStorage {
 
     // Create cancellation token if provided
     const cancellationToken = options?.cancellationToken || accountId
-    const cancelToken = { cancelled: false }
-    this.cancellationTokens.set(cancellationToken, cancelToken)
+    const cancelToken = this.createCancellationToken([cancellationToken, accountId])
 
     let synced = 0
     let errors = 0
@@ -944,7 +1058,6 @@ export class EmailStorage {
             try {
               if (cancelToken.cancelled) {
                 await imapClient.disconnect()
-                this.cancellationTokens.delete(cancellationToken)
                 return { synced, errors }
               }
               progressCallback?.({ folder: inbox.name, folderId: inbox.id, accountId, current: 0, total: undefined })
@@ -958,7 +1071,6 @@ export class EmailStorage {
                 for (let i = 0; i < emails.length; i++) {
                   if (cancelToken.cancelled) {
                     await imapClient.disconnect()
-                    this.cancellationTokens.delete(cancellationToken)
                     return { synced, errors }
                   }
                   const email = emails[i]
@@ -997,7 +1109,6 @@ export class EmailStorage {
             }
           }
           await imapClient.disconnect()
-          this.cancellationTokens.delete(cancellationToken)
           return { synced, errors }
         }
 
@@ -1023,7 +1134,6 @@ export class EmailStorage {
         for (const folder of foldersToSync) {
           if (cancelToken.cancelled) {
             await imapClient.disconnect()
-            this.cancellationTokens.delete(cancellationToken)
             return { synced, errors }
           }
           try {
@@ -1047,7 +1157,6 @@ export class EmailStorage {
             for (let i = 0; i < emails.length; i++) {
               if (cancelToken.cancelled) {
                 await imapClient.disconnect()
-                this.cancellationTokens.delete(cancellationToken)
                 return { synced, errors }
               }
               const email = emails[i]
@@ -1097,7 +1206,6 @@ export class EmailStorage {
         }
 
         await imapClient.disconnect()
-        this.cancellationTokens.delete(cancellationToken)
       } else if (account.type === 'pop3') {
         const pop3Client = getPOP3Client(account)
         await pop3Client.connect()
@@ -1138,6 +1246,8 @@ export class EmailStorage {
     } catch (err) {
       console.error('Error syncing account:', err)
       errors++
+    } finally {
+      this.releaseCancellationToken(cancelToken)
     }
 
     return { synced, errors }

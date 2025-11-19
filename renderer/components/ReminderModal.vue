@@ -101,7 +101,7 @@
     <div v-if="saving" class="absolute inset-0 bg-white/50 dark:bg-dark-gray-900/50 backdrop-blur-xl z-50 flex items-center justify-center rounded-lg">
       <div class="flex flex-col items-center space-y-4">
         <div class="w-12 h-12 border-4 border-primary-600 dark:border-primary-500 border-t-transparent rounded-full animate-spin"></div>
-        <p class="text-gray-700 dark:text-dark-gray-300 text-sm font-medium">Putting aside...</p>
+        <p class="text-gray-700 dark:text-dark-gray-300 text-sm font-medium">{{$t('reminder.puttingAside')}}</p>
       </div>
     </div>
   </div>
