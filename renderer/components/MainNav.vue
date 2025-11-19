@@ -3,10 +3,10 @@
     <nav class="ml-2 px-4 py-2 border-t border-white/60 dark:border-gray-700 flex items-center justify-between h-16">
       <!-- Left mode: Show logo and folder actions (sync, compose) -->
       <template v-if="mode === 'left'" >
-        <!-- <img src="../../assets/ilogo.png" alt="iMail" class="w-8 h-8 rounded-xl mr-8" /> -->
+        <img src="../../assets/ilogo.png" alt="iMail" class="w-8 h-8 rounded-xl mr-8" />
         
         <!-- Folder actions -->
-        <div class="app-no-drag flex items-center space-x-3 ml-16 pl-2">
+        <div class="app-no-drag flex items-center space-x-3 pl-2">
           <button @click="$emit('sync')" :disabled="syncing" class="text-gray-700 dark:text-gray-200 hover:text-gray-900 dark:hover:text-gray-100 items-center flex flex-col">
             <ArrowPathIcon class="w-5 h-5" />
             <span v-if="preferences.showActionLabels">{{ syncing ? $t('navigation.syncing') : $t('navigation.sync') }}</span>

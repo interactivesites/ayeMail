@@ -1,16 +1,13 @@
 
 ## Functionality
-
+- save window position / size (E)
 - image resizing in mail (attachments)
 - bg image
-- language (i18n) / - formatters (date, time, etc.) - try to get from system
-
 - GPG: plan, check, implement.
-- Auto-Updater?
+- Auto-Updater
 
 ## Bugs
 - threads show 2x same mail
-
 
 ## UI
 - Threads: visualise with connections
@@ -18,27 +15,12 @@
 
 
 ## Feat
-
 - Read dates create vcs
 - Auto-Create VCS for dates
-- ai to summarize, answer?
 - Folder management: rename, order, delete, create?
 
-
-## NEW UX
-- make the grid a new view. 
-- check: https://www.mailpilot.app/ 
-- 
-
-
-
-
-
-
 ## GPG
-
-### Current
-
+- Implement !
 
 Current GPG Surface
 

@@ -10,6 +10,7 @@ import { getDatabase } from '../database'
 import { reminderScheduler } from '../reminders/scheduler'
 import { autoLockManager } from '../security/auto-lock'
 import { autoSyncScheduler } from '../email/auto-sync'
+import { loadWindowState, setupWindowStateHandlers } from './window-state'
 
 // In CommonJS, __dirname is automatically available
 // TypeScript needs this declaration for type checking, but it won't be emitted
@@ -21,13 +22,17 @@ const emailViewerWindows = new Set<BrowserWindow>()
 const isMac = process.platform === 'darwin'
 
 function createWindow() {
+  // Load saved window state
+  const savedState = loadWindowState()
+  
   const windowOptions: BrowserWindowConstructorOptions = {
-    width: 1200,
-    height: 800,
+    width: savedState.width,
+    height: savedState.height,
+    x: savedState.x,
+    y: savedState.y,
     minWidth: 960,
     minHeight: 600,
-    frame: isMac ? true : false,
-    titleBarStyle: isMac ? 'hiddenInset' : 'default',
+    frame: false, // No frame on all platforms - using custom controls
     backgroundColor: isMac ? '#00000000' : '#0f172a',
     transparent: isMac,
     show: false, // Don't show until ready
@@ -41,12 +46,6 @@ function createWindow() {
 
   if (isMac) {
     Object.assign(windowOptions, {
-      trafficLightPosition: { x: 16, y: 18 },
-      titleBarOverlay: {
-        color: '#00000000',
-        symbolColor: '#0f172a',
-        height: 56
-      },
       vibrancy: 'under-window',
       visualEffectState: 'active'
     })
@@ -59,8 +58,15 @@ function createWindow() {
     mainWindow.setBackgroundColor('#00000000')
   }
 
+  // Setup window state persistence handlers (pass initial state for normal bounds tracking)
+  setupWindowStateHandlers(mainWindow, savedState)
+
   // Prevent white/black flash during load
   mainWindow.once('ready-to-show', () => {
+    // Restore maximized state after window is ready
+    if (savedState.isMaximized) {
+      mainWindow?.maximize()
+    }
     mainWindow?.show()
   })
 
@@ -326,8 +332,35 @@ app.whenReady().then(async () => {
   }, 2000)
 
   app.on('activate', () => {
+    // On macOS, re-create window if all windows are closed
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow()
+    } else {
+      // If windows exist but are hidden, show and focus the main window
+      if (mainWindow) {
+        if (mainWindow.isMinimized()) {
+          mainWindow.restore()
+        }
+        if (!mainWindow.isVisible()) {
+          mainWindow.show()
+        }
+        mainWindow.focus()
+      } else {
+        // Main window reference lost, find and restore it
+        const windows = BrowserWindow.getAllWindows()
+        if (windows.length > 0) {
+          const firstWindow = windows[0]
+          if (firstWindow.isMinimized()) {
+            firstWindow.restore()
+          }
+          if (!firstWindow.isVisible()) {
+            firstWindow.show()
+          }
+          firstWindow.focus()
+          // Update mainWindow reference
+          mainWindow = firstWindow
+        }
+      }
     }
   })
 })

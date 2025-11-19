@@ -5,6 +5,35 @@
   <EmailViewerWindow v-else-if="isEmailViewerMode" />
   <!-- As composer mode is not open, show the main app -->
   <div v-else class="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
+    <!-- Custom Title Bar -->
+    <div class="app-drag-region bg-white/70 dark:bg-gray-800/70 backdrop-blur-xl border-b border-white/60 dark:border-gray-700 shadow-sm flex items-center justify-between px-4 py-2 h-12 flex-shrink-0">
+      <div class="app-no-drag flex items-center space-x-3 flex-1 min-w-0">
+        <h2 class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate min-w-0 flex-1">iMail</h2>
+      </div>
+      <div class="app-no-drag flex items-center space-x-1">
+        <button
+          @click="handleMinimize"
+          class="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+          title="Minimize"
+        >
+          <MinusIcon class="w-4 h-4 text-gray-600 dark:text-gray-300" />
+        </button>
+        <button
+          @click="handleMaximize"
+          class="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+          title="Maximize"
+        >
+          <ArrowsPointingOutIcon class="w-4 h-4 text-gray-600 dark:text-gray-300" />
+        </button>
+        <button
+          @click="handleClose"
+          class="p-1.5 rounded hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+          title="Close"
+        >
+          <XMarkIcon class="w-4 h-4 text-gray-600 dark:text-gray-300 hover:text-red-600 dark:hover:text-red-400" />
+        </button>
+      </div>
+    </div>
 
     <main class="flex-1 flex overflow-hidden">
 
@@ -91,6 +120,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, computed, onBeforeUnmount } from 'vue'
+import { MinusIcon, ArrowsPointingOutIcon, XMarkIcon } from '@heroicons/vue/24/outline'
 import FolderList from './components/FolderList.vue'
 import EmailList from './components/EmailList.vue'
 import CalmMode from './components/CalmMode.vue'
@@ -895,6 +925,19 @@ const handleDropError = (emailId: string) => {
   window.dispatchEvent(new CustomEvent('restore-email', { detail: { emailId } }))
   // Refresh email list to ensure consistency
   window.dispatchEvent(new CustomEvent('refresh-emails'))
+}
+
+// Window control handlers
+const handleMinimize = () => {
+  window.electronAPI.window.minimize()
+}
+
+const handleMaximize = () => {
+  window.electronAPI.window.maximize()
+}
+
+const handleClose = () => {
+  window.electronAPI.window.close()
 }
 
 const handleSearch = (query: string) => {

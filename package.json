@@ -1,8 +1,17 @@
 {
   "name": "ayemail",
-  "version": "1.0.0-alpha.1",
+  "version": "1.0.0-alpha.2",
   "description": "Secure Electron-based email client",
   "main": "dist-electron/electron/main.js",
+  "homepage": "https://ayemail.interactivesites.co.nz",
+  "author": "InteractiveSites",
+  "license": "MIT",
+  "keywords": [
+    "email",
+    "electron",
+    "imap",
+    "pop3"
+  ],
   "scripts": {
     "dev": "concurrently \"npm run dev:vite\" \"npm run dev:tsc\" \"npm run dev:electron\"",
     "dev:vite": "vite",
@@ -23,14 +32,6 @@
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage"
   },
-  "keywords": [
-    "email",
-    "electron",
-    "imap",
-    "pop3"
-  ],
-  "author": "",
-  "license": "MIT",
   "devDependencies": {
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/vue": "^8.1.0",
