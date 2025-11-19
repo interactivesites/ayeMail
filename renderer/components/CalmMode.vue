@@ -6,12 +6,12 @@
     <div class="flex-1 relative overflow-hidden flex">
       <div class="absolute top-6 left-8 px-8 py-4 z-10">
         <!-- Meta: current folder / mail count -->
-        <div class="flex justify-between text-sm opacity-70">
+        <div class="flex justify-between text-sm opacity-70 dark:text-dark-gray-400 uppercase">
           <span class="mr-8">{{ currentFolderName }}</span>
           <span class="text-3xl" v-if="mails.length > 0">{{ currentIndex + 1 }}/{{ mails.length }}</span>
           <span v-else>0 emails</span>
         </div>
-        <EmailNavigation class="!ml-0 mt-4" :has-selected-email="!!selectedEmailId" :selected-email="selectedEmail" :account-id="accountId" @compose="handleCompose" @reply="handleReply" @forward="handleForward" @set-reminder="handleSetReminder" @delete="handleDelete" />
+        <EmailNavigation class="!ml-0 mt-4" :has-selected-email="!!selectedEmailId" :selected-email="selectedEmail" :account-id="accountId" @compose="handleCompose" @reply="handleReply" @forward="handleForward" @set-reminder="handleSetReminder" @archive="handleArchive" @move-to-folder="handleMoveToFolder" @delete="handleDelete" />
       </div>
 
       <div ref="mailbox" class="relative w-full max-w-2xl flex-shrink-0 h-full flex items-center" @wheel="handleWheel">
@@ -41,7 +41,7 @@
                       Complete
                     </button>
                   </div>
-                  <p class="text-xs text-gray-500 dark:text-dark-gray-400">Disable confirmation messages in Preferences</p>
+                  <!-- <p class="text-xs text-gray-500 dark:text-dark-gray-400">Disable confirmation messages in Preferences</p> -->
                 </div>
               </Teleport>
             </div>
@@ -94,6 +94,29 @@
         />
       </div>
     </Teleport>
+    
+    <!-- Folder Picker Modal as Popover -->
+    <Teleport to="body">
+      <div
+        v-if="showFolderPicker && folderPickerEmail"
+        ref="folderPickerRef"
+        class="popover-panel fixed z-[9999]"
+        :style="folderPickerStyle"
+        style="pointer-events: auto;"
+      >
+        <div
+          class="popover-arrow bg-white dark:bg-dark-gray-800 border border-gray-200 dark:border-dark-gray-700"
+          ref="folderPickerArrowRef"
+        ></div>
+        <FolderPickerModal
+          :account-id="folderPickerEmail.accountId"
+          :current-folder-id="folderId"
+          :is-popover="true"
+          @close="closeFolderPicker()"
+          @folder-selected="handleFolderSelected"
+        />
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -107,6 +130,7 @@ import { useEmailCacheStore } from '../stores/emailCache'
 import EmailNavigation from './EmailNavigation.vue'
 import EmailViewer from './EmailViewer.vue'
 import ReminderModal from './ReminderModal.vue'
+import FolderPickerModal from './FolderPickerModal.vue'
 import { computePosition, offset, shift, arrow as floatingArrow, flip } from '@floating-ui/dom'
 import type { Placement, MiddlewareData } from '@floating-ui/dom'
 
@@ -143,6 +167,13 @@ const reminderModalStyle = ref<{ top?: string; left?: string; right?: string; tr
 const reminderModalRef = ref<HTMLElement | null>(null)
 const reminderArrowRef = ref<HTMLElement | null>(null)
 
+// Folder picker state
+const showFolderPicker = ref(false)
+const folderPickerEmail = ref<{ id: string; accountId: string } | null>(null)
+const folderPickerStyle = ref<{ top?: string; left?: string; right?: string; transform?: string }>({})
+const folderPickerRef = ref<HTMLElement | null>(null)
+const folderPickerArrowRef = ref<HTMLElement | null>(null)
+
 // Email actions composable
 const {
   archiveConfirmId,
@@ -154,8 +185,8 @@ const {
   composeEmail,
   replyToEmail,
   forwardEmail,
-  setReminderForEmail,
-  deleteEmailByObject
+  deleteEmailByObject,
+  moveToFolder
 } = useEmailActions()
 
 // Email cache store
@@ -168,13 +199,11 @@ const selectedEmailId = computed(() => {
 })
 
 const confirmArchive = async (emailId: string) => {
+  // Always clear email view first
+  selectedEmail.value = null
+  
   const result = await archiveEmail(emailId)
   if (result.success) {
-    // Clear content view if this email was selected
-    if (selectedEmail.value?.id === emailId) {
-      selectedEmail.value = null
-    }
-    
     // Remove email from list
     const emailIndex = mails.value.findIndex(e => e.id === emailId)
     if (emailIndex !== -1) {
@@ -183,25 +212,17 @@ const confirmArchive = async (emailId: string) => {
       // Adjust currentIndex and select next email if available
       if (mails.value.length === 0) {
         currentIndex.value = 0
-        selectedEmail.value = null
-      } else if (currentIndex.value >= mails.value.length) {
-        // Was at end, select last email
-        currentIndex.value = mails.value.length - 1
+      } else if (emailIndex <= currentIndex.value) {
+        // Archived current email or one before it
+        if (currentIndex.value >= mails.value.length) {
+          // Was at end, select last email
+          currentIndex.value = mails.value.length - 1
+        }
+        // currentIndex now points to next email (or stays same if archived one before)
         updateMailPositions()
         // Load the new current email
         await nextTick()
         loadCurrentEmail()
-      } else if (emailIndex === currentIndex.value) {
-        // Archived the current email, select the one at same index (which is now the next one)
-        // currentIndex stays the same, but now points to next email
-        updateMailPositions()
-        // Load the new current email
-        await nextTick()
-        loadCurrentEmail()
-      } else if (emailIndex < currentIndex.value) {
-        // Archived email before current, adjust index
-        currentIndex.value = currentIndex.value - 1
-        updateMailPositions()
       } else {
         // Archived email after current, no index change needed
         updateMailPositions()
@@ -216,7 +237,7 @@ const BASE_SCALE = 1
 const BASE_FONT_SIZE = 1.5 // rem (text-2xl = 1.5rem)
 const SCALE_DECREASE = 0.1
 const BLUR_INCREASE = 2
-const ITEM_SPACING = 60 // pixels between items
+const ITEM_SPACING = 90 // pixels between items
 const FIXED_Y_POSITION = 50 // percentage from top where current item stays
 
 const formatSender = (from: any) => {
@@ -540,14 +561,30 @@ const handleReminderSaved = async () => {
   await loadEmails()
 }
 
-const showReminderForEmail = async (emailId: string) => {
-  const email = mails.value.find(e => e.id === emailId)
-  if (!email || !email.accountId) {
-    console.error('Email not found or missing accountId', { emailId, email })
-    return
+const showReminderForEmail = async (emailIdOrEmail: string | any) => {
+  // Handle both emailId string or email object
+  let emailId: string
+  let accountId: string
+  
+  if (typeof emailIdOrEmail === 'string') {
+    emailId = emailIdOrEmail
+    const email = mails.value.find(e => e.id === emailId) || selectedEmail.value
+    if (!email || !email.accountId) {
+      console.error('Email not found or missing accountId', { emailId, email })
+      return
+    }
+    accountId = email.accountId
+  } else {
+    // It's an email object
+    if (!emailIdOrEmail || !emailIdOrEmail.id || !emailIdOrEmail.accountId) {
+      console.error('Invalid email object', { email: emailIdOrEmail })
+      return
+    }
+    emailId = emailIdOrEmail.id
+    accountId = emailIdOrEmail.accountId
   }
   
-  reminderEmail.value = { id: emailId, accountId: email.accountId }
+  reminderEmail.value = { id: emailId, accountId }
   
   // Set initial position first (centered) so modal is visible immediately
   reminderModalStyle.value = {
@@ -599,12 +636,13 @@ const showReminderForEmail = async (emailId: string) => {
 
 const handleSetReminder = async (email: any) => {
   if (!email || !email.id) return
-  await showReminderForEmail(email.id)
+  // Pass the email object directly so we can use its accountId
+  await showReminderForEmail(email)
 }
 
 const handleEmailDoubleClick = async (emailId: string) => {
   try {
-    await window.electronAPI.window.emailViewer.create(emailId)
+    await (window.electronAPI.window as any).emailViewer.create(emailId)
   } catch (error) {
     console.error('Error opening email in new window:', error)
   }
@@ -615,15 +653,14 @@ const handleThreadEmailSelect = (emailId: string) => {
   emit('select-email', emailId)
 }
 
-const handleDelete = async (email: any) => {
+const handleArchive = async (email: any) => {
   if (!email || !email.id) return
-  const result = await deleteEmailByObject(email)
+  
+  // Always clear email view first
+  selectedEmail.value = null
+  
+  const result = await archiveEmail(email.id)
   if (result.success) {
-    // Clear content view if this email was selected
-    if (selectedEmail.value?.id === email.id) {
-      selectedEmail.value = null
-    }
-    
     // Remove email from list
     const emailIndex = mails.value.findIndex(e => e.id === email.id)
     if (emailIndex !== -1) {
@@ -632,25 +669,184 @@ const handleDelete = async (email: any) => {
       // Adjust currentIndex and select next email if available
       if (mails.value.length === 0) {
         currentIndex.value = 0
-        selectedEmail.value = null
-      } else if (currentIndex.value >= mails.value.length) {
-        // Was at end, select last email
-        currentIndex.value = mails.value.length - 1
+      } else if (emailIndex <= currentIndex.value) {
+        // Archived current email or one before it
+        if (currentIndex.value >= mails.value.length) {
+          // Was at end, select last email
+          currentIndex.value = mails.value.length - 1
+        }
+        // currentIndex now points to next email (or stays same if archived one before)
         updateMailPositions()
         // Load the new current email
         await nextTick()
         loadCurrentEmail()
-      } else if (emailIndex === currentIndex.value) {
-        // Deleted the current email, select the one at same index (which is now the next one)
-        // currentIndex stays the same, but now points to next email
+      } else {
+        // Archived email after current, no index change needed
+        updateMailPositions()
+      }
+    }
+  }
+}
+
+const showFolderPickerForEmail = async (emailIdOrEmail: string | any) => {
+  // Handle both emailId string or email object
+  let emailId: string
+  let accountId: string
+  
+  if (typeof emailIdOrEmail === 'string') {
+    emailId = emailIdOrEmail
+    const email = mails.value.find(e => e.id === emailId) || selectedEmail.value
+    if (!email || !email.accountId) {
+      console.error('Email not found or missing accountId', { emailId, email })
+      return
+    }
+    accountId = email.accountId
+  } else {
+    // It's an email object
+    if (!emailIdOrEmail || !emailIdOrEmail.id || !emailIdOrEmail.accountId) {
+      console.error('Invalid email object', { email: emailIdOrEmail })
+      return
+    }
+    emailId = emailIdOrEmail.id
+    accountId = emailIdOrEmail.accountId
+  }
+  
+  // Check if account is IMAP (only IMAP supports folders)
+  try {
+    const account = await window.electronAPI.accounts.get(accountId)
+    if (!account || account.type !== 'imap') {
+      return // Don't show folder picker for non-IMAP accounts
+    }
+  } catch (error) {
+    console.error('Error checking account type:', error)
+    return
+  }
+  
+  folderPickerEmail.value = { id: emailId, accountId }
+  
+  // Set initial position first (centered) so modal is visible immediately
+  folderPickerStyle.value = {
+    top: '50%',
+    left: '50%',
+    transform: 'translate(-50%, -50%)'
+  }
+  
+  // Show modal first, then position it
+  showFolderPicker.value = true
+  
+  // Wait for modal to render - need multiple ticks for Teleport + component mount
+  await nextTick()
+  await nextTick()
+  await nextTick()
+  
+  // Additional small delay to ensure component has rendered
+  await new Promise(resolve => setTimeout(resolve, 50))
+  
+  const emailElement = getEmailElement(emailId)
+  const anchorElement = getEmailAnchorElement(emailId)
+  const modalElement = folderPickerRef.value
+  
+  const referenceElement = anchorElement || emailElement
+  
+  if (referenceElement && modalElement) {
+    try {
+      await positionFloatingElement({
+        referenceElement,
+        floatingElement: modalElement,
+        arrowElement: folderPickerArrowRef.value,
+        styleRef: folderPickerStyle,
+        placement: 'right-end'
+      })
+    } catch (error) {
+      console.error('Error positioning folder picker modal:', error)
+      // Fallback positioning
+      const rect = referenceElement.getBoundingClientRect()
+      folderPickerStyle.value = {
+        top: `${rect.top}px`,
+        left: `${rect.right + 12}px`,
+        transform: 'none'
+      }
+    }
+  } else {
+    console.warn('Email or modal element not found, keeping centered position')
+  }
+}
+
+const handleMoveToFolder = async (email: any) => {
+  if (!email || !email.id) return
+  await showFolderPickerForEmail(email)
+}
+
+const closeFolderPicker = () => {
+  showFolderPicker.value = false
+  folderPickerEmail.value = null
+}
+
+const handleFolderSelected = async (folderId: string) => {
+  if (!folderPickerEmail.value) return
+  
+  const emailId = folderPickerEmail.value.id
+  closeFolderPicker()
+  
+  // Always clear email view first
+  selectedEmail.value = null
+  
+  const result = await moveToFolder(emailId, folderId)
+  if (result.success) {
+    // Remove email from list
+    const emailIndex = mails.value.findIndex(e => e.id === emailId)
+    if (emailIndex !== -1) {
+      mails.value.splice(emailIndex, 1)
+      
+      // Adjust currentIndex and select next email if available
+      if (mails.value.length === 0) {
+        currentIndex.value = 0
+      } else if (emailIndex <= currentIndex.value) {
+        // Moved current email or one before it
+        if (currentIndex.value >= mails.value.length) {
+          // Was at end, select last email
+          currentIndex.value = mails.value.length - 1
+        }
+        // currentIndex now points to next email (or stays same if moved one before)
         updateMailPositions()
         // Load the new current email
         await nextTick()
         loadCurrentEmail()
-      } else if (emailIndex < currentIndex.value) {
-        // Deleted email before current, adjust index
-        currentIndex.value = currentIndex.value - 1
+      } else {
+        // Moved email after current, no index change needed
         updateMailPositions()
+      }
+    }
+  }
+}
+
+const handleDelete = async (email: any) => {
+  if (!email || !email.id) return
+  
+  // Always clear email view first
+  selectedEmail.value = null
+  
+  const result = await deleteEmailByObject(email)
+  if (result.success) {
+    // Remove email from list
+    const emailIndex = mails.value.findIndex(e => e.id === email.id)
+    if (emailIndex !== -1) {
+      mails.value.splice(emailIndex, 1)
+      
+      // Adjust currentIndex and select next email if available
+      if (mails.value.length === 0) {
+        currentIndex.value = 0
+      } else if (emailIndex <= currentIndex.value) {
+        // Deleted current email or one before it
+        if (currentIndex.value >= mails.value.length) {
+          // Was at end, select last email
+          currentIndex.value = mails.value.length - 1
+        }
+        // currentIndex now points to next email (or stays same if deleted one before)
+        updateMailPositions()
+        // Load the new current email
+        await nextTick()
+        loadCurrentEmail()
       } else {
         // Deleted email after current, no index change needed
         updateMailPositions()
@@ -734,10 +930,13 @@ const loadEmails = async () => {
   }
 }
 
-// Handle click outside to close reminder popover
+// Handle click outside to close reminder and folder picker popovers
 const handleClickOutside = (event: MouseEvent) => {
   if (showReminderModal.value && reminderModalRef.value && !reminderModalRef.value.contains(event.target as Node)) {
     closeReminderPopover()
+  }
+  if (showFolderPicker.value && folderPickerRef.value && !folderPickerRef.value.contains(event.target as Node)) {
+    closeFolderPicker()
   }
 }
 

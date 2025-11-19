@@ -54,6 +54,34 @@
     
     <button 
       type="button" 
+      @click="handleArchive" 
+      :disabled="!hasSelectedEmail" 
+      class="flex items-center flex-col p-2 rounded-md border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600" 
+      :class="hasSelectedEmail
+        ? 'border-transparent text-gray-600 dark:text-dark-gray-300 hover:text-gray-900 dark:hover:text-gray-100'
+        : 'border-transparent text-gray-300 dark:text-dark-gray-600 cursor-not-allowed'" 
+      title="Archive"
+    >
+      <ArchiveBoxIcon class="w-5 h-5" />
+      <span v-if="preferences.showActionLabels">{{ $t('navigation.archive') }}</span>
+    </button>
+    
+    <button 
+      type="button" 
+      @click="handleMoveToFolder" 
+      :disabled="!hasSelectedEmail" 
+      class="flex items-center flex-col p-2 rounded-md border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600" 
+      :class="hasSelectedEmail
+        ? 'border-transparent text-gray-600 dark:text-dark-gray-300 hover:text-gray-900 dark:hover:text-gray-100'
+        : 'border-transparent text-gray-300 dark:text-dark-gray-600 cursor-not-allowed'" 
+      title="Move to folder"
+    >
+      <FolderIcon class="w-5 h-5" />
+      <span v-if="preferences.showActionLabels">{{ $t('navigation.moveToFolder') }}</span>
+    </button>
+    
+    <button 
+      type="button" 
       @click="handleDelete" 
       :disabled="!hasSelectedEmail" 
       class="flex items-center flex-col p-2 rounded-md border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500" 
@@ -77,6 +105,8 @@ import {
   BellAlertIcon,
   TrashIcon,
   EnvelopeIcon,
+  ArchiveBoxIcon,
+  FolderIcon,
 } from '@heroicons/vue/24/outline'
 
 const props = defineProps<{
@@ -90,6 +120,8 @@ const emit = defineEmits<{
   'reply': [email: any]
   'forward': [email: any]
   'set-reminder': [email: any]
+  'archive': [email: any]
+  'move-to-folder': [email: any]
   'delete': [email: any]
 }>()
 
@@ -128,6 +160,18 @@ const handleSetReminder = () => {
   if (props.selectedEmail) {
     // Just emit the event - let parent component handle showing the popover
     emit('set-reminder', props.selectedEmail)
+  }
+}
+
+const handleArchive = () => {
+  if (props.selectedEmail) {
+    emit('archive', props.selectedEmail)
+  }
+}
+
+const handleMoveToFolder = () => {
+  if (props.selectedEmail) {
+    emit('move-to-folder', props.selectedEmail)
   }
 }
 

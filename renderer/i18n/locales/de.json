@@ -26,6 +26,8 @@
     "reply": "Antworten",
     "forward": "Weiterleiten",
     "setReminder": "Erinnerung setzen",
+    "archive": "Archivieren",
+    "moveToFolder": "In Ordner verschieben",
     "searchEmails": "E-Mails suchen...",
     "clearSearch": "Suche löschen"
   },

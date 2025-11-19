@@ -26,6 +26,8 @@
     "reply": "Reply",
     "forward": "Forward",
     "setReminder": "Set reminder",
+    "archive": "Archive",
+    "moveToFolder": "Move to folder",
     "searchEmails": "Search emails...",
     "clearSearch": "Clear search"
   },
