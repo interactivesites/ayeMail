@@ -427,6 +427,123 @@ export class IMAPClient {
   }
 
   /**
+   * Build an Email object from parsed data and envelope with consistent preference order
+   * @param params - Parameters for building the email
+   * @returns Email object
+   */
+  private buildEmail(params: {
+    uid: number
+    seqno?: number
+    folderName: string
+    envelope?: any
+    parsed?: any
+    flags: string[]
+    body?: string
+    attachments?: Attachment[]
+    headers?: Record<string, string | string[]>
+  }): Email {
+    const { uid, seqno, folderName, envelope, parsed, flags, body, attachments = [], headers } = params
+    const emailId = `${this.account.id}-${folderName}-${uid}`
+    const emailUid = uid
+
+    // Message ID: parsed → envelope → fallback
+    const messageId = parsed?.messageId || envelope?.messageId || `msg-${emailUid}`
+
+    // Subject: parsed → envelope → fallback
+    const subject = parsed?.subject || envelope?.subject || `Message ${emailUid}`
+
+    // Address fields: parsed → envelope → fallback
+    const from = parsed?.from
+      ? this.parseAddresses(parsed.from)
+      : envelope?.from
+        ? this.parseAddresses(envelope.from)
+        : [{ address: 'unknown@example.com' }]
+
+    const to = parsed?.to
+      ? this.parseAddresses(parsed.to)
+      : envelope?.to
+        ? this.parseAddresses(envelope.to)
+        : []
+
+    const cc = parsed?.cc
+      ? this.parseAddresses(parsed.cc)
+      : envelope?.cc
+        ? this.parseAddresses(envelope.cc)
+        : undefined
+
+    const bcc = parsed?.bcc
+      ? this.parseAddresses(parsed.bcc)
+      : envelope?.bcc
+        ? this.parseAddresses(envelope.bcc)
+        : undefined
+
+    const replyTo = parsed?.replyTo
+      ? this.parseAddresses(parsed.replyTo)
+      : envelope?.replyTo
+        ? this.parseAddresses(envelope.replyTo)
+        : undefined
+
+    // Date: parsed → envelope → now
+    const date = parsed?.date
+      ? parsed.date.getTime()
+      : envelope?.date
+        ? new Date(envelope.date).getTime()
+        : Date.now()
+
+    // Body fields
+    const htmlBody = parsed?.html || undefined
+    const textBody = parsed?.text
+    const emailBody = parsed?.html || parsed?.text || body || ''
+
+    // Thread fields: parsed → envelope
+    const threadId = parsed?.inReplyTo || envelope?.inReplyTo || undefined
+    const inReplyTo = parsed?.inReplyTo || envelope?.inReplyTo || undefined
+
+    // References: normalize to array
+    let references: string[] | undefined = undefined
+    if (parsed?.references) {
+      references = Array.isArray(parsed.references) ? parsed.references : [parsed.references]
+    } else if (envelope?.references) {
+      references = Array.isArray(envelope.references) ? envelope.references : [envelope.references]
+    }
+
+    // Flags
+    const isRead = flags.includes('\\Seen')
+    const isStarred = flags.includes('\\Flagged')
+
+    return {
+      id: emailId,
+      accountId: this.account.id,
+      folderId: folderName,
+      uid: emailUid,
+      messageId,
+      subject,
+      from,
+      to,
+      cc,
+      bcc,
+      replyTo,
+      date,
+      body: emailBody,
+      htmlBody,
+      textBody,
+      attachments,
+      flags,
+      isRead,
+      isStarred,
+      threadId,
+      inReplyTo,
+      references,
+      encrypted: false,
+      signed: false,
+      signatureVerified: undefined,
+      headers,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    }
+  }
+
+  /**
    * Unified helper for fetching and building Email objects from IMAP
    * @param connection - IMAP connection
    * @param folderName - Folder name for email IDs
@@ -551,54 +668,11 @@ export class IMAPClient {
               emailHeaders = this.parseHeaders(headers)
             }
 
-            const emailId = `${this.account.id}-${folderName}-${uid || seqno}`
-            const emailUid = uid || seqno
-
-            // Build email object with parsed data or fallback to envelope
-              const email: Email = {
-              id: emailId,
-                accountId: this.account.id,
-                folderId: folderName,
-              uid: emailUid,
-              messageId: parsed?.messageId || envelope?.messageId || `msg-${emailUid}`,
-              subject: parsed?.subject || envelope?.subject || `Message ${emailUid}`,
-              from: parsed?.from
-                ? this.parseAddresses(parsed.from)
-                : envelope?.from
-                  ? this.parseAddresses(envelope.from)
-                  : [{ address: 'unknown@example.com' }],
-              to: parsed?.to
-                ? this.parseAddresses(parsed.to)
-                : envelope?.to
-                  ? this.parseAddresses(envelope.to)
-                  : [],
-              cc: parsed?.cc
-                ? this.parseAddresses(parsed.cc)
-                : envelope?.cc
-                  ? this.parseAddresses(envelope.cc)
-                  : undefined,
-              bcc: parsed?.bcc
-                ? this.parseAddresses(parsed.bcc)
-                : envelope?.bcc
-                  ? this.parseAddresses(envelope.bcc)
-                  : undefined,
-              replyTo: parsed?.replyTo
-                ? this.parseAddresses(parsed.replyTo)
-                : envelope?.replyTo
-                  ? this.parseAddresses(envelope.replyTo)
-                  : undefined,
-              date: parsed?.date
-                ? parsed.date.getTime()
-                : envelope?.date
-                  ? new Date(envelope.date).getTime()
-                  : Date.now(),
-              body: fullBody
-                ? parsed?.html || parsed?.text || body || ''
-                : '',
-              htmlBody: fullBody ? parsed?.html || undefined : undefined,
-              textBody: fullBody ? parsed?.text : undefined,
-              attachments: fullBody && parsed?.attachments
-                ? parsed.attachments.map((att: any) => ({
+            // Map attachments if present
+            const mappedAttachments: Attachment[] = fullBody && parsed?.attachments
+              ? parsed.attachments.map((att: any) => {
+                  const emailId = `${this.account.id}-${folderName}-${uid || seqno}`
+                  return {
                     id: `${emailId}-${att.filename}`,
                     emailId: emailId,
                     filename: att.filename || 'attachment',
@@ -606,29 +680,22 @@ export class IMAPClient {
                     size: att.size || 0,
                     contentId: att.contentId,
                     data: att.content as Buffer
-                  }))
-                : [],
-              flags: flags,
-              isRead: flags.includes('\\Seen'),
-              isStarred: flags.includes('\\Flagged'),
-              threadId: parsed?.inReplyTo || envelope?.inReplyTo || undefined,
-              inReplyTo: parsed?.inReplyTo || envelope?.inReplyTo || undefined,
-              references: parsed?.references
-                ? Array.isArray(parsed.references)
-                  ? parsed.references
-                  : [parsed.references]
-                : envelope?.references
-                  ? Array.isArray(envelope.references)
-                    ? envelope.references
-                    : [envelope.references]
-                  : undefined,
-              encrypted: false,
-              signed: false,
-              signatureVerified: undefined,
-              headers: emailHeaders,
-              createdAt: Date.now(),
-              updatedAt: Date.now()
-            }
+                  }
+                })
+              : []
+
+            // Build email object with parsed data or fallback to envelope
+            const email = this.buildEmail({
+              uid: uid || seqno,
+              seqno,
+              folderName,
+              envelope,
+              parsed: fullBody ? parsed : undefined,
+              flags,
+              body: fullBody ? body : '', // Empty string for metadata-only fetches
+              attachments: mappedAttachments,
+              headers: emailHeaders
+            })
 
             if (verbose) {
               console.log(`${logPrefix} Email object created`)
@@ -639,43 +706,16 @@ export class IMAPClient {
             if (verbose) {
               console.error(`${logPrefix} Error processing message, using envelope fallback:`, err)
             }
-            const emailId = `${this.account.id}-${folderName}-${uid || seqno}`
-            const emailUid = uid || seqno
-
-            return {
-              id: emailId,
-              accountId: this.account.id,
-              folderId: folderName,
-              uid: emailUid,
-              messageId: envelope?.messageId || `msg-${emailUid}`,
-              subject: envelope?.subject || `Message ${emailUid}`,
-                from: envelope?.from ? this.parseAddresses(envelope.from) : [{ address: 'unknown@example.com' }],
-                to: envelope?.to ? this.parseAddresses(envelope.to) : [],
-                cc: envelope?.cc ? this.parseAddresses(envelope.cc) : undefined,
-                bcc: envelope?.bcc ? this.parseAddresses(envelope.bcc) : undefined,
-                replyTo: envelope?.replyTo ? this.parseAddresses(envelope.replyTo) : undefined,
-                date: envelope?.date ? new Date(envelope.date).getTime() : Date.now(),
-              body: fullBody ? body : '',
-                htmlBody: undefined,
-                textBody: undefined,
-                attachments: [],
-                flags: flags,
-                isRead: flags.includes('\\Seen'),
-                isStarred: flags.includes('\\Flagged'),
-                threadId: envelope?.inReplyTo || undefined,
-                inReplyTo: envelope?.inReplyTo || undefined,
-                references: envelope?.references
-                ? Array.isArray(envelope.references)
-                  ? envelope.references
-                  : [envelope.references]
-                  : undefined,
-                encrypted: false,
-                signed: false,
-                signatureVerified: undefined,
-              headers: undefined,
-                createdAt: Date.now(),
-                updatedAt: Date.now()
-            } as Email
+            return this.buildEmail({
+              uid: uid || seqno,
+              seqno,
+              folderName,
+              envelope,
+              flags,
+              body: fullBody ? body : '', // Empty string for metadata-only fetches
+              attachments: [],
+              headers: undefined
+            })
           }
         }
 
@@ -690,27 +730,16 @@ export class IMAPClient {
               } catch (err) {
                 // Already handled in processMessage fallback
                 const email = await processMessage().catch(() => {
-                  // If processMessage fails completely, create minimal email
-                  const emailId = `${this.account.id}-${folderName}-${uid || seqno}`
-                  const emailUid = uid || seqno
-                  return {
-                    id: emailId,
-                    accountId: this.account.id,
-                    folderId: folderName,
-                    uid: emailUid,
-                    messageId: envelope?.messageId || `msg-${emailUid}`,
-                    subject: envelope?.subject || `Message ${emailUid}`,
-                    from: envelope?.from ? this.parseAddresses(envelope.from) : [{ address: 'unknown@example.com' }],
-                    to: envelope?.to ? this.parseAddresses(envelope.to) : [],
-                    date: Date.now(),
-                    body: '',
+                  // If processMessage fails completely, create minimal email from envelope
+                  return this.buildEmail({
+                    uid: uid || seqno,
+                    seqno,
+                    folderName,
+                    envelope,
                     flags: flags || [],
-                    isRead: false,
-                    isStarred: false,
                     attachments: [],
-                    createdAt: Date.now(),
-                    updatedAt: Date.now()
-                  } as Email
+                    headers: undefined
+                  })
                 })
                 emails.push(email)
                 resolveMsg(email)
