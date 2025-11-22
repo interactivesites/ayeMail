@@ -142,10 +142,14 @@
                         {{ formatTime(email.date) }}
                       </span>
 
+                      <!-- Attachment Icon - Always visible when email has attachments -->
+                      <svg v-if="email.attachmentCount && email.attachmentCount > 0" class="w-4 h-4" :class="selectedEmailIds.has(email.id) ? 'text-white/80' : 'text-gray-500 dark:text-dark-gray-400'" fill="none" stroke="currentColor" viewBox="0 0 24 24" :title="$t('emailList.hasAttachments')">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                      </svg>
+
                       <!-- Status Icons - Show only on hover -->
                       <div class="hidden group-hover:flex items-center gap-2 transition-all duration-200">
                         <span v-if="email.isStarred" class="text-yellow-500 text-sm" :title="$t('emailList.starred')">★</span>
-                        <span v-if="email.attachmentCount && email.attachmentCount > 0" class="text-xs" :class="selectedEmailId === email.id ? 'text-white/80' : 'text-gray-500 dark:text-dark-gray-400'" :title="$t('emailList.hasAttachments')">📎</span>
                         <span v-if="email.threadCount && email.threadCount > 1" class="text-xs" :class="selectedEmailId === email.id ? 'text-white/80' : 'text-gray-500 dark:text-dark-gray-400'" :title="$t('emailList.thread')">
                           {{ email.threadCount }}
                         </span>

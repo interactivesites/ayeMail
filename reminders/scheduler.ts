@@ -1,4 +1,4 @@
-import { Notification } from 'electron'
+import { Notification, BrowserWindow } from 'electron'
 import { getDatabase } from '../database'
 import { accountManager } from '../email/account-manager'
 import { getIMAPClient } from '../email/imap-client'
@@ -7,6 +7,11 @@ export class ReminderScheduler {
   private checkInterval: NodeJS.Timeout | null = null
   private checkIntervalMs = 60000 // Check every minute
   private checkCount = 0 // Track number of checks for logging
+  private mainWindow: BrowserWindow | null = null
+
+  setMainWindow(window: BrowserWindow) {
+    this.mainWindow = window
+  }
 
   start() {
     if (this.checkInterval) {
@@ -171,14 +176,13 @@ export class ReminderScheduler {
         silent: false
       })
       
-      notification.on('click', async () => {
-        console.log('[ReminderScheduler] Notification clicked, opening email in separate window')
-        try {
-          // Use dynamic import to avoid circular dependency
-          const { createEmailViewerWindow } = await import('../electron/main')
-          createEmailViewerWindow(reminder.email_id)
-        } catch (error) {
-          console.error('[ReminderScheduler] Error opening email viewer window:', error)
+      notification.on('click', () => {
+        console.log('[ReminderScheduler] Notification clicked, selecting email')
+        // Send message to renderer to select the email
+        if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+          this.mainWindow.webContents.send('reminders:select-email', reminder.email_id)
+          // Focus the main window
+          this.mainWindow.focus()
         }
       })
       

@@ -302,6 +302,7 @@ app.whenReady().then(async () => {
   setTimeout(() => {
     const mainWin = BrowserWindow.getAllWindows()[0]
     if (mainWin) {
+      reminderScheduler.setMainWindow(mainWin)
       autoSyncScheduler.setMainWindow(mainWin)
       // Check if auto-sync is enabled (default 5 minutes)
       const autoSyncEnabled = mainWin.webContents.executeJavaScript(

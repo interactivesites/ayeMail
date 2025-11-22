@@ -609,18 +609,16 @@ const showNewEmailNotification = (data: { accountId: string; count: number; emai
     
     console.log('Notification created and shown')
     
-    // Handle click - open first new email in separate window
+    // Handle click - select first new email (only if single email, skip if grouped)
     notification.onclick = () => {
-      console.log('Notification clicked, opening email in separate window')
-      if (emails.length > 0) {
-        try {
-          window.electronAPI.window.emailViewer.create(emails[0].id)
-        } catch (error) {
-          console.error('Error opening email viewer window:', error)
-          // Fallback: focus app and select email
-          window.focus()
-          handleEmailSelect(emails[0].id)
-        }
+      console.log('Notification clicked, selecting email')
+      if (emails.length === 1) {
+        // Only select if it's a single email (not grouped)
+        window.focus()
+        handleEmailSelect(emails[0].id)
+      } else {
+        // For multiple emails, just focus the window
+        window.focus()
       }
     }
   } else if ('Notification' in window && Notification.permission === 'default') {
@@ -886,6 +884,12 @@ onMounted(async () => {
   window.electronAPI.emails.onNewEmails((data: any) => {
     console.log('Received new emails event:', data)
     showNewEmailNotification(data)
+  })
+
+  // Listen for reminder email selection (when reminder notification is clicked)
+  window.electronAPI.reminders.onSelectEmail((emailId: string) => {
+    console.log('Reminder notification clicked, selecting email:', emailId)
+    handleEmailSelect(emailId)
   })
 
   // Listen for auto-sync refresh events

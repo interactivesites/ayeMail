@@ -108,7 +108,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke('reminders:update', id, reminder),
     delete: (id: string) => ipcRenderer.invoke('reminders:delete', id),
     deleteByEmail: (emailId: string) => ipcRenderer.invoke('reminders:deleteByEmail', emailId),
-    cleanupDuplicates: () => ipcRenderer.invoke('reminders:cleanupDuplicates')
+    cleanupDuplicates: () => ipcRenderer.invoke('reminders:cleanupDuplicates'),
+    onSelectEmail: (callback: (emailId: string) => void) => {
+      ipcRenderer.on('reminders:select-email', (_, emailId) => callback(emailId))
+      return () => ipcRenderer.removeAllListeners('reminders:select-email')
+    }
   },
   
   // Signatures
