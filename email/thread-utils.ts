@@ -1,5 +1,8 @@
 import type { Email, EmailAddress } from '../shared/types'
 import { getDatabase } from '../database'
+import { Logger } from '../shared/logger'
+
+const logger = Logger.create('ThreadUtils')
 
 /**
  * Normalizes email addresses for comparison (lowercase, trim)
@@ -282,7 +285,7 @@ export async function recalculateAllThreadIds(accountId?: string): Promise<{ upd
         updated++
       }
     } catch (error) {
-      console.error(`Error recalculating thread ID for email ${dbEmail.id}:`, error)
+      logger.error(`Error recalculating thread ID for email ${dbEmail.id}:`, error)
     }
   }
   

@@ -146,6 +146,9 @@
 </template>
 
 <script setup lang="ts">
+import { Logger } from '@shared/logger'
+
+const logger = Logger.create('Component')
 import { ref, onMounted, onUnmounted } from 'vue'
 import { formatSize } from '../utils/formatters'
 
@@ -250,7 +253,7 @@ onMounted(async () => {
         form.value.body += '\n\n' + (defaultSignature.value.html || defaultSignature.value.text)
       }
     } catch (error) {
-      console.error('Error loading signatures:', error)
+      logger.error('Error loading signatures:', error)
     }
   }
 })
@@ -322,7 +325,7 @@ const handleDrop = (event: DragEvent) => {
   // Check if we have files
   const files = event.dataTransfer?.files
   if (files && files.length > 0) {
-    console.log('Dropped files:', files.length)
+    logger.log('Dropped files:', files.length)
     addFiles(Array.from(files))
   }
   

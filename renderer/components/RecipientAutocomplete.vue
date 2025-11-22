@@ -45,6 +45,9 @@
 </template>
 
 <script setup lang="ts">
+import { Logger } from '@shared/logger'
+
+const logger = Logger.create('Component')
 import { ref, computed, watch, onMounted } from 'vue'
 import AutocompleteInput from './AutocompleteInput.vue'
 
@@ -100,7 +103,7 @@ const loadContacts = async (query: string = '') => {
       contacts.value = await window.electronAPI.contacts.list(props.maxResults)
     }
   } catch (error) {
-    console.error('Error loading contacts:', error)
+    logger.error('Error loading contacts:', error)
     contacts.value = []
   }
 }

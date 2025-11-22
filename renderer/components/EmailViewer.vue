@@ -156,6 +156,9 @@
 </template>
 
 <script setup lang="ts">
+import { Logger } from '@shared/logger'
+
+const logger = Logger.create('Component')
 import { ref, watch, computed, nextTick } from 'vue'
 import { formatDate, formatSize, formatAddresses } from '../utils/formatters'
 import { EmailAddress } from '../../shared/types'
@@ -288,11 +291,11 @@ const loadEmail = async () => {
     
     // Load thread emails after loading the main email (don't block on this)
     loadThreadEmails().catch(error => {
-      console.error('Error loading thread emails:', error)
+      logger.error('Error loading thread emails:', error)
       // Don't fail the whole email load if thread loading fails
     })
   } catch (error) {
-    console.error('Error loading email:', error)
+    logger.error('Error loading email:', error)
     email.value = null
     threadEmails.value = []
   } finally {
@@ -312,7 +315,7 @@ const loadThreadEmails = async () => {
     // Sort by date DESC (latest first) - include all emails including current
     threadEmails.value = emails.sort((a: any, b: any) => b.date - a.date)
   } catch (error) {
-    console.error('Error loading thread emails:', error)
+    logger.error('Error loading thread emails:', error)
     threadEmails.value = []
   } finally {
     loadingThread.value = false
@@ -372,7 +375,7 @@ const downloadAttachment = async (attachmentId: string) => {
   try {
     await window.electronAPI.emails.downloadAttachment(attachmentId)
   } catch (error: any) {
-    console.error('Error downloading attachment:', error)
+    logger.error('Error downloading attachment:', error)
     alert(`Failed to download attachment: ${error.message || 'Unknown error'}`)
   } finally {
     downloading.value = null
@@ -467,7 +470,7 @@ const handleLinkPreviewOpen = async (url: string) => {
   try {
     await window.electronAPI.shell.openExternal(securityCheck.actualUrl)
   } catch (error: any) {
-    console.error('Error opening external URL:', error)
+    logger.error('Error opening external URL:', error)
     alert(`Failed to open URL: ${error.message || 'Unknown error'}`)
   }
   

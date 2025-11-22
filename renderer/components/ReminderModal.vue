@@ -108,6 +108,9 @@
 </template>
 
 <script setup lang="ts">
+import { Logger } from '@shared/logger'
+
+const logger = Logger.create('Component')
 import { ref, onMounted, watch, nextTick } from 'vue'
 import VueTailwindDatepicker from 'vue-tailwind-datepicker'
 
@@ -183,7 +186,7 @@ onMounted(async () => {
         lastSelectedValue = [tomorrow, tomorrow]
       }
     } catch (error) {
-      console.error('Error checking for existing reminder:', error)
+      logger.error('Error checking for existing reminder:', error)
       // Initialize with tomorrow (minimum selectable date)
       const tomorrow = new Date()
       tomorrow.setDate(tomorrow.getDate() + 1)

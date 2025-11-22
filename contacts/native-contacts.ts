@@ -1,4 +1,7 @@
 import type { EmailAddress } from '../shared/types'
+import { Logger } from '../shared/logger'
+
+const logger = Logger.create('NativeContacts')
 
 export interface NativeContact {
   email: string
@@ -17,7 +20,7 @@ async function getMacContacts(): Promise<NativeContact[]> {
     // Request access permission
     const authorized = await macContacts.requestAccess()
     if (!authorized) {
-      console.warn('macOS Contacts access denied')
+      logger.warn('macOS Contacts access denied')
       return []
     }
 
@@ -44,7 +47,7 @@ async function getMacContacts(): Promise<NativeContact[]> {
 
     return result
   } catch (error) {
-    console.error('Error getting macOS contacts:', error)
+    logger.error('Error getting macOS contacts:', error)
     return []
   }
 }
@@ -157,20 +160,20 @@ async function getWindowsContacts(): Promise<NativeContact[]> {
             })
           }
         } catch (fileError) {
-          console.error(`Error parsing contact file ${file}:`, fileError)
+          logger.error(`Error parsing contact file ${file}:`, fileError)
           // Continue with next file
         }
       }
     } catch (dirError: any) {
       // Contacts directory might not exist
       if (dirError.code !== 'ENOENT') {
-        console.error('Error reading Windows Contacts directory:', dirError)
+        logger.error('Error reading Windows Contacts directory:', dirError)
       }
     }
 
     return result
   } catch (error) {
-    console.error('Error getting Windows contacts:', error)
+    logger.error('Error getting Windows contacts:', error)
     return []
   }
 }
@@ -187,7 +190,7 @@ export async function getNativeContacts(): Promise<NativeContact[]> {
     return getWindowsContacts()
   } else {
     // Linux or other platforms - not supported yet
-    console.warn(`Native contacts not supported on platform: ${platform}`)
+    logger.warn(`Native contacts not supported on platform: ${platform}`)
     return []
   }
 }

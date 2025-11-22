@@ -8,6 +8,9 @@ import { contactManager } from '../email/contact-manager'
 import { gpgManager } from '../gpg/manager'
 import { autoSyncScheduler } from '../email/auto-sync'
 import type { Account, Folder, Email, Reminder, Signature } from '../shared/types'
+import { Logger } from '../shared/logger'
+
+const logger = Logger.create('IPC')
 
 function decryptEmailField(value: unknown, emailId: string, fieldLabel: string): string | undefined {
   if (typeof value !== 'string' || value.trim().length === 0) {
@@ -15,14 +18,14 @@ function decryptEmailField(value: unknown, emailId: string, fieldLabel: string):
   }
 
   if (!encryption.isValidEncryptedPayload(value)) {
-    console.warn(`Invalid encrypted ${fieldLabel} format for email ${emailId}`)
+    logger.warn(`Invalid encrypted ${fieldLabel} format for email ${emailId}`)
     return undefined
   }
 
   try {
     return encryption.decrypt(value)
   } catch (error) {
-    console.error(`Error decrypting ${fieldLabel} for email ${emailId}:`, error)
+    logger.error(`Error decrypting ${fieldLabel} for email ${emailId}:`, error)
     return undefined
   }
 }
@@ -105,7 +108,7 @@ export function registerAccountHandlers() {
         VALUES (?, ?, ?, ?, 1, ?)
       `).run(fromAddressId, id, account.email, account.name || null, now)
     } catch (error: any) {
-      console.error('Error adding default from address:', error)
+      logger.error('Error adding default from address:', error)
       // Don't fail account creation if from address creation fails
     }
     
@@ -319,8 +322,8 @@ export function registerFolderHandlers() {
         await imapClient.connect()
         const serverFolders = await imapClient.listFolders()
         
-        console.log(`[folders:list] Retrieved ${serverFolders.length} folders from server for account ${accountId}`)
-        console.log('[folders:list] Server folders:', serverFolders.map(f => ({ name: f.name, path: f.path, delimiter: f.delimiter })))
+        logger.log(`[folders:list] Retrieved ${serverFolders.length} folders from server for account ${accountId}`)
+        logger.log('[folders:list] Server folders:', serverFolders.map(f => ({ name: f.name, path: f.path, delimiter: f.delimiter })))
 
         // Build folder hierarchy and update database
         const now = Date.now()
@@ -393,10 +396,10 @@ export function registerFolderHandlers() {
             const parent = folderMap.get(parentPath)
 
             if (parent) {
-              console.log(`[folders:list] Setting parent for ${path}: parent is ${parentPath} (${parent.id})`)
+              logger.log(`[folders:list] Setting parent for ${path}: parent is ${parentPath} (${parent.id})`)
               db.prepare('UPDATE folders SET parent_id = ? WHERE id = ?').run(parent.id, folderData.id)
             } else {
-              console.log(`[folders:list] No parent found for ${path}, expected parent: ${parentPath}`)
+              logger.log(`[folders:list] No parent found for ${path}, expected parent: ${parentPath}`)
             }
           }
         }
@@ -406,14 +409,14 @@ export function registerFolderHandlers() {
         const dbFolders = db.prepare('SELECT id, path FROM folders WHERE account_id = ?').all(accountId) as any[]
         for (const dbFolder of dbFolders) {
           if (!serverPaths.has(dbFolder.path)) {
-            console.log(`Removing folder from database that no longer exists on server: ${dbFolder.path}`)
+            logger.log(`Removing folder from database that no longer exists on server: ${dbFolder.path}`)
             db.prepare('DELETE FROM folders WHERE id = ?').run(dbFolder.id)
           }
         }
         
         await imapClient.disconnect()
       } catch (error) {
-        console.error('Error syncing folders:', error)
+        logger.error('Error syncing folders:', error)
       }
     }
 
@@ -426,7 +429,7 @@ export function registerFolderHandlers() {
       ORDER BY CASE WHEN LOWER(f.name) = 'inbox' THEN 0 ELSE 1 END, f.name
     `).all(accountId) as any[]
 
-    console.log('All folders from DB:', allFolders.map(f => ({
+    logger.log('All folders from DB:', allFolders.map(f => ({
       id: f.id,
       name: f.name,
       path: f.path,
@@ -449,18 +452,18 @@ export function registerFolderHandlers() {
         const parent = folderMap.get(folder.parent_id)
         if (parent) {
           parent.children.push(folder)
-          console.log(`Added ${folder.name} as child of ${parent.name}`)
+          logger.log(`Added ${folder.name} as child of ${parent.name}`)
         } else {
-          console.log(`Parent not found for ${folder.name}, parent_id: ${folder.parent_id}`)
+          logger.log(`Parent not found for ${folder.name}, parent_id: ${folder.parent_id}`)
           rootFolders.push(folder) // Fallback
         }
       } else {
         rootFolders.push(folder)
-        console.log(`Added ${folder.name} as root folder`)
+        logger.log(`Added ${folder.name} as root folder`)
       }
     }
 
-    console.log('Final tree structure:', rootFolders.map(f => ({
+    logger.log('Final tree structure:', rootFolders.map(f => ({
       name: f.name,
       children: f.children.map((c: any) => c.name)
     })))
@@ -477,7 +480,7 @@ export function registerFolderHandlers() {
 
       // Progress callback
       const progressCallback = (data: { folder?: string; current: number; total?: number; emailUid?: number }) => {
-        console.info(`Folder sync progress: ${data.folder || 'Unknown'} - ${data.current}/${data.total || 'unknown'}`)
+        logger.info(`Folder sync progress: ${data.folder || 'Unknown'} - ${data.current}/${data.total || 'unknown'}`)
         event.sender.send('emails:sync-progress', data)
       }
 
@@ -488,7 +491,7 @@ export function registerFolderHandlers() {
         message: `Synced ${result.synced} folders`
       }
     } catch (error: any) {
-      console.error('Folder sync error:', error)
+      logger.error('Folder sync error:', error)
       return { success: false, message: error.message || 'Unknown error during folder sync' }
     }
   })
@@ -672,10 +675,10 @@ export function registerEmailHandlers() {
     // Debug: Check folder exists and get account info
     const folder = db.prepare('SELECT * FROM folders WHERE id = ?').get(folderId) as any
     if (!folder) {
-      console.warn(`Folder not found: ${folderId}`)
+      logger.warn(`Folder not found: ${folderId}`)
       return []
     }
-    console.log(`Listing emails for folder: ${folder.name} (id: ${folderId}, account: ${folder.account_id}, threadView: ${threadView})`)
+    logger.log(`Listing emails for folder: ${folder.name} (id: ${folderId}, account: ${folder.account_id}, threadView: ${threadView})`)
     
     // Get emails from database
     const allEmails = db.prepare(`
@@ -719,7 +722,7 @@ export function registerEmailHandlers() {
       threadCounts.set(threadId, (threadCounts.get(threadId) || 0) + 1)
     }
     
-    console.log(`Found ${emailsToReturn.length} emails ${threadView ? '(grouped by thread)' : '(ungrouped)'} in folder ${folder.name} (id: ${folderId})`)
+    logger.log(`Found ${emailsToReturn.length} emails ${threadView ? '(grouped by thread)' : '(ungrouped)'} in folder ${folder.name} (id: ${folderId})`)
     
     // Get all reminder info for emails in this folder (for showing reminder icons)
     // Include both active and completed reminders - completed reminders indicate emails moved back from Reminders
@@ -897,7 +900,7 @@ export function registerEmailHandlers() {
         htmlBody = e.html_body_encrypted ? encryption.decrypt(e.html_body_encrypted) : undefined
         textBody = e.text_body_encrypted ? encryption.decrypt(e.text_body_encrypted) : undefined
       } catch (err) {
-        console.error('Error decrypting email for search:', err)
+        logger.error('Error decrypting email for search:', err)
       }
       
       // Parse addresses
@@ -1101,7 +1104,7 @@ export function registerEmailHandlers() {
           address: item?.address ? String(item.address) : String(item || '')
         })) : []
       } catch (err) {
-        console.error('Error parsing from_addresses:', err)
+        logger.error('Error parsing from_addresses:', err)
         from = []
       }
       
@@ -1113,7 +1116,7 @@ export function registerEmailHandlers() {
           address: item?.address ? String(item.address) : String(item || '')
         })) : []
       } catch (err) {
-        console.error('Error parsing to_addresses:', err)
+        logger.error('Error parsing to_addresses:', err)
         to = []
       }
       
@@ -1167,7 +1170,7 @@ export function registerEmailHandlers() {
       try {
         return JSON.parse(JSON.stringify(emailObj))
       } catch (serializationError) {
-        console.error('Serialization error, returning minimal email object:', serializationError)
+        logger.error('Serialization error, returning minimal email object:', serializationError)
         // Return minimal version without body content if serialization fails
         return {
           id: emailObj.id,
@@ -1203,16 +1206,16 @@ export function registerEmailHandlers() {
       const fetched = await emailStorage.fetchEmailBodiesInBackground(accountId, folderId, limit)
       return { success: true, fetched }
     } catch (error: any) {
-      console.error('Error fetching email bodies in background:', error)
+      logger.error('Error fetching email bodies in background:', error)
       return { success: false, message: error.message, fetched: 0 }
     }
   })
 
   ipcMain.handle('emails:get', async (_, id: string) => {
-    console.log(`[emails:get] Fetching email ${id} with fetchRemoteBody=true, timeout=60s`)
+    logger.log(`[emails:get] Fetching email ${id} with fetchRemoteBody=true, timeout=60s`)
     const email = await emailStorage.getEmail(id, { fetchRemoteBody: true, fetchTimeoutMs: 60000 })
     if (!email) {
-      console.warn(`[emails:get] Email ${id} not found`)
+      logger.warn(`[emails:get] Email ${id} not found`)
       return null
     }
 
@@ -1220,7 +1223,7 @@ export function registerEmailHandlers() {
     const hasBody = email.body && email.body.trim().length > 0
     const hasHtmlBody = email.htmlBody && email.htmlBody.trim().length > 0
     const hasTextBody = email.textBody && email.textBody.trim().length > 0
-    console.log(`[emails:get] Email ${id} body status: hasBody=${hasBody}, hasHtmlBody=${hasHtmlBody}, hasTextBody=${hasTextBody}`)
+    logger.log(`[emails:get] Email ${id} body status: hasBody=${hasBody}, hasHtmlBody=${hasHtmlBody}, hasTextBody=${hasTextBody}`)
 
     // Load attachments
     const db = getDatabase()
@@ -1240,10 +1243,10 @@ export function registerEmailHandlers() {
           if (encryptedBuffer.length >= 32) {
             data = encryption.decryptBuffer(encryptedBuffer)
           } else {
-            console.warn(`Attachment ${att.id} has invalid encrypted data size: ${encryptedBuffer.length}`)
+            logger.warn(`Attachment ${att.id} has invalid encrypted data size: ${encryptedBuffer.length}`)
           }
         } catch (error) {
-          console.error(`Error decrypting attachment ${att.id} (${att.filename}):`, error)
+          logger.error(`Error decrypting attachment ${att.id} (${att.filename}):`, error)
           // Continue without data - attachment will be unavailable but won't crash the app
         }
       }
@@ -1332,7 +1335,7 @@ export function registerEmailHandlers() {
 
       // Progress callback
       const progressCallback = (data: { folder?: string; current: number; total?: number; emailUid?: number }) => {
-        console.info(`Sync progress: ${data.folder || 'Unknown'} - ${data.current}/${data.total || 'unknown'} (uid: ${data.emailUid || 'N/A'})`)
+        logger.info(`Sync progress: ${data.folder || 'Unknown'} - ${data.current}/${data.total || 'unknown'} (uid: ${data.emailUid || 'N/A'})`)
         event.sender.send('emails:sync-progress', data)
       }
 
@@ -1344,7 +1347,7 @@ export function registerEmailHandlers() {
         message: `Synced ${result.synced} emails${result.errors > 0 ? ` with ${result.errors} errors` : ''}`
       }
     } catch (error: any) {
-      console.error('Sync folder error:', error)
+      logger.error('Sync folder error:', error)
       return { success: false, message: error.message || 'Unknown error during folder sync' }
     }
   })
@@ -1358,7 +1361,7 @@ export function registerEmailHandlers() {
 
       // Progress callback
       const progressCallback = (data: { folder?: string; current: number; total?: number; emailUid?: number }) => {
-        console.info(`Clear and resync progress: ${data.folder || 'Unknown'} - ${data.current}/${data.total || 'unknown'} (uid: ${data.emailUid || 'N/A'})`)
+        logger.info(`Clear and resync progress: ${data.folder || 'Unknown'} - ${data.current}/${data.total || 'unknown'} (uid: ${data.emailUid || 'N/A'})`)
         event.sender.send('emails:sync-progress', data)
       }
 
@@ -1370,7 +1373,7 @@ export function registerEmailHandlers() {
         message: `Cleared and re-synced ${result.synced} emails with full bodies${result.errors > 0 ? ` with ${result.errors} errors` : ''}`
       }
     } catch (error: any) {
-      console.error('Clear and resync folder error:', error)
+      logger.error('Clear and resync folder error:', error)
       return { success: false, message: error.message || 'Unknown error during clear and resync' }
     }
   })
@@ -1405,7 +1408,7 @@ export function registerEmailHandlers() {
 
       // Progress callback
       const progressCallback = (data: { folder?: string; folderId?: string; accountId?: string; current: number; total?: number; emailUid?: number; email?: any }) => {
-        console.info(`Sync progress: ${data.folder || 'Unknown'} - ${data.current}/${data.total || 'unknown'} (uid: ${data.emailUid || 'N/A'})`)
+        logger.info(`Sync progress: ${data.folder || 'Unknown'} - ${data.current}/${data.total || 'unknown'} (uid: ${data.emailUid || 'N/A'})`)
         event.sender.send('emails:sync-progress', data)
         
         // Track new unread emails for notifications
@@ -1450,7 +1453,7 @@ export function registerEmailHandlers() {
         message: `Synced ${result.synced} emails${result.errors > 0 ? ` with ${result.errors} errors` : ''}`
       }
     } catch (error: any) {
-      console.error('Sync error:', error)
+      logger.error('Sync error:', error)
       return { success: false, message: error.message || 'Unknown error during sync' }
     }
   })
@@ -1525,7 +1528,7 @@ export function registerEmailHandlers() {
             contactManager.extractContactsFromAddresses(email.bcc)
           }
         } catch (error) {
-          console.error('Error extracting contacts from sent email:', error)
+          logger.error('Error extracting contacts from sent email:', error)
         }
       }
 
@@ -1574,7 +1577,7 @@ export function registerEmailHandlers() {
           
           await imapClient.disconnect()
         } catch (error) {
-          console.error('Error deleting email on IMAP server:', error)
+          logger.error('Error deleting email on IMAP server:', error)
           // Continue to delete from database anyway
         }
       }
@@ -1636,7 +1639,7 @@ export function registerEmailHandlers() {
                 }
               }
             } catch (createError) {
-              console.error('Error creating Trash folder on IMAP server:', createError)
+              logger.error('Error creating Trash folder on IMAP server:', createError)
               // Continue to create local folder
             }
           }
@@ -1671,7 +1674,7 @@ export function registerEmailHandlers() {
 
           await imapClient.disconnect()
         } catch (error) {
-          console.error('Error finding/creating Trash folder:', error)
+          logger.error('Error finding/creating Trash folder:', error)
         }
       }
 
@@ -1753,7 +1756,7 @@ export function registerEmailHandlers() {
         
         await imapClient.disconnect()
       } catch (error) {
-        console.error('Error moving email to trash on IMAP server:', error)
+        logger.error('Error moving email to trash on IMAP server:', error)
         // Continue anyway - email is already moved in database
       }
     }
@@ -1835,7 +1838,7 @@ export function registerEmailHandlers() {
         
         await imapClient.disconnect()
       } catch (error) {
-        console.error('Error moving email on IMAP server:', error)
+        logger.error('Error moving email on IMAP server:', error)
         // Continue anyway - email is already moved in database
       }
     }
@@ -1871,7 +1874,7 @@ export function registerEmailHandlers() {
         }
       }
     } catch (learningError) {
-      console.error('Error recording sender-folder mapping:', learningError)
+      logger.error('Error recording sender-folder mapping:', learningError)
       // Don't fail the move operation if learning fails
     }
 
@@ -1906,7 +1909,7 @@ export function registerEmailHandlers() {
 
       return { success: true }
     } catch (error: any) {
-      console.error('Error downloading attachment:', error)
+      logger.error('Error downloading attachment:', error)
       return { success: false, message: error.message || 'Unknown error' }
     }
   })
@@ -1972,7 +1975,7 @@ export function registerEmailHandlers() {
                 f => f.name.toLowerCase() === 'archive' || f.path.toLowerCase().includes('archive')
               )
             } catch (createError) {
-              console.error('Error creating Archive folder on IMAP server:', createError)
+              logger.error('Error creating Archive folder on IMAP server:', createError)
               // Continue to create local folder
             }
           }
@@ -2004,7 +2007,7 @@ export function registerEmailHandlers() {
 
           await imapClient.disconnect()
         } catch (error) {
-          console.error('Error finding/creating Archive folder:', error)
+          logger.error('Error finding/creating Archive folder:', error)
         }
       }
 
@@ -2109,7 +2112,7 @@ export function registerEmailHandlers() {
           } catch (createError: any) {
             // If folder already exists, that's fine - continue
             if (createError && !createError.message?.includes('already exists') && !createError.message?.includes('EXISTS')) {
-              console.warn('Archive folder may already exist or creation failed:', createError.message)
+              logger.warn('Archive folder may already exist or creation failed:', createError.message)
             }
           }
 
@@ -2120,7 +2123,7 @@ export function registerEmailHandlers() {
         
         await imapClient.disconnect()
       } catch (error) {
-        console.error('Error moving email on IMAP server:', error)
+        logger.error('Error moving email on IMAP server:', error)
         // Continue anyway - email is already moved in database
       }
     }
@@ -2155,7 +2158,7 @@ export function registerEmailHandlers() {
         
         await imapClient.disconnect()
       } catch (error) {
-        console.error('Error marking email as read on IMAP server:', error)
+        logger.error('Error marking email as read on IMAP server:', error)
         // Continue anyway - email is already marked as read in database
       }
     }
@@ -2207,7 +2210,7 @@ export function registerEmailHandlers() {
                      f.path.toLowerCase().includes('junk')
               )
             } catch (createError) {
-              console.error('Error creating Spam folder on IMAP server:', createError)
+              logger.error('Error creating Spam folder on IMAP server:', createError)
               // Continue to create local folder
             }
           }
@@ -2239,7 +2242,7 @@ export function registerEmailHandlers() {
 
           await imapClient.disconnect()
         } catch (error) {
-          console.error('Error finding/creating Spam folder:', error)
+          logger.error('Error finding/creating Spam folder:', error)
         }
       }
 
@@ -2325,7 +2328,7 @@ export function registerEmailHandlers() {
           } catch (createError: any) {
             // If folder already exists, that's fine - continue
             if (createError && !createError.message?.includes('already exists') && !createError.message?.includes('EXISTS')) {
-              console.warn('Spam folder may already exist or creation failed:', createError.message)
+              logger.warn('Spam folder may already exist or creation failed:', createError.message)
             }
           }
 
@@ -2336,7 +2339,7 @@ export function registerEmailHandlers() {
         
         await imapClient.disconnect()
       } catch (error) {
-        console.error('Error moving email on IMAP server:', error)
+        logger.error('Error moving email on IMAP server:', error)
         // Continue anyway - email is already moved in database
       }
     }
@@ -2360,7 +2363,7 @@ export function registerEmailHandlers() {
           const headersJson = encryption.decrypt(email.headers_encrypted)
           headers = JSON.parse(headersJson)
         } catch (error) {
-          console.error('Error decrypting headers:', error)
+          logger.error('Error decrypting headers:', error)
         }
       }
 
@@ -2398,7 +2401,7 @@ export function registerEmailHandlers() {
 
       return { success: true, spamScore }
     } catch (error: any) {
-      console.error('Error checking spam:', error)
+      logger.error('Error checking spam:', error)
       return { success: false, message: error.message || 'Unknown error' }
     }
   })
@@ -2409,7 +2412,7 @@ export function registerEmailHandlers() {
       spamDetector.addToBlacklist(accountId, emailAddress, domain, reason)
       return { success: true }
     } catch (error: any) {
-      console.error('Error adding to blacklist:', error)
+      logger.error('Error adding to blacklist:', error)
       return { success: false, message: error.message || 'Unknown error' }
     }
   })
@@ -2420,7 +2423,7 @@ export function registerEmailHandlers() {
       spamDetector.removeFromBlacklist(emailAddress, accountId)
       return { success: true }
     } catch (error: any) {
-      console.error('Error removing from blacklist:', error)
+      logger.error('Error removing from blacklist:', error)
       return { success: false, message: error.message || 'Unknown error' }
     }
   })
@@ -2549,7 +2552,7 @@ export function registerEmailHandlers() {
       }
       return { success: true }
     } catch (error: any) {
-      console.error('Error updating auto-sync:', error)
+      logger.error('Error updating auto-sync:', error)
       return { success: false, message: error.message }
     }
   })
@@ -2654,7 +2657,7 @@ export function registerReminderHandlers() {
                 f => f.name.toLowerCase() === 'reminders' || f.path.toLowerCase().includes('reminders')
               )
             } catch (createError) {
-              console.error('Error creating Reminders folder on IMAP server:', createError)
+              logger.error('Error creating Reminders folder on IMAP server:', createError)
               // Continue to create local folder
             }
           }
@@ -2686,7 +2689,7 @@ export function registerReminderHandlers() {
 
           await imapClient.disconnect()
         } catch (error) {
-          console.error('Error finding/creating Reminders folder:', error)
+          logger.error('Error finding/creating Reminders folder:', error)
         }
       }
 
@@ -2771,7 +2774,7 @@ export function registerReminderHandlers() {
           } catch (createError: any) {
             // If folder already exists, that's fine - continue
             if (createError && !createError.message?.includes('already exists') && !createError.message?.includes('EXISTS')) {
-              console.warn('Reminders folder may already exist or creation failed:', createError.message)
+              logger.warn('Reminders folder may already exist or creation failed:', createError.message)
             }
           }
 
@@ -2782,7 +2785,7 @@ export function registerReminderHandlers() {
         
         await imapClient.disconnect()
       } catch (error) {
-        console.error('Error moving email on IMAP server:', error)
+        logger.error('Error moving email on IMAP server:', error)
         // Continue anyway - email is already moved in database
       }
     }
@@ -2939,12 +2942,12 @@ export function registerReminderHandlers() {
             
             await imapClient.disconnect()
           } catch (error) {
-            console.error('Error moving email back on IMAP server:', error)
+            logger.error('Error moving email back on IMAP server:', error)
             // Continue anyway - email is already moved in database
           }
         }
       } catch (error) {
-        console.error('Error moving email back to original folder:', error)
+        logger.error('Error moving email back to original folder:', error)
         // Continue to delete reminder anyway
       }
     }
@@ -3028,11 +3031,11 @@ export function registerReminderHandlers() {
             
             await imapClient.disconnect()
           } catch (error) {
-            console.error('Error moving email back on IMAP server:', error)
+            logger.error('Error moving email back on IMAP server:', error)
           }
         }
       } catch (error) {
-        console.error('Error moving email back to original folder:', error)
+        logger.error('Error moving email back to original folder:', error)
       }
     }
 
@@ -3418,7 +3421,7 @@ export function registerWindowHandlers() {
           }
         })
         .catch((error) => {
-          console.error('Error fetching email for compose:', error)
+          logger.error('Error fetching email for compose:', error)
           // Send error notification if window still exists
           if (composeWindow && !composeWindow.isDestroyed()) {
             sendReplyData({ error: 'Failed to load email' })
@@ -3543,7 +3546,7 @@ export function registerContactHandlers() {
       const contacts = await getNativeContacts()
       return { success: true, contacts }
     } catch (error: any) {
-      console.error('Error getting native contacts:', error)
+      logger.error('Error getting native contacts:', error)
       return { success: false, error: error.message, contacts: [] }
     }
   })
@@ -3581,7 +3584,7 @@ export function registerContactHandlers() {
         total: nativeContacts.length 
       }
     } catch (error: any) {
-      console.error('Error syncing native contacts:', error)
+      logger.error('Error syncing native contacts:', error)
       return { success: false, error: error.message }
     }
   })
@@ -3593,7 +3596,7 @@ export function registerShellHandlers() {
     try {
       await shell.openExternal(url)
     } catch (error: any) {
-      console.error('Error opening external URL:', error)
+      logger.error('Error opening external URL:', error)
       throw new Error(`Failed to open URL: ${error.message || 'Unknown error'}`)
     }
   })

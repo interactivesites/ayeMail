@@ -125,6 +125,9 @@
 </template>
 
 <script setup lang="ts">
+import { Logger } from '@shared/logger'
+
+const logger = Logger.create('Component')
 
 import gsap from 'gsap'
 import { ref, onMounted, onUnmounted, nextTick, watch, computed } from 'vue'
@@ -354,7 +357,7 @@ const loadCurrentEmail = async () => {
     
     emailCacheStore.preloadEmails(emailIdsToPreload)
   } catch (error) {
-    console.error('Error loading email content:', error)
+    logger.error('Error loading email content:', error)
     selectedEmail.value = null
   } finally {
     loadingEmail.value = false
@@ -575,14 +578,14 @@ const showReminderForEmail = async (emailIdOrEmail: string | any) => {
     emailId = emailIdOrEmail
     const email = mails.value.find(e => e.id === emailId) || selectedEmail.value
     if (!email || !email.accountId) {
-      console.error('Email not found or missing accountId', { emailId, email })
+      logger.error('Email not found or missing accountId', { emailId, email })
       return
     }
     accountId = email.accountId
   } else {
     // It's an email object
     if (!emailIdOrEmail || !emailIdOrEmail.id || !emailIdOrEmail.accountId) {
-      console.error('Invalid email object', { email: emailIdOrEmail })
+      logger.error('Invalid email object', { email: emailIdOrEmail })
       return
     }
     emailId = emailIdOrEmail.id
@@ -625,7 +628,7 @@ const showReminderForEmail = async (emailIdOrEmail: string | any) => {
         placement: 'right-end'
       })
     } catch (error) {
-      console.error('Error positioning reminder modal:', error)
+      logger.error('Error positioning reminder modal:', error)
       // Fallback positioning
       const rect = referenceElement.getBoundingClientRect()
       reminderModalStyle.value = {
@@ -635,7 +638,7 @@ const showReminderForEmail = async (emailIdOrEmail: string | any) => {
       }
     }
   } else {
-    console.warn('Email or modal element not found, keeping centered position')
+    logger.warn('Email or modal element not found, keeping centered position')
   }
 }
 
@@ -649,7 +652,7 @@ const handleEmailDoubleClick = async (emailId: string) => {
   try {
     await (window.electronAPI.window as any).emailViewer.create(emailId)
   } catch (error) {
-    console.error('Error opening email in new window:', error)
+    logger.error('Error opening email in new window:', error)
   }
 }
 
@@ -702,14 +705,14 @@ const showFolderPickerForEmail = async (emailIdOrEmail: string | any) => {
     emailId = emailIdOrEmail
     const email = mails.value.find(e => e.id === emailId) || selectedEmail.value
     if (!email || !email.accountId) {
-      console.error('Email not found or missing accountId', { emailId, email })
+      logger.error('Email not found or missing accountId', { emailId, email })
       return
     }
     accountId = email.accountId
   } else {
     // It's an email object
     if (!emailIdOrEmail || !emailIdOrEmail.id || !emailIdOrEmail.accountId) {
-      console.error('Invalid email object', { email: emailIdOrEmail })
+      logger.error('Invalid email object', { email: emailIdOrEmail })
       return
     }
     emailId = emailIdOrEmail.id
@@ -723,7 +726,7 @@ const showFolderPickerForEmail = async (emailIdOrEmail: string | any) => {
       return // Don't show folder picker for non-IMAP accounts
     }
   } catch (error) {
-    console.error('Error checking account type:', error)
+    logger.error('Error checking account type:', error)
     return
   }
   
@@ -763,7 +766,7 @@ const showFolderPickerForEmail = async (emailIdOrEmail: string | any) => {
         placement: 'right-end'
       })
     } catch (error) {
-      console.error('Error positioning folder picker modal:', error)
+      logger.error('Error positioning folder picker modal:', error)
       // Fallback positioning
       const rect = referenceElement.getBoundingClientRect()
       folderPickerStyle.value = {
@@ -773,7 +776,7 @@ const showFolderPickerForEmail = async (emailIdOrEmail: string | any) => {
       }
     }
   } else {
-    console.warn('Email or modal element not found, keeping centered position')
+    logger.warn('Email or modal element not found, keeping centered position')
   }
 }
 
@@ -867,7 +870,7 @@ const loadEmails = async () => {
     if (!accountId) {
       const accounts = await window.electronAPI.accounts.list()
       if (accounts.length === 0) {
-        console.warn('No accounts found')
+        logger.warn('No accounts found')
         return
       }
       accountId = accounts[0].id
@@ -913,7 +916,7 @@ const loadEmails = async () => {
       const inboxFolder = folders.find((f: any) => f.name.toLowerCase() === 'inbox')
       
       if (!inboxFolder) {
-        console.warn('Inbox folder not found')
+        logger.warn('Inbox folder not found')
         return
       }
 
@@ -931,7 +934,7 @@ const loadEmails = async () => {
     // Initialize positions
     updateMailPositions()
   } catch (error) {
-    console.error('Error loading emails:', error)
+    logger.error('Error loading emails:', error)
   }
 }
 

@@ -3,6 +3,9 @@ import { simpleParser } from 'mailparser'
 import { accountManager } from './account-manager'
 import type { Account } from '../shared/types'
 import type { Email, EmailAddress, Attachment } from '../shared/types'
+import { Logger } from '../shared/logger'
+
+const logger = Logger.create('IMAPClient')
 
 interface ClientPool {
   [accountId: string]: IMAPClient | null
@@ -39,7 +42,7 @@ export class IMAPClient {
     )
     if (inboxByAttr) {
       this.inboxPath = inboxByAttr.path
-      console.log(`Discovered inbox by \\Inbox attribute:`, this.inboxPath)
+      logger.log(`Discovered inbox by \\Inbox attribute:`, this.inboxPath)
       return this.inboxPath
     }
 
@@ -49,13 +52,13 @@ export class IMAPClient {
       folders.find(f => f.name.toUpperCase() === 'INBOX')
     if (inboxByName) {
       this.inboxPath = inboxByName.path
-      console.log(`Discovered inbox by name:`, this.inboxPath)
+      logger.log(`Discovered inbox by name:`, this.inboxPath)
       return this.inboxPath
     }
 
     // 3) Ultimate fallback: plain "INBOX"
     this.inboxPath = 'INBOX'
-    console.warn(`Could not detect inbox from LIST, falling back to "${this.inboxPath}"`)
+    logger.warn(`Could not detect inbox from LIST, falling back to "${this.inboxPath}"`)
     return this.inboxPath
   }
 
@@ -280,7 +283,7 @@ export class IMAPClient {
               const name = box.name || key
               const path = prefix ? `${prefix}${delimiter}${key}` : key
 
-              console.log(`[IMAP listFolders] Processing box: ${key}, name: ${name}, path: ${path}, delimiter: ${delimiter}, hasChildren: ${!!box.children}`)
+              logger.debug(`Processing box: ${key}, name: ${name}, path: ${path}, delimiter: ${delimiter}, hasChildren: ${!!box.children}`)
 
               result.push({
                 name,
@@ -290,7 +293,7 @@ export class IMAPClient {
               })
 
               if (box.children) {
-                console.log(`[IMAP listFolders] Box ${key} has children:`, Object.keys(box.children))
+                logger.debug(`Box ${key} has children:`, Object.keys(box.children))
                 result.push(...flattenBoxes(box.children, path))
               }
             }
@@ -299,7 +302,7 @@ export class IMAPClient {
           }
 
           const folders = flattenBoxes(boxes)
-          console.log(`[IMAP listFolders] Total folders found: ${folders.length}`, folders.map(f => ({ name: f.name, path: f.path })))
+          logger.log(`Total folders found: ${folders.length}`, folders.map(f => ({ name: f.name, path: f.path })))
           resolve(folders)
         })
       } catch (error: any) {
@@ -378,7 +381,7 @@ export class IMAPClient {
 
         connection.once('error', errorHandler)
 
-        console.log(`Opened box ${box.name} (path=${path}): total=${box.messages.total}, unseen=${box.messages.unseen}`)
+        logger.debug(`Opened box ${box.name} (path=${path}): total=${box.messages.total}, unseen=${box.messages.unseen}`)
 
         const explicitUids = (options?.uids || []).filter((value) => Number.isFinite(value))
         const hasExplicitUids = explicitUids.length > 0
@@ -404,9 +407,9 @@ export class IMAPClient {
         }
 
         if (hasExplicitUids) {
-          console.log(`Fetching metadata for ${explicitUids.length} explicit UIDs from ${path}`)
+          logger.debug(`Fetching metadata for ${explicitUids.length} explicit UIDs from ${path}`)
         } else {
-          console.log(`Fetching metadata from ${path} using sequence range ${sequenceRange}`)
+          logger.debug(`Fetching metadata from ${path} using sequence range ${sequenceRange}`)
         }
 
         const uidsOrSequence = hasExplicitUids ? explicitUids : sequenceRange
@@ -415,7 +418,7 @@ export class IMAPClient {
         })
           .then((emails) => {
             cleanup()
-            console.log(`Fetched ${emails.length} metadata entries from ${path}`)
+            logger.debug(`Fetched ${emails.length} metadata entries from ${path}`)
             resolve(emails)
           })
           .catch((err) => {
@@ -584,12 +587,12 @@ export class IMAPClient {
         let bodyPromise: Promise<void> | null = null
 
         if (verbose) {
-          console.log(`${logPrefix} Message event received, seqno ${seqno}`)
+          logger.debug(`${logPrefix} Message event received, seqno ${seqno}`)
         }
 
           msg.on('body', (stream) => {
           if (verbose) {
-            console.log(`${logPrefix} Body stream started`)
+            logger.debug(`${logPrefix} Body stream started`)
           }
 
           if (fullBody) {
@@ -602,7 +605,7 @@ export class IMAPClient {
               stream.once('end', () => {
                 body = buffer.toString('utf8')
                 if (verbose) {
-                  console.log(`${logPrefix} Body stream ended, length: ${body.length}`)
+                  logger.debug(`${logPrefix} Body stream ended, length: ${body.length}`)
                 }
                 resolveBody()
               })
@@ -622,18 +625,18 @@ export class IMAPClient {
             flags = attrs.flags || []
             envelope = (attrs as any).envelope
           if (verbose) {
-            console.log(`${logPrefix} Attributes received, UID: ${attrs.uid}`)
+            logger.debug(`${logPrefix} Attributes received, UID: ${attrs.uid}`)
           }
         })
 
         const processMessage = async () => {
           if (bodyPromise) {
             if (verbose) {
-              console.log(`${logPrefix} Waiting for body promise to complete...`)
+              logger.debug(`${logPrefix} Waiting for body promise to complete...`)
             }
             await bodyPromise
             if (verbose) {
-              console.log(`${logPrefix} Body promise completed, length: ${body.length}`)
+              logger.debug(`${logPrefix} Body promise completed, length: ${body.length}`)
             }
           }
 
@@ -643,12 +646,12 @@ export class IMAPClient {
 
             if (fullBody && body && body.length > 0) {
               if (verbose) {
-                console.log(`${logPrefix} Starting to parse body, length: ${body.length}`)
+                logger.debug(`${logPrefix} Starting to parse body, length: ${body.length}`)
               }
               try {
                 parsed = await simpleParser(body)
                 if (verbose) {
-                  console.log(`${logPrefix} Body parsed successfully`)
+                  logger.debug(`${logPrefix} Body parsed successfully`)
                 }
 
                 // Extract headers from parsed result
@@ -660,7 +663,7 @@ export class IMAPClient {
                 }
               } catch (parseErr) {
                 if (verbose) {
-                  console.error(`${logPrefix} Error parsing body:`, parseErr)
+                  logger.error(`${logPrefix} Error parsing body:`, parseErr)
                 }
                 // Fall through to envelope-only fallback
               }
@@ -698,13 +701,13 @@ export class IMAPClient {
             })
 
             if (verbose) {
-              console.log(`${logPrefix} Email object created`)
+              logger.debug(`${logPrefix} Email object created`)
             }
             return email
           } catch (err) {
             // Fallback to envelope-only email
             if (verbose) {
-              console.error(`${logPrefix} Error processing message, using envelope fallback:`, err)
+              logger.error(`${logPrefix} Error processing message, using envelope fallback:`, err)
             }
             return this.buildEmail({
               uid: uid || seqno,
@@ -756,7 +759,7 @@ export class IMAPClient {
               emails.push(email)
             } catch (messageErr) {
               if (verbose) {
-                console.error(`${logPrefix} Error processing metadata:`, messageErr)
+                logger.error(`${logPrefix} Error processing metadata:`, messageErr)
               }
             }
           })
@@ -767,7 +770,7 @@ export class IMAPClient {
         fetch.removeListener('error', onFetchError)
         fetch.removeListener('end', onFetchEnd)
         if (verbose) {
-          console.error(`${logPrefix} Fetch error:`, err)
+          logger.error(`${logPrefix} Fetch error:`, err)
         }
           reject(err)
       }
@@ -778,7 +781,7 @@ export class IMAPClient {
 
         if (fullBody && (fetch as any)._messagePromises) {
           if (verbose) {
-            console.log(`${logPrefix} Waiting for message processing...`)
+            logger.debug(`${logPrefix} Waiting for message processing...`)
           }
           await Promise.all((fetch as any)._messagePromises)
         }
@@ -786,7 +789,7 @@ export class IMAPClient {
           // Maintain newest-first ordering for downstream consumers
           const sorted = emails.sort((a, b) => b.uid - a.uid)
         if (verbose) {
-          console.log(`${logPrefix} Message processing complete, got ${sorted.length} email(s)`)
+          logger.debug(`${logPrefix} Message processing complete, got ${sorted.length} email(s)`)
         }
           resolve(sorted)
       }
@@ -875,7 +878,7 @@ export class IMAPClient {
 
         connection.once('error', errorHandler)
 
-        console.log(`Opened box ${box.name} (path=${path}): total=${box.messages.total}, unseen=${box.messages.unseen}`)
+        logger.debug(`Opened box ${box.name} (path=${path}): total=${box.messages.total}, unseen=${box.messages.unseen}`)
 
         const explicitUids = (options?.uids || []).filter((value) => Number.isFinite(value))
         const hasExplicitUids = explicitUids.length > 0
@@ -926,19 +929,19 @@ export class IMAPClient {
               return
             }
 
-            console.log(`Fetching ${uidsToFetch.length} emails from ${path}${hasExplicitUids ? ' (explicit UID list)' : ''}`)
+            logger.debug(`Fetching ${uidsToFetch.length} emails from ${path}${hasExplicitUids ? ' (explicit UID list)' : ''}`)
 
             this.fetchAndBuildEmails(connection, folderName, uidsToFetch, {
               fullBody: true
             })
               .then((emails) => {
                 cleanup()
-                console.log(`Finished fetching emails from ${path}: got ${emails.length} emails out of ${uidsToFetch.length} requested`)
+                logger.debug(`Finished fetching emails from ${path}: got ${emails.length} emails out of ${uidsToFetch.length} requested`)
                 resolve(emails)
               })
               .catch((err) => {
               cleanup()
-              console.error('IMAP fetch error:', err)
+              logger.error('IMAP fetch error:', err)
               reject(err)
             })
           } catch (err) {
@@ -955,15 +958,15 @@ export class IMAPClient {
     })
   }
   async fetchEmailByUid(folderName: string, uid: number): Promise<Email | null> {
-    console.log(`[IMAPClient.fetchEmailByUid] Starting fetch for UID ${uid} in folder ${folderName}`)
+    logger.debug(`Starting fetch for UID ${uid} in folder ${folderName}`)
 
     return this.withMailbox(folderName, true, ({ box, path }) => {
-      console.log(`[IMAPClient.fetchEmailByUid] Folder opened: ${box.name}, total messages: ${box.messages.total}`)
+      logger.debug(`Folder opened: ${box.name}, total messages: ${box.messages.total}`)
 
       return new Promise((resolve, reject) => {
         const connection = this.getConnectionOrThrow()
         const timeout = setTimeout(() => {
-          console.error(`[IMAPClient.fetchEmailByUid] Timeout after 30s for UID ${uid} in folder ${folderName}`)
+          logger.error(`Timeout after 30s for UID ${uid} in folder ${folderName}`)
           cleanup()
           reject(new Error('IMAP fetch timeout'))
         }, 30000)
@@ -974,14 +977,14 @@ export class IMAPClient {
         }
 
         const errorHandler = (err: Error) => {
-          console.error(`[IMAPClient.fetchEmailByUid] Connection error for UID ${uid}:`, err)
+          logger.error(`Connection error for UID ${uid}:`, err)
           cleanup()
           reject(err)
         }
 
         connection.once('error', errorHandler)
 
-        console.log(`[IMAPClient.fetchEmailByUid] Fetching UID ${uid} from ${path}`)
+        logger.debug(`Fetching UID ${uid} from ${path}`)
 
         this.fetchAndBuildEmails(connection, folderName, [uid], {
           fullBody: true,
@@ -990,15 +993,15 @@ export class IMAPClient {
           .then((emails) => {
           cleanup()
             const email = emails[0] ?? null
-          console.log(`[IMAPClient.fetchEmailByUid] Message processing complete for UID ${uid}, email object: ${email ? 'created' : 'NULL'}`)
+          logger.debug(`Message processing complete for UID ${uid}, email object: ${email ? 'created' : 'NULL'}`)
           if (!email) {
-            console.warn(`[IMAPClient.fetchEmailByUid] No message received for UID ${uid} in folder ${path}. This could mean the UID doesn't exist in this folder.`)
+            logger.warn(`No message received for UID ${uid} in folder ${path}. This could mean the UID doesn't exist in this folder.`)
           }
           resolve(email)
         })
           .catch((err) => {
             cleanup()
-            console.error(`[IMAPClient.fetchEmailByUid] Fetch error for UID ${uid}:`, err)
+            logger.error(`Fetch error for UID ${uid}:`, err)
             reject(err)
           })
       })

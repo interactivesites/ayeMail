@@ -3,6 +3,9 @@ import { join } from 'path'
 import { app } from 'electron'
 import { existsSync, mkdirSync } from 'fs'
 import { randomUUID } from 'crypto'
+import { Logger } from '../shared/logger'
+
+const logger = Logger.create('Schema')
 
 const getDbPath = () => {
   const userDataPath = app.getPath('userData')
@@ -224,7 +227,7 @@ export function createDatabase(): Database.Database {
       db.exec(`CREATE INDEX IF NOT EXISTS idx_emails_status ON emails(status)`)
     }
   } catch (error) {
-    console.error('Error migrating emails table for status column:', error)
+    logger.error('Error migrating emails table for status column:', error)
   }
   
   // Migration: Add spam-related columns to emails table
@@ -247,7 +250,7 @@ export function createDatabase(): Database.Database {
     // Create index for spam_score for faster queries
     db.exec(`CREATE INDEX IF NOT EXISTS idx_emails_spam_score ON emails(spam_score)`)
   } catch (error) {
-    console.error('Error migrating emails table for spam columns:', error)
+    logger.error('Error migrating emails table for spam columns:', error)
   }
 
   // Create spam_blacklist table
@@ -268,7 +271,7 @@ export function createDatabase(): Database.Database {
     db.exec(`CREATE INDEX IF NOT EXISTS idx_spam_blacklist_email ON spam_blacklist(email_address)`)
     db.exec(`CREATE INDEX IF NOT EXISTS idx_spam_blacklist_domain ON spam_blacklist(domain)`)
   } catch (error) {
-    console.error('Error creating spam_blacklist table:', error)
+    logger.error('Error creating spam_blacklist table:', error)
   }
 
   // Create spam_greylist table
@@ -290,7 +293,7 @@ export function createDatabase(): Database.Database {
     db.exec(`CREATE INDEX IF NOT EXISTS idx_spam_greylist_email ON spam_greylist(email_address)`)
     db.exec(`CREATE INDEX IF NOT EXISTS idx_spam_greylist_block_until ON spam_greylist(block_until)`)
   } catch (error) {
-    console.error('Error creating spam_greylist table:', error)
+    logger.error('Error creating spam_greylist table:', error)
   }
 
   // Migration: ensure folder sync metadata columns exist on upgraded installs
@@ -299,7 +302,7 @@ export function createDatabase(): Database.Database {
     ensureColumn('folders', 'highest_uid', 'INTEGER DEFAULT 0')
     ensureColumn('folders', 'last_sync_at', 'INTEGER')
   } catch (error) {
-    console.error('Error ensuring folder sync metadata columns:', error)
+    logger.error('Error ensuring folder sync metadata columns:', error)
   }
 
   // Migration: Ensure account_from_addresses table exists and migrate existing accounts
@@ -336,7 +339,7 @@ export function createDatabase(): Database.Database {
       }
     }
   } catch (error) {
-    console.error('Error migrating account_from_addresses table:', error)
+    logger.error('Error migrating account_from_addresses table:', error)
   }
 
   // Migration: Add certificate validation columns to accounts table
@@ -348,7 +351,7 @@ export function createDatabase(): Database.Database {
     ensureColumn('accounts', 'smtp_allow_invalid_certs', 'INTEGER DEFAULT 0')
     ensureColumn('accounts', 'smtp_custom_ca', 'TEXT')
   } catch (error) {
-    console.error('Error migrating accounts table for certificate validation columns:', error)
+    logger.error('Error migrating accounts table for certificate validation columns:', error)
   }
   
   return db

@@ -171,6 +171,9 @@ import ReminderModal from './components/ReminderModal.vue'
 import MainNav from './components/MainNav.vue'
 import { usePreferencesStore } from './stores/preferences'
 import { useEmailCacheStore } from './stores/emailCache'
+import { Logger } from '@shared/logger'
+
+const logger = Logger.create('App')
 
 // Check if we're in compose mode or email viewer mode
 const urlParams = new URLSearchParams(window.location.search)
@@ -338,7 +341,7 @@ const handleFolderSelect = async (folder: any) => {
       try {
         await window.electronAPI.reminders.cleanupDuplicates()
       } catch (error) {
-        console.error('Error cleaning up duplicate reminders:', error)
+        logger.error('Error cleaning up duplicate reminders:', error)
       }
       // No account IDs needed - reminders are unified across all accounts
       unifiedFolderAccountIds.value = []
@@ -363,13 +366,13 @@ const handleFolderSelect = async (folder: any) => {
       try {
         await syncEmailsForFolder(selectedAccount.value.id, folder.id)
       } catch (error) {
-        console.error('Error syncing emails for folder:', error)
+        logger.error('Error syncing emails for folder:', error)
       }
     } else {
-      console.warn(`Account not found for folder ${folder.id}, accountId: ${accountId}`)
+      logger.warn(`Account not found for folder ${folder.id}, accountId: ${accountId}`)
     }
   } else {
-    console.warn(`Cannot sync folder ${folder.id}: missing accountId (${accountId}) or folder.id (${folder.id})`)
+    logger.warn(`Cannot sync folder ${folder.id}: missing accountId (${accountId}) or folder.id (${folder.id})`)
   }
 }
 
@@ -406,12 +409,12 @@ const handleEmailSelect = async (emailId: string) => {
           // Refresh email list to update read status
           window.dispatchEvent(new CustomEvent('refresh-emails'))
         } catch (error) {
-          console.error('Error marking email as read:', error)
+          logger.error('Error marking email as read:', error)
         }
       }, 3000) // 3 seconds delay
     }
   } catch (error) {
-    console.error('Error loading email:', error)
+    logger.error('Error loading email:', error)
     selectedEmail.value = null
   }
 }
@@ -444,7 +447,7 @@ const handleSetReminder = async (email: any) => {
       // The backend will handle updating instead of creating a duplicate
     }
   } catch (error) {
-    console.error('Error checking for existing reminder:', error)
+    logger.error('Error checking for existing reminder:', error)
   }
 
   reminderEmail.value = email
@@ -470,7 +473,7 @@ const handleDeleteEmail = async (email: any) => {
     // Refresh the email list - EmailList will handle selecting next email if needed
     window.dispatchEvent(new CustomEvent('refresh-emails'))
   } catch (error: any) {
-    console.error('Error deleting email:', error)
+    logger.error('Error deleting email:', error)
     alert(`Failed to delete email: ${error.message || error}`)
   }
 }
@@ -493,7 +496,7 @@ const syncEmails = async () => {
 
   // Listen for progress updates
   const removeProgressListener = window.electronAPI.emails.onSyncProgress((data: any) => {
-    // console.info('Sync progress:', data)
+    // logger.info('Sync progress:', data)
     if (data.folder === 'folders') {
       syncProgress.value = { show: true, current: data.current, total: data.total || 0, folder: data.folder }
     } else if (data.folder) {
@@ -551,7 +554,7 @@ const syncEmails = async () => {
       removeNewEmailsListener()
     }
   } catch (error: any) {
-    console.error('Error syncing emails:', error)
+    logger.error('Error syncing emails:', error)
     alert(`Error syncing emails: ${error.message}`)
     syncProgress.value.show = false
     removeProgressListener()
@@ -562,24 +565,24 @@ const syncEmails = async () => {
 }
 
 const showNewEmailNotification = (data: { accountId: string; count: number; emails: any[] }) => {
-  console.log('showNewEmailNotification called:', { count: data.count, emailsLength: data.emails?.length, notificationsEnabled: preferences.showEmailNotifications, permission: 'Notification' in window ? Notification.permission : 'N/A' })
+  logger.debug('showNewEmailNotification called:', { count: data.count, emailsLength: data.emails?.length, notificationsEnabled: preferences.showEmailNotifications, permission: 'Notification' in window ? Notification.permission : 'N/A' })
   
   // Check if notifications are enabled
   if (!preferences.showEmailNotifications) {
-    console.log('Email notifications disabled in settings')
+    logger.debug('Email notifications disabled in settings')
     return
   }
 
   const { count, emails } = data
   
   if (!emails || emails.length === 0) {
-    console.log('No emails to notify about')
+    logger.debug('No emails to notify about')
     return
   }
   
   // Create notification
   if ('Notification' in window && Notification.permission === 'granted') {
-    console.log('Creating notification for', count, 'new email(s)')
+    logger.debug('Creating notification for', count, 'new email(s)')
     const title = count === 1 
       ? 'New Email'
       : `${count} New Emails`
@@ -607,11 +610,11 @@ const showNewEmailNotification = (data: { accountId: string; count: number; emai
       requireInteraction: false
     })
     
-    console.log('Notification created and shown')
+    logger.debug('Notification created and shown')
     
     // Handle click - select first new email (only if single email, skip if grouped)
     notification.onclick = () => {
-      console.log('Notification clicked, selecting email')
+      logger.debug('Notification clicked, selecting email')
       if (emails.length === 1) {
         // Only select if it's a single email (not grouped)
         window.focus()
@@ -623,14 +626,14 @@ const showNewEmailNotification = (data: { accountId: string; count: number; emai
     }
   } else if ('Notification' in window && Notification.permission === 'default') {
     // Request permission if not yet granted
-    console.log('Requesting notification permission...')
+    logger.debug('Requesting notification permission...')
     Notification.requestPermission().then(permission => {
-      console.log('Permission result:', permission)
+      logger.debug('Permission result:', permission)
     })
   } else if ('Notification' in window) {
-    console.warn('Notifications not granted. Permission:', Notification.permission)
+    logger.warn('Notifications not granted. Permission:', Notification.permission)
   } else {
-    console.warn('Notification API not available in this browser')
+    logger.warn('Notification API not available in this browser')
   }
 }
 
@@ -672,7 +675,7 @@ const syncEmailsForFolder = async (accountId: string, folderId: string) => {
     const folder = findFolder(folders)
     if (folder) folderName = folder.name
   } catch (error) {
-    console.error('Error getting folder name:', error)
+    logger.error('Error getting folder name:', error)
   }
   
   syncProgress.value = { show: true, current: 0, total: undefined, folder: folderName }
@@ -684,7 +687,7 @@ const syncEmailsForFolder = async (accountId: string, folderId: string) => {
       
       return
     }
-    // console.info('Folder sync progress:', data)
+    // logger.info('Folder sync progress:', data)
     syncProgress.value = {
       show: true,
       current: data.current || 0,
@@ -748,7 +751,7 @@ const syncEmailsForFolder = async (accountId: string, folderId: string) => {
   } catch (error: any) {
     // Only show error if this sync wasn't cancelled
     if (currentSyncFolderId.value === folderId) {
-      console.error('Error syncing folder:', error)
+      logger.error('Error syncing folder:', error)
       alert(`Error syncing folder: ${error.message}`)
       syncProgress.value = { show: false, current: 0, total: undefined, folder: '' }
     }
@@ -809,7 +812,7 @@ const scheduleBackgroundBodyFetch = (accountId: string, folderId: string) => {
           }
         }
       } catch (error) {
-        console.error('Error in background body fetch:', error)
+        logger.error('Error in background body fetch:', error)
       }
     })
   }, 3000) // Wait 3 seconds after sync completes
@@ -832,7 +835,7 @@ const handleAccountSelect = async (account: any) => {
         unifiedFolderAccountIds.value = accounts.map((a: any) => a.id)
       }
     } catch (error) {
-      console.error('Error refreshing accounts:', error)
+      logger.error('Error refreshing accounts:', error)
     }
   }
   showSettings.value = false
@@ -872,29 +875,29 @@ onMounted(async () => {
   if ('Notification' in window && Notification.permission === 'default') {
     try {
       const permission = await Notification.requestPermission()
-      console.log('Notification permission:', permission)
+      logger.debug('Notification permission:', permission)
     } catch (error) {
-      console.error('Error requesting notification permission:', error)
+      logger.error('Error requesting notification permission:', error)
     }
   } else if ('Notification' in window) {
-    console.log('Notification permission already set:', Notification.permission)
+    logger.debug('Notification permission already set:', Notification.permission)
   }
 
   // Listen for new email notifications (global - for both manual sync and auto-sync)
   window.electronAPI.emails.onNewEmails((data: any) => {
-    console.log('Received new emails event:', data)
+    logger.debug('Received new emails event:', data)
     showNewEmailNotification(data)
   })
 
   // Listen for reminder email selection (when reminder notification is clicked)
   window.electronAPI.reminders.onSelectEmail((emailId: string) => {
-    console.log('Reminder notification clicked, selecting email:', emailId)
+    logger.debug('Reminder notification clicked, selecting email:', emailId)
     handleEmailSelect(emailId)
   })
 
   // Listen for auto-sync refresh events
   window.electronAPI.emails.onAutoSyncRefresh(() => {
-    console.log('Auto-sync: Refresh triggered, updating email list')
+    logger.debug('Auto-sync: Refresh triggered, updating email list')
     window.dispatchEvent(new CustomEvent('refresh-emails'))
     window.dispatchEvent(new CustomEvent('refresh-folders'))
   })
@@ -933,7 +936,7 @@ onMounted(async () => {
       showSettings.value = true
     }
   } catch (error) {
-    console.error('Error loading accounts:', error)
+    logger.error('Error loading accounts:', error)
     // On error, assume no accounts and show settings
     hasAccounts.value = false
     showSettings.value = true

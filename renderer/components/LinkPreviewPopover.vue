@@ -103,6 +103,9 @@
 </template>
 
 <script setup lang="ts">
+import { Logger } from '@shared/logger'
+
+const logger = Logger.create('Component')
 import { ref, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import type { PropType } from 'vue'
 import { checkUrlSecurity, type UrlSecurityCheck } from '../utils/url-security'
@@ -162,7 +165,7 @@ const copyUrl = async () => {
     await navigator.clipboard.writeText(props.url)
     // Could show a toast notification here
   } catch (error) {
-    console.error('Failed to copy URL:', error)
+    logger.error('Failed to copy URL:', error)
   }
 }
 
@@ -222,7 +225,7 @@ const updatePosition = async () => {
       transform: 'none'
     }
   } catch (error) {
-    console.error('Error positioning popover:', error)
+    logger.error('Error positioning popover:', error)
   }
 }
 

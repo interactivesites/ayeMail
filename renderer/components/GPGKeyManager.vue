@@ -58,6 +58,9 @@
 </template>
 
 <script setup lang="ts">
+import { Logger } from '@shared/logger'
+
+const logger = Logger.create('Component')
 import { ref, onMounted } from 'vue'
 import ImportKeyModal from './ImportKeyModal.vue'
 import GenerateKeyModal from './GenerateKeyModal.vue'
@@ -70,13 +73,13 @@ const loadKeys = async () => {
   try {
     keys.value = await window.electronAPI.gpg.listKeys()
   } catch (error) {
-    console.error('Error loading GPG keys:', error)
+    logger.error('Error loading GPG keys:', error)
   }
 }
 
 const deleteKey = async (id: string) => {
   // Note: Delete functionality would need to be added to IPC handlers
-  console.log('Delete key:', id)
+  logger.log('Delete key:', id)
 }
 
 const handleKeyImported = () => {

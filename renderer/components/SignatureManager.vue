@@ -62,6 +62,9 @@
 </template>
 
 <script setup lang="ts">
+import { Logger } from '@shared/logger'
+
+const logger = Logger.create('Component')
 import { ref, onMounted, watch } from 'vue'
 import AddSignatureForm from './AddSignatureForm.vue'
 
@@ -78,7 +81,7 @@ const loadSignatures = async () => {
   try {
     signatures.value = await window.electronAPI.signatures.list(props.accountId)
   } catch (error) {
-    console.error('Error loading signatures:', error)
+    logger.error('Error loading signatures:', error)
   }
 }
 
@@ -87,7 +90,7 @@ const setDefault = async (id: string) => {
     await window.electronAPI.signatures.update(id, { isDefault: true })
     await loadSignatures()
   } catch (error) {
-    console.error('Error setting default signature:', error)
+    logger.error('Error setting default signature:', error)
   }
 }
 
@@ -102,7 +105,7 @@ const deleteSignature = async (id: string) => {
       await window.electronAPI.signatures.delete(id)
       await loadSignatures()
     } catch (error) {
-      console.error('Error deleting signature:', error)
+      logger.error('Error deleting signature:', error)
     }
   }
 }

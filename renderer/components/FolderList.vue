@@ -122,6 +122,9 @@
 </template>
 
 <script setup lang="ts">
+import { Logger } from '@shared/logger'
+
+const logger = Logger.create('Component')
 import { ref, onMounted, watch, onUnmounted, computed } from 'vue'
 import { usePreferencesStore } from '../stores/preferences'
 import { ListBulletIcon, Squares2X2Icon } from '@heroicons/vue/24/outline'
@@ -321,7 +324,7 @@ const checkSpamToday = async () => {
   try {
     hasSpamToday.value = await window.electronAPI.folders.hasSpamToday()
   } catch (error) {
-    console.error('Error checking spam today:', error)
+    logger.error('Error checking spam today:', error)
     hasSpamToday.value = false
   }
 }
@@ -353,7 +356,7 @@ const loadAllAccounts = async () => {
       }
     }
   } catch (error) {
-    console.error('Error loading accounts:', error)
+    logger.error('Error loading accounts:', error)
   }
 }
 
@@ -370,7 +373,7 @@ const loadAccountFolders = async (accountId: string) => {
     const folders = await window.electronAPI.folders.list(accountId)
     accountFolders.value.set(accountId, folders)
   } catch (error) {
-    console.error(`Error loading folders for account ${accountId}:`, error)
+    logger.error(`Error loading folders for account ${accountId}:`, error)
     accountFolders.value.set(accountId, [])
   }
 }

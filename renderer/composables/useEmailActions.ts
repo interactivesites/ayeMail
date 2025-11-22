@@ -4,6 +4,9 @@ import { useEmailCacheStore } from '../stores/emailCache'
 import { computePosition, offset, shift, arrow as floatingArrow } from '@floating-ui/dom'
 import type { Placement, MiddlewareData } from '@floating-ui/dom'
 import type { Ref } from 'vue'
+import { Logger } from '@shared/logger'
+
+const logger = Logger.create('EmailActions')
 
 export function useEmailActions() {
   const preferences = usePreferencesStore()
@@ -133,7 +136,7 @@ export function useEmailActions() {
           placement: 'right-end'
         })
       } catch (error) {
-        console.error('Error positioning archive popover:', error)
+        logger.error('Error positioning archive popover:', error)
         const rect = referenceElement.getBoundingClientRect()
         popoverElement.style.top = `${rect.top}px`
         popoverElement.style.left = `${rect.right + 12}px`
@@ -160,11 +163,11 @@ export function useEmailActions() {
         window.dispatchEvent(new CustomEvent('refresh-emails'))
         return { success: true }
       } else {
-        console.error('Failed to archive email:', result.message)
+        logger.error('Failed to archive email:', result.message)
         return { success: false, message: result.message }
       }
     } catch (error) {
-      console.error('Error archiving email:', error)
+      logger.error('Error archiving email:', error)
       return { success: false, message: 'Unknown error' }
     } finally {
       archivingEmailId.value = null
@@ -186,11 +189,11 @@ export function useEmailActions() {
         window.dispatchEvent(new CustomEvent('refresh-emails'))
         return { success: true }
       } else {
-        console.error('Failed to delete email:', result.message)
+        logger.error('Failed to delete email:', result.message)
         return { success: false, message: result.message }
       }
     } catch (error) {
-      console.error('Error deleting email:', error)
+      logger.error('Error deleting email:', error)
       return { success: false, message: 'Unknown error' }
     } finally {
       busyEmailIds.value.delete(emailId)
@@ -208,7 +211,7 @@ export function useEmailActions() {
       window.dispatchEvent(new CustomEvent('refresh-emails'))
       return { success: true }
     } catch (error: any) {
-      console.error('Error moving email to folder:', error)
+      logger.error('Error moving email to folder:', error)
       return { success: false, message: error.message || 'Unknown error' }
     } finally {
       busyEmailIds.value.delete(emailId)
@@ -227,11 +230,11 @@ export function useEmailActions() {
         window.dispatchEvent(new CustomEvent('refresh-emails'))
         return { success: true }
       } else {
-        console.error('Failed to mark email as spam:', result.message)
+        logger.error('Failed to mark email as spam:', result.message)
         return { success: false, message: result.message }
       }
     } catch (error) {
-      console.error('Error marking email as spam:', error)
+      logger.error('Error marking email as spam:', error)
       return { success: false, message: 'Unknown error' }
     } finally {
       busyEmailIds.value.delete(emailId)
@@ -263,7 +266,7 @@ export function useEmailActions() {
       // Still allow setting reminder, but it will update the existing one
       // The backend will handle updating instead of creating a duplicate
     } catch (error) {
-      console.error('Error checking for existing reminder:', error)
+      logger.error('Error checking for existing reminder:', error)
     }
 
     // Emit event to show reminder modal

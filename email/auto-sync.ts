@@ -1,6 +1,9 @@
 import { emailStorage } from './email-storage'
 import { accountManager } from './account-manager'
 import { getDatabase } from '../database'
+import { Logger } from '../shared/logger'
+
+const logger = Logger.create('AutoSync')
 
 export class AutoSyncScheduler {
   private syncInterval: NodeJS.Timeout | null = null
@@ -18,7 +21,7 @@ export class AutoSyncScheduler {
     }
 
     this.syncIntervalMs = intervalMinutes * 60000
-    console.log(`Starting auto-sync with interval: ${intervalMinutes} minutes`)
+    logger.log(`Starting auto-sync with interval: ${intervalMinutes} minutes`)
 
     this.syncInterval = setInterval(() => {
       this.performAutoSync()
@@ -34,7 +37,7 @@ export class AutoSyncScheduler {
     if (this.syncInterval) {
       clearInterval(this.syncInterval)
       this.syncInterval = null
-      console.log('Auto-sync stopped')
+      logger.log('Auto-sync stopped')
     }
   }
 
@@ -47,17 +50,17 @@ export class AutoSyncScheduler {
 
   private async performAutoSync() {
     if (this.isSyncing) {
-      console.log('Auto-sync: Already syncing, skipping this cycle')
+      logger.log('Auto-sync: Already syncing, skipping this cycle')
       return
     }
 
     try {
       this.isSyncing = true
-      console.log('Auto-sync: Starting automatic sync...')
+      logger.log('Auto-sync: Starting automatic sync...')
 
       const accounts = await accountManager.getAllAccounts()
       if (accounts.length === 0) {
-        console.log('Auto-sync: No accounts configured, skipping')
+        logger.log('Auto-sync: No accounts configured, skipping')
         return
       }
 
@@ -71,30 +74,30 @@ export class AutoSyncScheduler {
           // Check if sync was cancelled for this account
           const cancelToken = (emailStorage as any).cancellationTokens?.get(account.id)
           if (cancelToken?.cancelled) {
-            console.log(`Auto-sync: Sync cancelled for account ${account.email}, skipping`)
+            logger.log(`Auto-sync: Sync cancelled for account ${account.email}, skipping`)
             continue
           }
 
-          console.log(`Auto-sync: Syncing inbox for account ${account.email}`)
+          logger.log(`Auto-sync: Syncing inbox for account ${account.email}`)
           
           let inboxFolder = db.prepare(
             "SELECT * FROM folders WHERE account_id = ? AND (LOWER(name) = 'inbox' OR LOWER(path) = 'inbox') LIMIT 1"
           ).get(account.id) as any
 
           if (!inboxFolder) {
-            console.warn(`Auto-sync: No inbox found for account ${account.email}, attempting to sync folders`)
+            logger.warn(`Auto-sync: No inbox found for account ${account.email}, attempting to sync folders`)
             try {
               await emailStorage.syncFoldersOnly(account.id)
               inboxFolder = db.prepare(
                 "SELECT * FROM folders WHERE account_id = ? AND (LOWER(name) = 'inbox' OR LOWER(path) = 'inbox') LIMIT 1"
               ).get(account.id) as any
             } catch (folderSyncError) {
-              console.error(`Auto-sync: Failed to sync folders for ${account.email}:`, folderSyncError)
+              logger.error(`Auto-sync: Failed to sync folders for ${account.email}:`, folderSyncError)
             }
           }
 
           if (!inboxFolder) {
-            console.warn(`Auto-sync: Still no inbox found for account ${account.email} after attempting folder sync`)
+            logger.warn(`Auto-sync: Still no inbox found for account ${account.email} after attempting folder sync`)
             continue
           }
 
@@ -142,10 +145,10 @@ export class AutoSyncScheduler {
           newEmailsForNotification.push(...newEmailsThisFolder)
 
           if (newUnread > 0) {
-            console.log(`Auto-sync: ${newUnread} new unread emails in ${account.email} inbox`)
+            logger.log(`Auto-sync: ${newUnread} new unread emails in ${account.email} inbox`)
           }
         } catch (error) {
-          console.error(`Auto-sync: Error syncing account ${account.email}:`, error)
+          logger.error(`Auto-sync: Error syncing account ${account.email}:`, error)
         }
       }
 
@@ -160,12 +163,12 @@ export class AutoSyncScheduler {
         
         // Refresh email list in renderer
         this.mainWindow.webContents.send('auto-sync:refresh-needed')
-        console.log(`Auto-sync: Complete. ${totalNewUnread} new unread emails across all accounts`)
+        logger.log(`Auto-sync: Complete. ${totalNewUnread} new unread emails across all accounts`)
       } else {
-        console.log('Auto-sync: Complete. No new emails')
+        logger.log('Auto-sync: Complete. No new emails')
       }
     } catch (error) {
-      console.error('Auto-sync: Error during automatic sync:', error)
+      logger.error('Auto-sync: Error during automatic sync:', error)
     } finally {
       this.isSyncing = false
     }
@@ -173,7 +176,7 @@ export class AutoSyncScheduler {
 
   // Force an immediate sync
   async forceSyncNow() {
-    console.log('Auto-sync: Force sync requested')
+    logger.log('Auto-sync: Force sync requested')
     await this.performAutoSync()
   }
 }

@@ -2,6 +2,9 @@ import { Notification, BrowserWindow } from 'electron'
 import { getDatabase } from '../database'
 import { accountManager } from '../email/account-manager'
 import { getIMAPClient } from '../email/imap-client'
+import { Logger } from '../shared/logger'
+
+const logger = Logger.create('ReminderScheduler')
 
 export class ReminderScheduler {
   private checkInterval: NodeJS.Timeout | null = null
@@ -78,7 +81,7 @@ export class ReminderScheduler {
     `).get(reminder.account_id) as any
 
     if (!inboxFolder) {
-      console.error('Inbox folder not found for account:', reminder.account_id)
+      logger.error('Inbox folder not found for account:', reminder.account_id)
       // Still mark reminder as completed even if we can't move the email
       db.prepare('UPDATE reminders SET completed = 1 WHERE id = ?').run(reminder.id)
       return
@@ -118,10 +121,10 @@ export class ReminderScheduler {
             db.prepare('DELETE FROM emails WHERE id = ?').run(reminder.email_id)
           } else {
             // Re-throw if it's a different constraint error
-            console.error('Error moving email to inbox:', updateError)
+            logger.error('Error moving email to inbox:', updateError)
           }
         } else {
-          console.error('Error moving email to inbox:', updateError)
+          logger.error('Error moving email to inbox:', updateError)
         }
       }
     }
@@ -145,7 +148,7 @@ export class ReminderScheduler {
         
         await imapClient.disconnect()
       } catch (error) {
-        console.error('Error moving email on IMAP server:', error)
+        logger.error('Error moving email on IMAP server:', error)
         // Continue anyway - email is already moved in database
       }
     }
@@ -168,7 +171,7 @@ export class ReminderScheduler {
         }
       }
       
-      console.log(`[ReminderScheduler] Triggering reminder for email: ${reminder.email_id}, subject: ${reminder.subject}`)
+      logger.log(`Triggering reminder for email: ${reminder.email_id}, subject: ${reminder.subject}`)
       
       const notification = new Notification({
         title: 'Email Reminder',
@@ -177,7 +180,7 @@ export class ReminderScheduler {
       })
       
       notification.on('click', () => {
-        console.log('[ReminderScheduler] Notification clicked, selecting email')
+        logger.log('Notification clicked, selecting email')
         // Send message to renderer to select the email
         if (this.mainWindow && !this.mainWindow.isDestroyed()) {
           this.mainWindow.webContents.send('reminders:select-email', reminder.email_id)
@@ -187,12 +190,12 @@ export class ReminderScheduler {
       })
       
       notification.on('show', () => {
-        console.log('[ReminderScheduler] Notification shown')
+        logger.log('Notification shown')
       })
       
       notification.show()
     } else {
-      console.warn('[ReminderScheduler] Notifications not supported on this platform')
+      logger.warn('Notifications not supported on this platform')
     }
 
     // Mark reminder as completed

@@ -277,7 +277,9 @@ import FolderPickerModal from './FolderPickerModal.vue'
 import ThinScrollbar from './ThinScrollbar.vue'
 import { computePosition, offset, shift, arrow as floatingArrow } from '@floating-ui/dom'
 import type { Placement, MiddlewareData } from '@floating-ui/dom'
+import { Logger } from '@shared/logger'
 
+const logger = Logger.create('EmailList')
 const { t: $t } = useI18n()
 
 const props = defineProps<{
@@ -477,7 +479,7 @@ const handleEmailDoubleClick = async (emailId: string) => {
   try {
     await window.electronAPI.window.emailViewer.create(emailId)
   } catch (error) {
-    console.error('Error opening email in new window:', error)
+    logger.error('Error opening email in new window:', error)
   }
 }
 
@@ -715,7 +717,7 @@ const showArchiveConfirm = async (emailId: string) => {
         placement: 'right-end'
       })
     } catch (error) {
-      console.error('Error positioning archive popover:', error)
+      logger.error('Error positioning archive popover:', error)
       const rect = referenceElement.getBoundingClientRect()
       popoverElement.style.top = `${rect.top}px`
       popoverElement.style.left = `${rect.right + 12}px`
@@ -769,11 +771,11 @@ const handleArchiveSelected = async () => {
         if (result.success) {
           return { success: true, id: emailId }
         } else {
-          console.error('Failed to archive email:', result.message)
+          logger.error('Failed to archive email:', result.message)
           return { success: false, id: emailId }
         }
       } catch (error) {
-        console.error('Error archiving email:', error)
+        logger.error('Error archiving email:', error)
         return { success: false, id: emailId }
       }
     })
@@ -795,7 +797,7 @@ const handleArchiveSelected = async () => {
     // Refresh email list
     window.dispatchEvent(new CustomEvent('refresh-emails'))
   } catch (error) {
-    console.error('Error archiving emails:', error)
+    logger.error('Error archiving emails:', error)
     // Restore all emails on error
     emailsToRemove.forEach(({ id, emailToRemove }) => {
       if (emailToRemove) {
@@ -851,7 +853,7 @@ const confirmArchive = async (emailId: string) => {
       // Refresh email list
       window.dispatchEvent(new CustomEvent('refresh-emails'))
     } else {
-      console.error('Failed to archive email:', result.message)
+      logger.error('Failed to archive email:', result.message)
       // Restore email on failure
       if (emailToRemove) {
         removedEmails.value.delete(emailId)
@@ -860,7 +862,7 @@ const confirmArchive = async (emailId: string) => {
       }
     }
   } catch (error) {
-    console.error('Error archiving email:', error)
+    logger.error('Error archiving email:', error)
     // Restore email on error
     if (emailToRemove) {
       removedEmails.value.delete(emailId)
@@ -900,11 +902,11 @@ const handleDeleteSelected = async () => {
         if (result.success) {
           return { success: true, id: emailId }
         } else {
-          console.error('Failed to delete email:', result.message)
+          logger.error('Failed to delete email:', result.message)
           return { success: false, id: emailId }
         }
       } catch (error) {
-        console.error('Error deleting email:', error)
+        logger.error('Error deleting email:', error)
         return { success: false, id: emailId }
       }
     })
@@ -926,7 +928,7 @@ const handleDeleteSelected = async () => {
     // Refresh email list
     window.dispatchEvent(new CustomEvent('refresh-emails'))
   } catch (error) {
-    console.error('Error deleting emails:', error)
+    logger.error('Error deleting emails:', error)
     // Restore all emails on error
     emailsToRemove.forEach(({ id, emailToRemove }) => {
       if (emailToRemove) {
@@ -983,7 +985,7 @@ const handleDeleteEmail = async (emailId: string) => {
       // Refresh email list
       window.dispatchEvent(new CustomEvent('refresh-emails'))
     } else {
-      console.error('Failed to delete email:', result.message)
+      logger.error('Failed to delete email:', result.message)
       // Restore email on failure
       if (emailToRemove) {
         removedEmails.value.delete(emailId)
@@ -992,7 +994,7 @@ const handleDeleteEmail = async (emailId: string) => {
       }
     }
   } catch (error) {
-    console.error('Error deleting email:', error)
+    logger.error('Error deleting email:', error)
     // Restore email on error
     if (emailToRemove) {
       removedEmails.value.delete(emailId)
@@ -1032,11 +1034,11 @@ const handleSpamSelected = async () => {
         if (result.success) {
           return { success: true, id: emailId }
         } else {
-          console.error('Failed to mark email as spam:', result.message)
+          logger.error('Failed to mark email as spam:', result.message)
           return { success: false, id: emailId }
         }
       } catch (error) {
-        console.error('Error marking email as spam:', error)
+        logger.error('Error marking email as spam:', error)
         return { success: false, id: emailId }
       }
     })
@@ -1058,7 +1060,7 @@ const handleSpamSelected = async () => {
     // Refresh email list
     window.dispatchEvent(new CustomEvent('refresh-emails'))
   } catch (error) {
-    console.error('Error marking emails as spam:', error)
+    logger.error('Error marking emails as spam:', error)
     // Restore all emails on error
     emailsToRemove.forEach(({ id, emailToRemove }) => {
       if (emailToRemove) {
@@ -1115,7 +1117,7 @@ const handleSpamEmail = async (emailId: string) => {
       // Refresh email list
       window.dispatchEvent(new CustomEvent('refresh-emails'))
     } else {
-      console.error('Failed to mark email as spam:', result.message)
+      logger.error('Failed to mark email as spam:', result.message)
       // Restore email on failure
       if (emailToRemove) {
         removedEmails.value.delete(emailId)
@@ -1124,7 +1126,7 @@ const handleSpamEmail = async (emailId: string) => {
       }
     }
   } catch (error) {
-    console.error('Error marking email as spam:', error)
+    logger.error('Error marking email as spam:', error)
     // Restore email on error
     if (emailToRemove) {
       removedEmails.value.delete(emailId)
@@ -1181,7 +1183,7 @@ const handleUnspamSelected = async () => {
           accountFolders.set(accountId, inboxFolder.id)
         }
       } catch (error) {
-        console.error(`Error getting folders for account ${accountId}:`, error)
+        logger.error(`Error getting folders for account ${accountId}:`, error)
       }
     }
 
@@ -1191,7 +1193,7 @@ const handleUnspamSelected = async () => {
 
       const inboxFolderId = accountFolders.get(email.accountId)
       if (!inboxFolderId) {
-        console.error('Inbox folder not found for account:', email.accountId)
+        logger.error('Inbox folder not found for account:', email.accountId)
         return { success: false, id: email.id }
       }
 
@@ -1200,11 +1202,11 @@ const handleUnspamSelected = async () => {
         if (result.success) {
           return { success: true, id: email.id }
         } else {
-          console.error('Failed to un-spam email:', result.message)
+          logger.error('Failed to un-spam email:', result.message)
           return { success: false, id: email.id }
         }
       } catch (error) {
-        console.error('Error un-spamming email:', error)
+        logger.error('Error un-spamming email:', error)
         return { success: false, id: email.id }
       }
     })
@@ -1226,7 +1228,7 @@ const handleUnspamSelected = async () => {
     // Refresh email list
     window.dispatchEvent(new CustomEvent('refresh-emails'))
   } catch (error) {
-    console.error('Error un-spamming emails:', error)
+    logger.error('Error un-spamming emails:', error)
     // Restore all emails on error
     emailsToRemove.forEach(({ id, emailToRemove }) => {
       if (emailToRemove) {
@@ -1273,7 +1275,7 @@ const handleDeleteAllEmails = async () => {
             errorCount++
           }
         } catch (error) {
-          console.error(`Error deleting email ${emailId}:`, error)
+          logger.error(`Error deleting email ${emailId}:`, error)
           errorCount++
         }
       })
@@ -1304,7 +1306,7 @@ const handleDeleteAllEmails = async () => {
       }))
     }
   } catch (error) {
-    console.error('Error deleting all emails:', error)
+    logger.error('Error deleting all emails:', error)
     alert($t('emailList.deleteAllError'))
   } finally {
     deletingAllEmails.value = false
@@ -1328,7 +1330,7 @@ const handleReminderSelected = async () => {
   const firstEmailId = idsToRemind[0]
   const email = getAllEmailsFlat().find(e => e.id === firstEmailId)
   if (!email || !email.accountId) {
-    console.error('Email not found or missing accountId', { emailId: firstEmailId, email })
+    logger.error('Email not found or missing accountId', { emailId: firstEmailId, email })
     return
   }
 
@@ -1338,7 +1340,7 @@ const handleReminderSelected = async () => {
 const showReminderForEmail = async (emailId: string) => {
   const email = getAllEmailsFlat().find(e => e.id === emailId)
   if (!email || !email.accountId) {
-    console.error('Email not found or missing accountId', { emailId, email })
+    logger.error('Email not found or missing accountId', { emailId, email })
     return
   }
 
@@ -1379,7 +1381,7 @@ const showReminderForEmail = async (emailId: string) => {
         placement: 'right-end'
       })
     } catch (error) {
-      console.error('Error positioning reminder modal:', error)
+      logger.error('Error positioning reminder modal:', error)
       // Fallback positioning
       const rect = referenceElement.getBoundingClientRect()
       reminderModalStyle.value = {
@@ -1389,7 +1391,7 @@ const showReminderForEmail = async (emailId: string) => {
       }
     }
   } else {
-    console.warn('Email or modal element not found, keeping centered position')
+    logger.warn('Email or modal element not found, keeping centered position')
   }
 }
 
@@ -1403,7 +1405,7 @@ const handleMoveToFolderSelected = async () => {
   const firstEmailId = idsToMove[0]
   const email = getAllEmailsFlat().find(e => e.id === firstEmailId)
   if (!email || !email.accountId) {
-    console.error('Email not found or missing accountId', { emailId: firstEmailId, email })
+    logger.error('Email not found or missing accountId', { emailId: firstEmailId, email })
     return
   }
 
@@ -1413,7 +1415,7 @@ const handleMoveToFolderSelected = async () => {
 const showFolderPickerForEmail = async (emailId: string) => {
   const email = getAllEmailsFlat().find(e => e.id === emailId)
   if (!email || !email.accountId) {
-    console.error('Email not found or missing accountId', { emailId, email })
+    logger.error('Email not found or missing accountId', { emailId, email })
     return
   }
 
@@ -1427,7 +1429,7 @@ const showFolderPickerForEmail = async (emailId: string) => {
       return // Don't show folder picker for non-IMAP accounts
     }
   } catch (error) {
-    console.error('Error checking account type:', error)
+    logger.error('Error checking account type:', error)
     return
   }
 
@@ -1466,7 +1468,7 @@ const showFolderPickerForEmail = async (emailId: string) => {
         placement: 'right-end'
       })
     } catch (error) {
-      console.error('Error positioning folder picker:', error)
+      logger.error('Error positioning folder picker:', error)
       const rect = referenceElement.getBoundingClientRect()
       folderPickerStyle.value = {
         top: `${rect.top}px`,
@@ -1537,7 +1539,7 @@ const handleMoveToAsideSelected = async () => {
           accountAsideFolders.set(accountId, asideFolder.id)
         }
       } catch (error) {
-        console.error(`Error getting/creating Aside folder for account ${accountId}:`, error)
+        logger.error(`Error getting/creating Aside folder for account ${accountId}:`, error)
       }
     }
 
@@ -1547,7 +1549,7 @@ const handleMoveToAsideSelected = async () => {
 
       const asideFolderId = accountAsideFolders.get(email.accountId)
       if (!asideFolderId) {
-        console.error('Aside folder not found for account:', email.accountId)
+        logger.error('Aside folder not found for account:', email.accountId)
         return { success: false, id: email.id }
       }
 
@@ -1555,7 +1557,7 @@ const handleMoveToAsideSelected = async () => {
         await window.electronAPI.emails.moveToFolder(email.id, asideFolderId)
         return { success: true, id: email.id }
       } catch (error) {
-        console.error('Error moving email to Aside:', error)
+        logger.error('Error moving email to Aside:', error)
         return { success: false, id: email.id }
       }
     })
@@ -1583,7 +1585,7 @@ const handleMoveToAsideSelected = async () => {
     // Refresh email list
     window.dispatchEvent(new CustomEvent('refresh-emails'))
   } catch (error: any) {
-    console.error('Error moving emails to Aside:', error)
+    logger.error('Error moving emails to Aside:', error)
     // Restore all emails on error
     emailsToRemove.forEach(({ email, emailToRemove }) => {
       if (emailToRemove) {
@@ -1598,7 +1600,7 @@ const handleMoveToAsideSelected = async () => {
 const handleMoveToAside = async (emailId: string) => {
   const email = getAllEmailsFlat().find(e => e.id === emailId)
   if (!email || !email.accountId) {
-    console.error('Email not found or missing accountId', { emailId, email })
+    logger.error('Email not found or missing accountId', { emailId, email })
     return
   }
 
@@ -1666,7 +1668,7 @@ const handleMoveToAside = async (emailId: string) => {
       window.dispatchEvent(new CustomEvent('refresh-emails'))
     }
   } catch (error: any) {
-    console.error('Error moving email to Aside folder:', error)
+    logger.error('Error moving email to Aside folder:', error)
     // Restore email on error
     if (emailToRemove) {
       removedEmails.value.delete(emailId)
@@ -1704,7 +1706,7 @@ const handleFolderSelected = async (folderId: string) => {
         await window.electronAPI.emails.moveToFolder(id, folderId)
         return { success: true, id }
       } catch (error: any) {
-        console.error(`Error moving email ${id} to folder:`, error)
+        logger.error(`Error moving email ${id} to folder:`, error)
         return { success: false, id, error }
       }
     })
@@ -1739,7 +1741,7 @@ const handleFolderSelected = async (folderId: string) => {
       }))
     }
   } catch (error: any) {
-    console.error('Error moving emails to folder:', error)
+    logger.error('Error moving emails to folder:', error)
     // Restore all emails on error
     emailsToRemove.forEach(({ id, emailToRemove }) => {
       if (emailToRemove) {
@@ -1981,7 +1983,7 @@ const loadEmails = async () => {
     try {
       emails.value = await window.electronAPI.emails.search(props.searchQuery.trim(), 100)
     } catch (error) {
-      console.error('Error searching emails:', error)
+      logger.error('Error searching emails:', error)
     } finally {
       loading.value = false
     }
@@ -2010,7 +2012,7 @@ const loadEmails = async () => {
       emails.value = await window.electronAPI.emails.list(props.folderId, 0, 50, threadView.value)
     }
   } catch (error) {
-    console.error('Error loading emails:', error)
+    logger.error('Error loading emails:', error)
   } finally {
     loading.value = false
     flushPendingSyncedEmails()
@@ -2605,7 +2607,7 @@ const handleEmailMouseEnter = async (emailId: string) => {
           placement: 'right-start'
         })
       } catch (error) {
-        console.error('Error positioning shortcuts popover:', error)
+        logger.error('Error positioning shortcuts popover:', error)
         const rect = emailElement.getBoundingClientRect()
         shortcutsPopoverStyle.value = {
           top: `${rect.top}px`,

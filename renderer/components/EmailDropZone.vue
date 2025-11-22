@@ -299,6 +299,9 @@
 </template>
 
 <script setup lang="ts">
+import { Logger } from '@shared/logger'
+
+const logger = Logger.create('Component')
 import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { gsap } from 'gsap'
 
@@ -375,7 +378,7 @@ const loadLearnedFolders = async () => {
     const learned = await window.electronAPI.folders.getLearned(props.accountId, senderEmail)
     learnedFolders.value = learned
   } catch (error) {
-    console.error('Error loading learned folders:', error)
+    logger.error('Error loading learned folders:', error)
   }
 }
 
@@ -688,7 +691,7 @@ const handleDrop = async (action: string, folderId?: string) => {
     
     emit('action-complete')
   } catch (error: any) {
-    console.error('Error handling drop:', error)
+    logger.error('Error handling drop:', error)
     // Emit error to restore email in list
     emit('drop-error', emailId)
     alert(`Failed to ${action}: ${error.message || 'Unknown error'}`)

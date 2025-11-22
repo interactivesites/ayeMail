@@ -1,5 +1,8 @@
 import { getDatabase } from '../database'
 import type { EmailAddress } from '../shared/types'
+import { Logger } from '../shared/logger'
+
+const logger = Logger.create('ContactManager')
 
 export class ContactManager {
   private db = getDatabase()
@@ -163,7 +166,7 @@ export class ContactManager {
           })
         }
       } catch (error) {
-        console.error('Error parsing spam email addresses:', error)
+        logger.error('Error parsing spam email addresses:', error)
       }
     })
 
@@ -250,7 +253,7 @@ export class ContactManager {
           })
         }
       } catch (error) {
-        console.error('Error extracting contacts from email:', error)
+        logger.error('Error extracting contacts from email:', error)
       }
     })
 

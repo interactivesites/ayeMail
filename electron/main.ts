@@ -11,6 +11,9 @@ import { reminderScheduler } from '../reminders/scheduler'
 import { autoLockManager } from '../security/auto-lock'
 import { autoSyncScheduler } from '../email/auto-sync'
 import { loadWindowState, setupWindowStateHandlers } from './window-state'
+import { Logger } from '../shared/logger'
+
+const logger = Logger.create('Main')
 
 // In CommonJS, __dirname is automatically available
 // TypeScript needs this declaration for type checking, but it won't be emitted
@@ -90,11 +93,11 @@ function createWindow() {
     const indexPath = join(appPath, 'dist', 'index.html')
     
     mainWindow.loadFile(indexPath).catch((err) => {
-      console.error('Failed to load index.html:', err)
+      logger.error('Failed to load index.html:', err)
       // Fallback path
       const fallbackPath = join(__dirname, '../../dist/index.html')
       mainWindow.loadFile(fallbackPath).catch((fallbackErr) => {
-        console.error('Fallback also failed:', fallbackErr)
+        logger.error('Fallback also failed:', fallbackErr)
         // Show window anyway so user can see error
         mainWindow?.show()
       })
@@ -164,7 +167,7 @@ function createComposeWindow(accountId: string, replyTo?: any) {
   } else {
     const indexPath = join(app.getAppPath(), 'dist', 'index.html')
     composeWindow.loadFile(indexPath, { query: { compose: 'true', accountId } }).catch((err) => {
-      console.error('Failed to load index.html:', err)
+      logger.error('Failed to load index.html:', err)
       const fallbackPath = join(__dirname, '../../dist/index.html')
       composeWindow.loadFile(fallbackPath, { query: { compose: 'true', accountId } })
     })
@@ -252,7 +255,7 @@ function createEmailViewerWindow(emailId: string) {
   } else {
     const indexPath = join(app.getAppPath(), 'dist', 'index.html')
     emailViewerWindow.loadFile(indexPath, { query: { emailViewer: 'true', emailId } }).catch((err) => {
-      console.error('Failed to load index.html:', err)
+      logger.error('Failed to load index.html:', err)
       const fallbackPath = join(__dirname, '../../dist/index.html')
       emailViewerWindow.loadFile(fallbackPath, { query: { emailViewer: 'true', emailId } })
     })
@@ -285,7 +288,7 @@ app.whenReady().then(async () => {
       try {
         contactManager.extractContactsFromExistingEmails()
       } catch (error) {
-        console.error('Error extracting contacts from existing emails:', error)
+        logger.error('Error extracting contacts from existing emails:', error)
       }
     }, 2000) // Delay to not block app startup
   }
@@ -314,10 +317,10 @@ app.whenReady().then(async () => {
       
       Promise.all([autoSyncEnabled, autoSyncInterval]).then(([enabled, interval]) => {
         if (enabled) {
-          console.log(`Starting auto-sync with ${interval} minute interval`)
+          logger.log(`Starting auto-sync with ${interval} minute interval`)
           autoSyncScheduler.start(interval)
         } else {
-          console.log('Auto-sync disabled in settings')
+          logger.log('Auto-sync disabled in settings')
         }
       })
     }

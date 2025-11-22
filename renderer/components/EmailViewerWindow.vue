@@ -46,6 +46,9 @@
 </template>
 
 <script setup lang="ts">
+import { Logger } from '@shared/logger'
+
+const logger = Logger.create('Component')
 import { ref, watch, computed } from 'vue'
 import { MinusIcon, ArrowsPointingOutIcon, XMarkIcon } from '@heroicons/vue/24/outline'
 import EmailViewer from './EmailViewer.vue'
@@ -86,7 +89,7 @@ watch(emailId, async (newEmailId) => {
         emailSubject.value = email.subject
       }
     } catch (error) {
-      console.error('Error loading email for accountId:', error)
+      logger.error('Error loading email for accountId:', error)
     }
   }
 }, { immediate: true })

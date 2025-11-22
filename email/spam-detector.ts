@@ -6,6 +6,9 @@ import * as dns from 'dns'
 
 const resolveTxt = promisify(dns.resolveTxt)
 const resolve4 = promisify(dns.resolve4)
+import { Logger } from '../shared/logger'
+
+const logger = Logger.create('SpamDetector')
 
 // Cache for blacklist lookups to avoid excessive DNS queries
 const blacklistCache = new Map<string, { result: boolean; timestamp: number }>()
@@ -44,11 +47,11 @@ export class SpamDetector {
           return false
         }
         // Other errors - assume not blacklisted to avoid false positives
-        console.warn(`Error checking Spamhaus DBL for ${domain}:`, err.message)
+        logger.warn(`Error checking Spamhaus DBL for ${domain}:`, err.message)
         return false
       }
     } catch (error) {
-      console.error('Error in checkSpamhausDBL:', error)
+      logger.error('Error in checkSpamhausDBL:', error)
       return false
     }
   }
@@ -99,7 +102,7 @@ export class SpamDetector {
 
       return false
     } catch (error) {
-      console.error('Error in checkSURBL:', error)
+      logger.error('Error in checkSURBL:', error)
       return false
     }
   }
@@ -143,7 +146,7 @@ export class SpamDetector {
 
       return false
     } catch (error) {
-      console.error('Error in checkBlacklist:', error)
+      logger.error('Error in checkBlacklist:', error)
       return false
     }
   }
@@ -275,7 +278,7 @@ export class SpamDetector {
 
       return false
     } catch (error) {
-      console.error('Error in checkLocalBlacklist:', error)
+      logger.error('Error in checkLocalBlacklist:', error)
       return false
     }
   }
@@ -331,7 +334,7 @@ export class SpamDetector {
 
       return false
     } catch (error) {
-      console.error('Error in checkGreylist:', error)
+      logger.error('Error in checkGreylist:', error)
       return false
     }
   }
@@ -433,7 +436,7 @@ export class SpamDetector {
         VALUES (?, ?, ?, ?, ?, ?)
       `).run(id, accountId, emailAddress.toLowerCase(), domain?.toLowerCase() || null, reason || null, now)
     } catch (error) {
-      console.error('Error adding to blacklist:', error)
+      logger.error('Error adding to blacklist:', error)
       throw error
     }
   }
@@ -455,7 +458,7 @@ export class SpamDetector {
         `).run(emailAddress.toLowerCase())
       }
     } catch (error) {
-      console.error('Error removing from blacklist:', error)
+      logger.error('Error removing from blacklist:', error)
       throw error
     }
   }
@@ -472,7 +475,7 @@ export class SpamDetector {
         WHERE id = ?
       `).run(score, now, emailId)
     } catch (error) {
-      console.error('Error updating spam score:', error)
+      logger.error('Error updating spam score:', error)
       throw error
     }
   }

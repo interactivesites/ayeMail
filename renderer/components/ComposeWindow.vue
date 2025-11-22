@@ -301,6 +301,9 @@
 </template>
 
 <script setup lang="ts">
+import { Logger } from '@shared/logger'
+
+const logger = Logger.create('Component')
 import { ref, computed, onMounted, onBeforeUnmount, onUnmounted, watch } from 'vue'
 import { useEditor, EditorContent } from '@tiptap/vue-3'
 import { BubbleMenu } from '@tiptap/vue-3/menus'
@@ -483,7 +486,7 @@ const editor = useEditor({
               const resizedDataUrl = await resizeImage(file)
               editor.value?.chain().focus().setImage({ src: resizedDataUrl }).run()
             } catch (error) {
-              console.error('Error resizing/inserting image:', error)
+              logger.error('Error resizing/inserting image:', error)
               alert(`Failed to insert image ${file.name}`)
             }
           })
@@ -594,7 +597,7 @@ const loadAccountSignatures = async (accountId: string) => {
     signatures.value = await window.electronAPI.signatures.list(accountId)
     defaultSignature.value = signatures.value.find(s => s.is_default)
   } catch (error) {
-    console.error('Error loading signatures:', error)
+    logger.error('Error loading signatures:', error)
     signatures.value = []
     defaultSignature.value = null
   }
@@ -638,7 +641,7 @@ const loadFromAddresses = async (accountId: string) => {
       selectedFromAddressId.value = ''
     }
   } catch (error) {
-    console.error('Error loading from addresses:', error)
+    logger.error('Error loading from addresses:', error)
     fromAddresses.value = []
     selectedFromAddressId.value = ''
   }
@@ -660,7 +663,7 @@ onMounted(async () => {
   try {
     windowId.value = await (window.electronAPI as any).window?.getId?.() || null
   } catch (error) {
-    console.error('Error getting window ID:', error)
+    logger.error('Error getting window ID:', error)
   }
   
   // Check if we're waiting for reply data (emailId but no full data)
@@ -672,7 +675,7 @@ onMounted(async () => {
   let unsubscribe: (() => void) | null = null
   unsubscribe = window.electronAPI.window.onComposeReplyData((data: any) => {
     if (data.error) {
-      console.error('Error loading reply data:', data.error)
+      logger.error('Error loading reply data:', data.error)
       isLoadingReplyData.value = false
       return
     }
@@ -692,7 +695,7 @@ onMounted(async () => {
       selectedAccountId.value = accounts.value[0].id
     }
   } catch (error) {
-    console.error('Error loading accounts:', error)
+    logger.error('Error loading accounts:', error)
   }
   
   // Initialize editor content if replyTo is already available (not just emailId)
@@ -770,7 +773,7 @@ const handleFileSelect = (event: Event) => {
           const resizedDataUrl = await resizeImage(file)
           editor.value?.chain().focus().setImage({ src: resizedDataUrl }).run()
         } catch (error) {
-          console.error('Error resizing/inserting image:', error)
+          logger.error('Error resizing/inserting image:', error)
           alert(`Failed to insert image ${file.name}`)
         }
       })

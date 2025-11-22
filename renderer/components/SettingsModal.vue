@@ -348,6 +348,9 @@
 </template>
 
 <script setup lang="ts">
+import { Logger } from '@shared/logger'
+
+const logger = Logger.create('Component')
 import { ref, onMounted, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AddAccountForm from './AddAccountForm.vue'
@@ -424,7 +427,7 @@ const loadAccounts = async () => {
   try {
     accounts.value = await window.electronAPI.accounts.list()
   } catch (error) {
-    console.error('Error loading accounts:', error)
+    logger.error('Error loading accounts:', error)
   }
 }
 
@@ -443,7 +446,7 @@ const removeAccount = async (id: string) => {
       await window.electronAPI.accounts.remove(id)
       await loadAccounts()
     } catch (error) {
-      console.error('Error removing account:', error)
+      logger.error('Error removing account:', error)
     }
   }
 }
@@ -471,11 +474,11 @@ const handleAccountAdded = async () => {
     // Trigger initial folder sync for the new account
     const newAccount = accounts.value[0]
     try {
-      console.log('Syncing folders for new account:', newAccount.id)
+      logger.log('Syncing folders for new account:', newAccount.id)
       const result = await window.electronAPI.folders.syncOnly(newAccount.id)
-      console.log('Folder sync result:', result)
+      logger.log('Folder sync result:', result)
     } catch (error) {
-      console.error('Error syncing folders for new account:', error)
+      logger.error('Error syncing folders for new account:', error)
     }
     
     // Emit account-selected so App.vue can update hasAccounts
@@ -507,7 +510,7 @@ const updateAutoSync = async () => {
   try {
     await window.electronAPI.emails.updateAutoSync(autoSyncEnabled.value, autoSyncInterval.value)
   } catch (error) {
-    console.error('Error updating auto-sync settings:', error)
+    logger.error('Error updating auto-sync settings:', error)
   }
 }
 
@@ -557,7 +560,7 @@ const handleRebuildFolders = async () => {
             totalSynced += result.synced || 0
           }
         } catch (error: any) {
-          console.error(`Error rebuilding folder ${folder.name}:`, error)
+          logger.error(`Error rebuilding folder ${folder.name}:`, error)
         }
       }
     }
@@ -587,7 +590,7 @@ const checkNativeContactsAvailability = async () => {
     const result = await window.electronAPI.contacts.native.isAvailable()
     nativeContactsAvailable.value = result.available || false
   } catch (error) {
-    console.error('Error checking native contacts availability:', error)
+    logger.error('Error checking native contacts availability:', error)
     nativeContactsAvailable.value = false
   }
 }

@@ -1,5 +1,8 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
+import { Logger } from '@shared/logger'
+
+const logger = Logger.create('EmailCache')
 
 export const useEmailCacheStore = defineStore('emailCache', () => {
   // Cache storage: Map preserves insertion order for LRU
@@ -40,7 +43,7 @@ export const useEmailCacheStore = defineStore('emailCache', () => {
       }
       return email
     } catch (error) {
-      console.error('Error loading email content:', error)
+      logger.error('Error loading email content:', error)
       return null
     }
   }
@@ -55,7 +58,7 @@ export const useEmailCacheStore = defineStore('emailCache', () => {
     emailIds.forEach(emailId => {
       if (emailId && !cache.value.has(emailId)) {
         getEmail(emailId).catch(error => {
-          console.error(`Error preloading email ${emailId}:`, error)
+          logger.error(`Error preloading email ${emailId}:`, error)
         })
       }
     })

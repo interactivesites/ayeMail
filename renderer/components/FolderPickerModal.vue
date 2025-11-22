@@ -83,6 +83,9 @@
 </template>
 
 <script setup lang="ts">
+import { Logger } from '@shared/logger'
+
+const logger = Logger.create('Component')
 import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { gsap } from 'gsap'
 import { usePreferencesStore } from '../stores/preferences'
@@ -131,7 +134,7 @@ const loadFolders = async () => {
     }
     folders.value = flattenFolders(allFolders)
   } catch (error) {
-    console.error('Error loading folders:', error)
+    logger.error('Error loading folders:', error)
   } finally {
     loading.value = false
   }

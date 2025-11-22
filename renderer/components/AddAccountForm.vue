@@ -488,6 +488,9 @@
 </template>
 
 <script setup lang="ts">
+import { Logger } from '@shared/logger'
+
+const logger = Logger.create('Component')
 import { ref, computed, onMounted, watch, reactive, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { getServerConfig, getEmailServerConfig } from '../utils/email-providers'
@@ -549,7 +552,7 @@ const loadFromAddresses = async () => {
   try {
     fromAddresses.value = await window.electronAPI.accounts.fromAddresses.list(props.accountId)
   } catch (error) {
-    console.error('Error loading from addresses:', error)
+    logger.error('Error loading from addresses:', error)
   }
 }
 
@@ -825,7 +828,7 @@ const loadAccount = async () => {
     // Load from addresses
     await loadFromAddresses()
   } catch (error: any) {
-    console.error('Error loading account:', error)
+    logger.error('Error loading account:', error)
     errorMessage.value = t('accounts.failedToLoadAccount', { message: error.message }) || `Failed to load account: ${error.message}`
   }
 }

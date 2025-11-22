@@ -2,6 +2,9 @@ import { BrowserWindow, screen } from 'electron'
 import { readFileSync, writeFileSync, existsSync } from 'fs'
 import { join } from 'path'
 import { app } from 'electron'
+import { Logger } from '../shared/logger'
+
+const logger = Logger.create('WindowState')
 
 interface WindowState {
   width: number
@@ -91,7 +94,7 @@ export function loadWindowState(): WindowState {
     
     return validatedState || getDefaultState()
   } catch (error) {
-    console.error('Error loading window state:', error)
+    logger.error('Error loading window state:', error)
     return getDefaultState()
   }
 }
@@ -130,7 +133,7 @@ export function saveWindowState(window: BrowserWindow, normalBounds?: { width: n
     const stateFilePath = getStateFilePath()
     writeFileSync(stateFilePath, JSON.stringify(state, null, 2), 'utf-8')
   } catch (error) {
-    console.error('Error saving window state:', error)
+    logger.error('Error saving window state:', error)
   }
 }
 

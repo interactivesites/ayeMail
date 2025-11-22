@@ -4,6 +4,9 @@ import { accountManager, getIMAPClient, getPOP3Client } from './index'
 import type { Email, Attachment, EmailAddress } from '../shared/types'
 import { calculateThreadId } from './thread-utils'
 import { spamDetector } from './spam-detector'
+import { Logger } from '../shared/logger'
+
+const logger = Logger.create('EmailStorage')
 
 type SyncProgressCallback = (data: {
   folder?: string
@@ -327,7 +330,7 @@ export class EmailStorage {
       }
     } catch (spamError) {
       // Don't fail email storage if spam detection fails
-      console.error('Error in spam detection:', spamError)
+      logger.error('Error in spam detection:', spamError)
     }
 
     // Extract contacts from non-spam emails only
@@ -346,7 +349,7 @@ export class EmailStorage {
         }
       } catch (contactError) {
         // Don't fail email storage if contact extraction fails
-        console.error('Error extracting contacts from email:', contactError)
+        logger.error('Error extracting contacts from email:', contactError)
       }
     }
 
@@ -396,7 +399,7 @@ export class EmailStorage {
                    f.path.toLowerCase().includes('junk')
             )
           } catch (createError) {
-            console.error('Error creating Spam folder on IMAP server:', createError)
+            logger.error('Error creating Spam folder on IMAP server:', createError)
           }
         }
 
@@ -428,7 +431,7 @@ export class EmailStorage {
           return spamFolder.id
         }
       } catch (error) {
-        console.error('Error finding/creating Spam folder:', error)
+        logger.error('Error finding/creating Spam folder:', error)
       }
     }
 
@@ -457,7 +460,7 @@ export class EmailStorage {
     try {
       const spamFolderId = await this.findOrCreateSpamFolder(accountId)
       if (!spamFolderId) {
-        console.warn('Could not find or create spam folder for account:', accountId)
+        logger.warn('Could not find or create spam folder for account:', accountId)
         return
       }
 
@@ -497,7 +500,7 @@ export class EmailStorage {
               } catch (createError: any) {
                 // Folder may already exist, that's fine
                 if (createError && !createError.message?.includes('already exists') && !createError.message?.includes('EXISTS')) {
-                  console.warn('Spam folder may already exist or creation failed:', createError.message)
+                  logger.warn('Spam folder may already exist or creation failed:', createError.message)
                 }
               }
 
@@ -507,12 +510,12 @@ export class EmailStorage {
             await imapClient.disconnect()
           }
         } catch (error) {
-          console.error('Error moving email on IMAP server:', error)
+          logger.error('Error moving email on IMAP server:', error)
           // Continue anyway - email is already moved in database
         }
       }
     } catch (error) {
-      console.error('Error moving email to spam folder:', error)
+      logger.error('Error moving email to spam folder:', error)
     }
   }
 
@@ -578,15 +581,15 @@ export class EmailStorage {
     const fetchRemoteBody = options?.fetchRemoteBody !== false
     const fetchTimeoutMs = options?.fetchTimeoutMs ?? 45000
 
-    console.log(`[EmailStorage.getEmail] Fetching email ${id}, fetchRemoteBody=${fetchRemoteBody}, timeout=${fetchTimeoutMs}ms`)
+    logger.log(`[EmailStorage.getEmail] Fetching email ${id}, fetchRemoteBody=${fetchRemoteBody}, timeout=${fetchTimeoutMs}ms`)
 
     const email = this.db.prepare('SELECT * FROM emails WHERE id = ?').get(id) as any
     if (!email) {
-      console.warn(`[EmailStorage.getEmail] Email ${id} not found in database`)
+      logger.warn(`[EmailStorage.getEmail] Email ${id} not found in database`)
       return null
     }
 
-    console.log(`[EmailStorage.getEmail] Found email ${id} in DB: account=${email.account_id}, folder=${email.folder_id}, uid=${email.uid}`)
+    logger.log(`[EmailStorage.getEmail] Found email ${id} in DB: account=${email.account_id}, folder=${email.folder_id}, uid=${email.uid}`)
 
     const mappedEmail = this.mapDbEmailToEmail(email)
     
@@ -607,23 +610,23 @@ export class EmailStorage {
       const hasBodyEncrypted = !!(email.body_encrypted && email.body_encrypted.trim().length > 0)
       const hasHtmlBodyEncrypted = !!(email.html_body_encrypted && email.html_body_encrypted.trim().length > 0)
       const hasTextBodyEncrypted = !!(email.text_body_encrypted && email.text_body_encrypted.trim().length > 0)
-      console.log(`Email ${id} body check: decrypted hasBody=${hasBody}, hasHtmlBody=${hasHtmlBody}, hasTextBody=${hasTextBody} | encrypted hasBody=${hasBodyEncrypted}, hasHtmlBody=${hasHtmlBodyEncrypted}, hasTextBody=${hasTextBodyEncrypted}`)
+      logger.log(`Email ${id} body check: decrypted hasBody=${hasBody}, hasHtmlBody=${hasHtmlBody}, hasTextBody=${hasTextBody} | encrypted hasBody=${hasBodyEncrypted}, hasHtmlBody=${hasHtmlBodyEncrypted}, hasTextBody=${hasTextBodyEncrypted}`)
     }
     
     if (fetchRemoteBody && bodyMissing) {
       // Body is missing, try to fetch from server
-      console.log(`Email ${id} has no body content, fetching from server...`)
+      logger.log(`Email ${id} has no body content, fetching from server...`)
       try {
         const account = await accountManager.getAccount(email.account_id)
         if (!account) {
-          console.warn(`Account not found for email ${id}, cannot fetch body from server`)
+          logger.warn(`Account not found for email ${id}, cannot fetch body from server`)
           return mappedEmail
         }
 
         // Get folder information
         const folder = this.db.prepare('SELECT * FROM folders WHERE id = ?').get(email.folder_id) as any
         if (!folder) {
-          console.warn(`Folder not found for email ${id}, cannot fetch body from server`)
+          logger.warn(`Folder not found for email ${id}, cannot fetch body from server`)
           return mappedEmail
         }
 
@@ -639,18 +642,18 @@ export class EmailStorage {
               // Use folder name for IMAP operations, ensure INBOX is uppercase
               const imapFolderName = folder.name.toUpperCase() === 'INBOX' ? 'INBOX' : folder.path
               
-              console.log(`Fetching body for email ${id} (UID: ${email.uid}) from folder ${imapFolderName}`)
+              logger.log(`Fetching body for email ${id} (UID: ${email.uid}) from folder ${imapFolderName}`)
               const fetchedEmail = await imapClient.fetchEmailByUid(imapFolderName, email.uid)
               
-              console.log(`fetchEmailByUid completed for ${id}: fetchedEmail=${!!fetchedEmail}, body=${fetchedEmail?.body?.length || 0}, html=${fetchedEmail?.htmlBody?.length || 0}, text=${fetchedEmail?.textBody?.length || 0}`)
+              logger.log(`fetchEmailByUid completed for ${id}: fetchedEmail=${!!fetchedEmail}, body=${fetchedEmail?.body?.length || 0}, html=${fetchedEmail?.htmlBody?.length || 0}, text=${fetchedEmail?.textBody?.length || 0}`)
               
               if (!fetchedEmail) {
-                console.warn(`fetchEmailByUid returned null for email ${id} (UID: ${email.uid})`)
+                logger.warn(`fetchEmailByUid returned null for email ${id} (UID: ${email.uid})`)
               } else if (!fetchedEmail.body && !fetchedEmail.htmlBody && !fetchedEmail.textBody) {
-                console.warn(`Fetched email ${id} but it has no body content (fetchedEmail exists but all body fields are empty)`)
+                logger.warn(`Fetched email ${id} but it has no body content (fetchedEmail exists but all body fields are empty)`)
               } else {
                 // Update the email in database with the fetched body
-                console.log(`Encrypting and updating body for email ${id}...`)
+                logger.log(`Encrypting and updating body for email ${id}...`)
                 const bodyEncrypted = encryption.encrypt(fetchedEmail.body || '')
                 const htmlBodyEncrypted = fetchedEmail.htmlBody ? encryption.encrypt(fetchedEmail.htmlBody) : null
                 const textBodyEncrypted = fetchedEmail.textBody ? encryption.encrypt(fetchedEmail.textBody) : null
@@ -664,23 +667,23 @@ export class EmailStorage {
                   WHERE id = ?
                 `).run(bodyEncrypted, htmlBodyEncrypted, textBodyEncrypted, Date.now(), id)
                 
-                console.log(`Database update result for ${id}: changes=${result.changes}`)
+                logger.log(`Database update result for ${id}: changes=${result.changes}`)
                 
                 // Update the mapped email with the fetched body
                 mappedEmail.body = fetchedEmail.body || ''
                 mappedEmail.htmlBody = fetchedEmail.htmlBody
                 mappedEmail.textBody = fetchedEmail.textBody
                 
-                console.log(`Successfully fetched and updated body for email ${id} (body length: ${mappedEmail.body.length}, html: ${!!mappedEmail.htmlBody}, text: ${!!mappedEmail.textBody})`)
+                logger.log(`Successfully fetched and updated body for email ${id} (body length: ${mappedEmail.body.length}, html: ${!!mappedEmail.htmlBody}, text: ${!!mappedEmail.textBody})`)
               }
             } catch (fetchErr) {
-              console.error(`Error during fetch operation for email ${id}:`, fetchErr)
+              logger.error(`Error during fetch operation for email ${id}:`, fetchErr)
               throw fetchErr
             } finally {
               try {
                 await imapClient.disconnect()
               } catch (disconnectErr) {
-                console.error(`Error disconnecting IMAP client for email ${id}:`, disconnectErr)
+                logger.error(`Error disconnecting IMAP client for email ${id}:`, disconnectErr)
               }
             }
           }
@@ -694,17 +697,17 @@ export class EmailStorage {
             ])
           } catch (fetchError: any) {
             if (fetchError.message === 'Server fetch timeout') {
-              console.warn(`Timeout fetching email body from server for ${id} after ${fetchTimeoutMs}ms (sync may be running)`)
+              logger.warn(`Timeout fetching email body from server for ${id} after ${fetchTimeoutMs}ms (sync may be running)`)
             } else {
-              console.error(`Error fetching email body from server for ${id}:`, fetchError)
+              logger.error(`Error fetching email body from server for ${id}:`, fetchError)
             }
             // Continue and return email without body - don't fail completely
           }
         } else {
-          console.warn(`Account type ${account.type} does not support fetching email body by UID`)
+          logger.warn(`Account type ${account.type} does not support fetching email body by UID`)
         }
       } catch (error) {
-        console.error(`Error attempting to fetch email body from server for ${id}:`, error)
+        logger.error(`Error attempting to fetch email body from server for ${id}:`, error)
         // Return the email without body rather than failing completely
       }
     }
@@ -751,10 +754,10 @@ export class EmailStorage {
 
       // Use folder name for IMAP operations, ensure INBOX is uppercase
       const imapFolderName = folder.name.toUpperCase() === 'INBOX' ? 'INBOX' : folder.path
-      console.log(`Fetching emails for folder: ${folder.name}, path: ${folder.path}, using IMAP name: ${imapFolderName}, id: ${folder.id}, fetchFullBodies: ${fetchFullBodies}, uids filter: ${uids ? uids.length : 'all'}`)
+      logger.log(`Fetching emails for folder: ${folder.name}, path: ${folder.path}, using IMAP name: ${imapFolderName}, id: ${folder.id}, fetchFullBodies: ${fetchFullBodies}, uids filter: ${uids ? uids.length : 'all'}`)
 
       if (uids && uids.length === 0) {
-        console.log(`No UIDs provided for folder ${folder.name}, skipping fetch`)
+        logger.log(`No UIDs provided for folder ${folder.name}, skipping fetch`)
         return { synced: 0, errors: 0 }
       }
 
@@ -771,9 +774,9 @@ export class EmailStorage {
         return { synced: 0, errors: 0 }
       }
 
-      console.log(`Found ${emails.length} emails in ${folder.name}`)
+      logger.log(`Found ${emails.length} emails in ${folder.name}`)
       if (emails.length === 0) {
-        console.log(`No emails found. Folder details:`, {
+        logger.log(`No emails found. Folder details:`, {
           name: folder.name,
           path: folder.path,
           id: folder.id
@@ -795,9 +798,9 @@ export class EmailStorage {
           // Ensure accountId matches the account being synced (in case IMAP client set wrong one)
           email.accountId = accountId
           email.folderId = folder.id
-          console.log(`Storing email: accountId=${email.accountId}, folderId=${folder.id} (${folder.name}), uid=${email.uid}, subject=${email.subject?.substring(0, 50)}`)
+          logger.log(`Storing email: accountId=${email.accountId}, folderId=${folder.id} (${folder.name}), uid=${email.uid}, subject=${email.subject?.substring(0, 50)}`)
           const storedId = await this.storeEmail(email)
-          console.log(`Successfully stored email with id: ${storedId}`)
+          logger.log(`Successfully stored email with id: ${storedId}`)
           synced++
           const emailSummary = this.buildSyncEmailSummary(email, storedId, folder)
           progressCallback?.({
@@ -810,7 +813,7 @@ export class EmailStorage {
             email: emailSummary
           })
         } catch (err) {
-          console.error(`Error storing email ${email.uid} for account ${email.accountId} in folder ${folder.id} (${folder.name}):`, err)
+          logger.error(`Error storing email ${email.uid} for account ${email.accountId} in folder ${folder.id} (${folder.name}):`, err)
           errors++
           progressCallback?.({ folder: folder.name, folderId: folder.id, accountId, current: i + 1, total: emails.length, emailUid: email.uid })
         }
@@ -820,18 +823,18 @@ export class EmailStorage {
     } catch (err: any) {
       // Check if this is a "mailbox doesn't exist" error
       if (this.isMailboxNotExistError(err)) {
-        console.warn(`Folder ${folder.name} (path: ${folder.path}) no longer exists on server, removing from database`)
+        logger.warn(`Folder ${folder.name} (path: ${folder.path}) no longer exists on server, removing from database`)
         try {
           // Remove the folder from database since it no longer exists on server
           this.db.prepare('DELETE FROM folders WHERE id = ?').run(folder.id)
-          console.log(`Removed folder ${folder.name} from database`)
+          logger.log(`Removed folder ${folder.name} from database`)
         } catch (dbErr) {
-          console.error(`Error removing folder ${folder.name} from database:`, dbErr)
+          logger.error(`Error removing folder ${folder.name} from database:`, dbErr)
         }
         // Don't count this as an error since we've handled it
         return { synced: 0, errors: 0 }
       }
-      console.error(`Error syncing folder ${folder.name}:`, err)
+      logger.error(`Error syncing folder ${folder.name}:`, err)
       errors++
     }
 
@@ -882,7 +885,7 @@ export class EmailStorage {
               progressCallback?.({ folder: folder.name, folderId: folder.id, accountId, current: 0, total: folderStatus.messages })
             }
           } catch (statusError) {
-            console.warn(`Could not get folder status for ${folder.name}, proceeding without message counts:`, statusError)
+            logger.warn(`Could not get folder status for ${folder.name}, proceeding without message counts:`, statusError)
           }
 
           let serverUids: number[] = []
@@ -890,7 +893,7 @@ export class EmailStorage {
             serverUids = await imapClient.listMessageUids(imapFolderName)
           } catch (uidError: any) {
             if (this.isMailboxNotExistError(uidError)) {
-              console.warn(`Folder ${folder.name} no longer exists on server, removing local entry`)
+              logger.warn(`Folder ${folder.name} no longer exists on server, removing local entry`)
               this.db.prepare('DELETE FROM folders WHERE id = ?').run(folder.id)
               return { synced: 0, errors: 0 }
             }
@@ -902,7 +905,7 @@ export class EmailStorage {
           let requiresFullResync = options?.fetchFullBodies ?? false
 
           if (!requiresFullResync && folderStatus?.uidvalidity && folderState?.uid_validity && folderState.uid_validity !== folderStatus.uidvalidity) {
-            console.log(`UIDVALIDITY changed for ${folder.name} (${folder.uid_validity} -> ${folderStatus.uidvalidity}), performing full resync`)
+            logger.log(`UIDVALIDITY changed for ${folder.name} (${folder.uid_validity} -> ${folderStatus.uidvalidity}), performing full resync`)
             requiresFullResync = true
           }
 
@@ -927,7 +930,7 @@ export class EmailStorage {
               }
 
               if (removedCount > 0) {
-                console.log(`Removed ${removedCount} stale emails from folder ${folder.name} that no longer exist on the server`)
+                logger.log(`Removed ${removedCount} stale emails from folder ${folder.name} that no longer exist on the server`)
               }
             }
           }
@@ -951,7 +954,7 @@ export class EmailStorage {
             synced += result.synced
             errors += result.errors
           } else {
-            console.log(`Folder ${folder.name} is already up to date (no new UIDs).`)
+            logger.log(`Folder ${folder.name} is already up to date (no new UIDs).`)
           }
 
           const highestUid = sortedServerUids.length > 0 ? sortedServerUids[sortedServerUids.length - 1] : 0
@@ -973,7 +976,7 @@ export class EmailStorage {
         }
       }
     } catch (error) {
-      console.error('Error syncing folder:', error)
+      logger.error('Error syncing folder:', error)
       errors++
     } finally {
       if (ownsToken) {
@@ -984,11 +987,11 @@ export class EmailStorage {
     return { synced, errors }
   }
   async clearAndResyncFolder(accountId: string, folderId: string, progressCallback?: SyncProgressCallback): Promise<{ synced: number; errors: number }> {
-    console.log(`Clearing emails from folder ${folderId} and re-syncing with full bodies...`)
+    logger.log(`Clearing emails from folder ${folderId} and re-syncing with full bodies...`)
     
     // Delete all emails from this folder
     this.db.prepare('DELETE FROM emails WHERE folder_id = ?').run(folderId)
-    console.log(`Cleared emails from folder ${folderId}`)
+    logger.log(`Cleared emails from folder ${folderId}`)
     
     // Re-sync with full bodies
     return await this.syncFolder(accountId, folderId, progressCallback, { fetchFullBodies: true })
@@ -1090,7 +1093,7 @@ export class EmailStorage {
                       email: emailSummary
                     })
                   } catch (err) {
-                    console.error(`Error storing email ${email.uid}:`, err)
+                    logger.error(`Error storing email ${email.uid}:`, err)
                     errors++
                     progressCallback?.({ folder: inbox.name, folderId: inbox.id, accountId, current: i + 1, total: emails.length, emailUid: email.uid })
                   }
@@ -1099,11 +1102,11 @@ export class EmailStorage {
               }
             } catch (err: any) {
               if (this.isMailboxNotExistError(err)) {
-                console.warn(`Folder ${inbox.name} no longer exists on server`)
+                logger.warn(`Folder ${inbox.name} no longer exists on server`)
                 this.db.prepare('DELETE FROM folders WHERE id = ?').run(inbox.id)
                 // Inbox doesn't exist, return with what we've synced so far
               } else {
-                console.error(`Error syncing inbox:`, err)
+                logger.error(`Error syncing inbox:`, err)
                 errors++
               }
             }
@@ -1164,9 +1167,9 @@ export class EmailStorage {
                 // Ensure accountId matches the account being synced (in case IMAP client set wrong one)
                 email.accountId = accountId
                 email.folderId = folder.id
-                console.log(`Storing email: accountId=${email.accountId}, folderId=${folder.id} (${folder.name}), uid=${email.uid}, subject=${email.subject?.substring(0, 50)}`)
+                logger.log(`Storing email: accountId=${email.accountId}, folderId=${folder.id} (${folder.name}), uid=${email.uid}, subject=${email.subject?.substring(0, 50)}`)
                 const storedId = await this.storeEmail(email)
-                console.log(`Successfully stored email with id: ${storedId}`)
+                logger.log(`Successfully stored email with id: ${storedId}`)
                 synced++
                 const emailSummary = this.buildSyncEmailSummary(email, storedId, folder)
                 progressCallback?.({
@@ -1179,7 +1182,7 @@ export class EmailStorage {
                   email: emailSummary
                 })
               } catch (err) {
-                console.error(`Error storing email ${email.uid} for account ${email.accountId} in folder ${folder.id} (${folder.name}):`, err)
+                logger.error(`Error storing email ${email.uid} for account ${email.accountId} in folder ${folder.id} (${folder.name}):`, err)
                 errors++
                 progressCallback?.({ folder: folder.name, folderId: folder.id, accountId, current: i + 1, total: emails.length, emailUid: email.uid })
               }
@@ -1189,18 +1192,18 @@ export class EmailStorage {
           } catch (err: any) {
             // Check if this is a "mailbox doesn't exist" error
             if (this.isMailboxNotExistError(err)) {
-              console.warn(`Folder ${folder.name} (path: ${folder.path}) no longer exists on server, removing from database`)
+              logger.warn(`Folder ${folder.name} (path: ${folder.path}) no longer exists on server, removing from database`)
               try {
                 // Remove the folder from database since it no longer exists on server
                 this.db.prepare('DELETE FROM folders WHERE id = ?').run(folder.id)
-                console.log(`Removed folder ${folder.name} from database`)
+                logger.log(`Removed folder ${folder.name} from database`)
               } catch (dbErr) {
-                console.error(`Error removing folder ${folder.name} from database:`, dbErr)
+                logger.error(`Error removing folder ${folder.name} from database:`, dbErr)
               }
               // Don't count this as an error since we've handled it
               continue
             }
-            console.error(`Error syncing folder ${folder.name}:`, err)
+            logger.error(`Error syncing folder ${folder.name}:`, err)
             errors++
           }
         }
@@ -1232,19 +1235,19 @@ export class EmailStorage {
               await this.storeEmail(email)
               synced++
             } catch (err) {
-              console.error(`Error storing email ${email.uid}:`, err)
+              logger.error(`Error storing email ${email.uid}:`, err)
               errors++
             }
           }
         } catch (err) {
-          console.error('Error fetching POP3 emails:', err)
+          logger.error('Error fetching POP3 emails:', err)
           errors++
         }
 
         await pop3Client.disconnect()
       }
     } catch (err) {
-      console.error('Error syncing account:', err)
+      logger.error('Error syncing account:', err)
       errors++
     } finally {
       this.releaseCancellationToken(cancelToken)
@@ -1294,10 +1297,10 @@ export class EmailStorage {
         if (encryption.isValidEncryptedPayload(dbEmail.body_encrypted)) {
           body = encryption.decrypt(dbEmail.body_encrypted)
         } else {
-          console.warn(`Invalid encrypted body format for email ${dbEmail.id}`)
+          logger.warn(`Invalid encrypted body format for email ${dbEmail.id}`)
         }
       } catch (error) {
-        console.error(`Error decrypting body for email ${dbEmail.id}:`, error)
+        logger.error(`Error decrypting body for email ${dbEmail.id}:`, error)
         // Continue with empty body - email metadata will still be available
       }
     }
@@ -1309,10 +1312,10 @@ export class EmailStorage {
         if (encryption.isValidEncryptedPayload(dbEmail.html_body_encrypted)) {
           htmlBody = encryption.decrypt(dbEmail.html_body_encrypted)
         } else {
-          console.warn(`Invalid encrypted htmlBody format for email ${dbEmail.id}`)
+          logger.warn(`Invalid encrypted htmlBody format for email ${dbEmail.id}`)
         }
       } catch (error) {
-        console.error(`Error decrypting HTML body for email ${dbEmail.id}:`, error)
+        logger.error(`Error decrypting HTML body for email ${dbEmail.id}:`, error)
         // Continue without HTML body
       }
     }
@@ -1324,10 +1327,10 @@ export class EmailStorage {
         if (encryption.isValidEncryptedPayload(dbEmail.text_body_encrypted)) {
           textBody = encryption.decrypt(dbEmail.text_body_encrypted)
         } else {
-          console.warn(`Invalid encrypted textBody format for email ${dbEmail.id}`)
+          logger.warn(`Invalid encrypted textBody format for email ${dbEmail.id}`)
         }
       } catch (error) {
-        console.error(`Error decrypting text body for email ${dbEmail.id}:`, error)
+        logger.error(`Error decrypting text body for email ${dbEmail.id}:`, error)
         // Continue without text body
       }
     }
@@ -1428,7 +1431,7 @@ export class EmailStorage {
         await imapClient.disconnect()
       }
     } catch (error) {
-      console.error('Failed to repair email addresses', error)
+      logger.error('Failed to repair email addresses', error)
       return null
     }
   }
@@ -1494,10 +1497,10 @@ export class EmailStorage {
               `).run(bodyEncrypted, htmlBodyEncrypted, textBodyEncrypted, Date.now(), emailRow.id)
               
               fetched++
-              console.log(`Background: Fetched body for email ${emailRow.id}`)
+              logger.log(`Background: Fetched body for email ${emailRow.id}`)
             }
           } catch (err) {
-            console.error(`Background: Error fetching body for email ${emailRow.id}:`, err)
+            logger.error(`Background: Error fetching body for email ${emailRow.id}:`, err)
             // Continue with next email
           }
         }
@@ -1507,7 +1510,7 @@ export class EmailStorage {
         await imapClient.disconnect()
       }
     } catch (error) {
-      console.error(`Background: Error fetching email bodies for folder ${folderId}:`, error)
+      logger.error(`Background: Error fetching email bodies for folder ${folderId}:`, error)
       return 0
     }
   }

@@ -58,6 +58,9 @@
 </template>
 
 <script setup lang="ts">
+import { Logger } from '@shared/logger'
+
+const logger = Logger.create('Component')
 import { computed, watch, ref, nextTick } from 'vue'
 import { usePreferencesStore } from '../stores/preferences'
 import type { Email } from '@shared/types'
@@ -195,7 +198,7 @@ const onIframeLoad = () => {
     }
   } catch (error) {
     // Cross-origin or other security restrictions
-    console.warn('Could not access iframe content:', error)
+    logger.warn('Could not access iframe content:', error)
   }
 }
 

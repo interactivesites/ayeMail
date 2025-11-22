@@ -1,5 +1,8 @@
 import { safeStorage } from 'electron'
 import * as crypto from 'crypto'
+import { Logger } from '../shared/logger'
+
+const logger = Logger.create('Encryption')
 
 const ALGORITHM = 'aes-256-gcm'
 const IV_LENGTH = 16
@@ -106,7 +109,7 @@ export function encryptCredential(credential: string): string {
     }
   } catch (error) {
     // If keychain access fails or is denied, fall back to our encryption
-    console.warn('SafeStorage not available, using fallback encryption:', error)
+    logger.warn('SafeStorage not available, using fallback encryption:', error)
   }
   // Fallback to our encryption
   return encrypt(credential)
