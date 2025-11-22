@@ -609,14 +609,18 @@ const showNewEmailNotification = (data: { accountId: string; count: number; emai
     
     console.log('Notification created and shown')
     
-    // Handle click - focus app and show first new email
+    // Handle click - open first new email in separate window
     notification.onclick = () => {
-      console.log('Notification clicked')
+      console.log('Notification clicked, opening email in separate window')
       if (emails.length > 0) {
-        // Focus the app window
-        window.focus()
-        // Select the first new email
-        handleEmailSelect(emails[0].id)
+        try {
+          window.electronAPI.window.emailViewer.create(emails[0].id)
+        } catch (error) {
+          console.error('Error opening email viewer window:', error)
+          // Fallback: focus app and select email
+          window.focus()
+          handleEmailSelect(emails[0].id)
+        }
       }
     }
   } else if ('Notification' in window && Notification.permission === 'default') {

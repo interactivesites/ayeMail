@@ -37,7 +37,7 @@
     "!**/node_modules/**/yarn.lock"
   ],
   "asar": true,
-  "compression": "maximum",
+  "compression": "normal",
   "mac": {
     "category": "public.app-category.productivity",
     "target": [
@@ -58,6 +58,24 @@
     "extendInfo": {
       "NSContactsUsageDescription": "ayeMail needs access to your contacts to sync email addresses and improve autocomplete suggestions."
     }
+  },
+  "dmg": {
+    "window": {
+      "width": 540,
+      "height": 380
+    },
+    "contents": [
+      {
+        "x": 130,
+        "y": 220
+      },
+      {
+        "x": 410,
+        "y": 220,
+        "type": "link",
+        "path": "/Applications"
+      }
+    ]
   },
   "win": {
     "target": [

@@ -171,8 +171,15 @@ export class ReminderScheduler {
         silent: false
       })
       
-      notification.on('click', () => {
-        console.log('[ReminderScheduler] Notification clicked')
+      notification.on('click', async () => {
+        console.log('[ReminderScheduler] Notification clicked, opening email in separate window')
+        try {
+          // Use dynamic import to avoid circular dependency
+          const { createEmailViewerWindow } = await import('../electron/main')
+          createEmailViewerWindow(reminder.email_id)
+        } catch (error) {
+          console.error('[ReminderScheduler] Error opening email viewer window:', error)
+        }
       })
       
       notification.on('show', () => {
