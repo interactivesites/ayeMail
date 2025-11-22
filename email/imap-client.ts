@@ -362,6 +362,7 @@ export class IMAPClient {
       return new Promise((resolve, reject) => {
         const connection = this.getConnectionOrThrow()
         const timeout = setTimeout(() => {
+          cleanup()
           reject(new Error('IMAP fetch timeout'))
         }, 120000) // 120 second timeout for large folders
 
@@ -408,54 +409,253 @@ export class IMAPClient {
           console.log(`Fetching metadata from ${path} using sequence range ${sequenceRange}`)
         }
 
-        const emails: Email[] = []
+        const uidsOrSequence = hasExplicitUids ? explicitUids : sequenceRange
+        this.fetchAndBuildEmails(connection, folderName, uidsOrSequence, {
+          fullBody: false
+        })
+          .then((emails) => {
+            cleanup()
+            console.log(`Fetched ${emails.length} metadata entries from ${path}`)
+            resolve(emails)
+          })
+          .catch((err) => {
+            cleanup()
+            reject(err)
+          })
+      })
+    })
+  }
 
+  /**
+   * Unified helper for fetching and building Email objects from IMAP
+   * @param connection - IMAP connection
+   * @param folderName - Folder name for email IDs
+   * @param uidsOrSequence - UIDs array or sequence range string (null for sequence)
+   * @param options - Fetch options
+   * @param options.fullBody - Whether to fetch and parse full body (true) or just headers (false)
+   * @param options.verbose - Whether to log verbose messages (for single email fetches)
+   * @returns Promise resolving to array of Email objects
+   */
+  private async fetchAndBuildEmails(
+    connection: Imap,
+    folderName: string,
+    uidsOrSequence: number[] | string | null,
+    options: { fullBody: boolean; verbose?: boolean }
+  ): Promise<Email[]> {
+    const { fullBody, verbose = false } = options
+    const isUids = Array.isArray(uidsOrSequence)
+    const logPrefix = verbose ? `[IMAPClient.fetchEmailByUid]` : ''
+
+    return new Promise((resolve, reject) => {
+      const emails: Email[] = []
         const fetchOptions = {
-          bodies: METADATA_HEADER_FIELDS,
+        bodies: fullBody ? '' : METADATA_HEADER_FIELDS,
           struct: true,
           envelope: true
         }
 
-        const fetch = hasExplicitUids
-          ? connection.fetch(explicitUids, fetchOptions)
-          : connection.seq.fetch(sequenceRange!, fetchOptions)
+      const fetch = isUids
+        ? connection.fetch(uidsOrSequence as number[], fetchOptions)
+        : connection.seq.fetch(uidsOrSequence as string, fetchOptions)
 
         fetch.on('message', (msg, seqno) => {
           let uid: number | null = null
           let flags: string[] = []
           let envelope: any = null
+        let body = ''
           let headers = ''
+        let bodyPromise: Promise<void> | null = null
+
+        if (verbose) {
+          console.log(`${logPrefix} Message event received, seqno ${seqno}`)
+        }
 
           msg.on('body', (stream) => {
+          if (verbose) {
+            console.log(`${logPrefix} Body stream started`)
+          }
+
+          if (fullBody) {
+            // Full body parsing
+            let buffer = Buffer.alloc(0)
+            bodyPromise = new Promise<void>((resolveBody) => {
+              stream.on('data', (chunk: Buffer) => {
+                buffer = Buffer.concat([buffer, chunk])
+              })
+              stream.once('end', () => {
+                body = buffer.toString('utf8')
+                if (verbose) {
+                  console.log(`${logPrefix} Body stream ended, length: ${body.length}`)
+                }
+                resolveBody()
+              })
+            })
+          } else {
+            // Header-only parsing
             const chunks: Buffer[] = []
             stream.on('data', (chunk: Buffer) => chunks.push(chunk))
             stream.once('end', () => {
               headers = Buffer.concat(chunks).toString('utf8')
             })
+          }
           })
 
           msg.on('attributes', (attrs) => {
             uid = attrs.uid
             flags = attrs.flags || []
             envelope = (attrs as any).envelope
-          })
+          if (verbose) {
+            console.log(`${logPrefix} Attributes received, UID: ${attrs.uid}`)
+          }
+        })
 
-          msg.once('end', () => {
-            try {
+        const processMessage = async () => {
+          if (bodyPromise) {
+            if (verbose) {
+              console.log(`${logPrefix} Waiting for body promise to complete...`)
+            }
+            await bodyPromise
+            if (verbose) {
+              console.log(`${logPrefix} Body promise completed, length: ${body.length}`)
+            }
+          }
+
+          try {
+            let parsed: any = null
+            let emailHeaders: Record<string, string | string[]> | undefined = undefined
+
+            if (fullBody && body && body.length > 0) {
+              if (verbose) {
+                console.log(`${logPrefix} Starting to parse body, length: ${body.length}`)
+              }
+              try {
+                parsed = await simpleParser(body)
+                if (verbose) {
+                  console.log(`${logPrefix} Body parsed successfully`)
+                }
+
+                // Extract headers from parsed result
+                if (parsed?.headers) {
+                  emailHeaders = {}
+                  for (const [key, value] of Object.entries(parsed.headers)) {
+                    emailHeaders[key.toLowerCase()] = Array.isArray(value) ? value : [value]
+                  }
+                }
+              } catch (parseErr) {
+                if (verbose) {
+                  console.error(`${logPrefix} Error parsing body:`, parseErr)
+                }
+                // Fall through to envelope-only fallback
+              }
+            } else if (!fullBody && headers) {
+              emailHeaders = this.parseHeaders(headers)
+            }
+
+            const emailId = `${this.account.id}-${folderName}-${uid || seqno}`
+            const emailUid = uid || seqno
+
+            // Build email object with parsed data or fallback to envelope
               const email: Email = {
-                id: `${this.account.id}-${folderName}-${uid || seqno}`,
+              id: emailId,
                 accountId: this.account.id,
                 folderId: folderName,
-                uid: uid || seqno,
-                messageId: envelope?.messageId || `msg-${seqno}`,
-                subject: envelope?.subject || `Message ${seqno}`,
+              uid: emailUid,
+              messageId: parsed?.messageId || envelope?.messageId || `msg-${emailUid}`,
+              subject: parsed?.subject || envelope?.subject || `Message ${emailUid}`,
+              from: parsed?.from
+                ? this.parseAddresses(parsed.from)
+                : envelope?.from
+                  ? this.parseAddresses(envelope.from)
+                  : [{ address: 'unknown@example.com' }],
+              to: parsed?.to
+                ? this.parseAddresses(parsed.to)
+                : envelope?.to
+                  ? this.parseAddresses(envelope.to)
+                  : [],
+              cc: parsed?.cc
+                ? this.parseAddresses(parsed.cc)
+                : envelope?.cc
+                  ? this.parseAddresses(envelope.cc)
+                  : undefined,
+              bcc: parsed?.bcc
+                ? this.parseAddresses(parsed.bcc)
+                : envelope?.bcc
+                  ? this.parseAddresses(envelope.bcc)
+                  : undefined,
+              replyTo: parsed?.replyTo
+                ? this.parseAddresses(parsed.replyTo)
+                : envelope?.replyTo
+                  ? this.parseAddresses(envelope.replyTo)
+                  : undefined,
+              date: parsed?.date
+                ? parsed.date.getTime()
+                : envelope?.date
+                  ? new Date(envelope.date).getTime()
+                  : Date.now(),
+              body: fullBody
+                ? parsed?.html || parsed?.text || body || ''
+                : '',
+              htmlBody: fullBody ? parsed?.html || undefined : undefined,
+              textBody: fullBody ? parsed?.text : undefined,
+              attachments: fullBody && parsed?.attachments
+                ? parsed.attachments.map((att: any) => ({
+                    id: `${emailId}-${att.filename}`,
+                    emailId: emailId,
+                    filename: att.filename || 'attachment',
+                    contentType: att.contentType || 'application/octet-stream',
+                    size: att.size || 0,
+                    contentId: att.contentId,
+                    data: att.content as Buffer
+                  }))
+                : [],
+              flags: flags,
+              isRead: flags.includes('\\Seen'),
+              isStarred: flags.includes('\\Flagged'),
+              threadId: parsed?.inReplyTo || envelope?.inReplyTo || undefined,
+              inReplyTo: parsed?.inReplyTo || envelope?.inReplyTo || undefined,
+              references: parsed?.references
+                ? Array.isArray(parsed.references)
+                  ? parsed.references
+                  : [parsed.references]
+                : envelope?.references
+                  ? Array.isArray(envelope.references)
+                    ? envelope.references
+                    : [envelope.references]
+                  : undefined,
+              encrypted: false,
+              signed: false,
+              signatureVerified: undefined,
+              headers: emailHeaders,
+              createdAt: Date.now(),
+              updatedAt: Date.now()
+            }
+
+            if (verbose) {
+              console.log(`${logPrefix} Email object created`)
+            }
+            return email
+          } catch (err) {
+            // Fallback to envelope-only email
+            if (verbose) {
+              console.error(`${logPrefix} Error processing message, using envelope fallback:`, err)
+            }
+            const emailId = `${this.account.id}-${folderName}-${uid || seqno}`
+            const emailUid = uid || seqno
+
+            return {
+              id: emailId,
+              accountId: this.account.id,
+              folderId: folderName,
+              uid: emailUid,
+              messageId: envelope?.messageId || `msg-${emailUid}`,
+              subject: envelope?.subject || `Message ${emailUid}`,
                 from: envelope?.from ? this.parseAddresses(envelope.from) : [{ address: 'unknown@example.com' }],
                 to: envelope?.to ? this.parseAddresses(envelope.to) : [],
                 cc: envelope?.cc ? this.parseAddresses(envelope.cc) : undefined,
                 bcc: envelope?.bcc ? this.parseAddresses(envelope.bcc) : undefined,
                 replyTo: envelope?.replyTo ? this.parseAddresses(envelope.replyTo) : undefined,
                 date: envelope?.date ? new Date(envelope.date).getTime() : Date.now(),
-                body: '',
+              body: fullBody ? body : '',
                 htmlBody: undefined,
                 textBody: undefined,
                 attachments: [],
@@ -465,43 +665,105 @@ export class IMAPClient {
                 threadId: envelope?.inReplyTo || undefined,
                 inReplyTo: envelope?.inReplyTo || undefined,
                 references: envelope?.references
-                  ? (Array.isArray(envelope.references) ? envelope.references : [envelope.references])
+                ? Array.isArray(envelope.references)
+                  ? envelope.references
+                  : [envelope.references]
                   : undefined,
                 encrypted: false,
                 signed: false,
                 signatureVerified: undefined,
-                headers: headers ? this.parseHeaders(headers) : undefined,
+              headers: undefined,
                 createdAt: Date.now(),
                 updatedAt: Date.now()
-              }
+            } as Email
+          }
+        }
 
+        // Store message promise for fullBody mode to await in fetch end handler
+        if (fullBody) {
+          const messagePromise = new Promise<Email>(async (resolveMsg) => {
+            msg.once('end', async () => {
+              try {
+                const email = await processMessage()
+                emails.push(email)
+                resolveMsg(email)
+              } catch (err) {
+                // Already handled in processMessage fallback
+                const email = await processMessage().catch(() => {
+                  // If processMessage fails completely, create minimal email
+                  const emailId = `${this.account.id}-${folderName}-${uid || seqno}`
+                  const emailUid = uid || seqno
+                  return {
+                    id: emailId,
+                    accountId: this.account.id,
+                    folderId: folderName,
+                    uid: emailUid,
+                    messageId: envelope?.messageId || `msg-${emailUid}`,
+                    subject: envelope?.subject || `Message ${emailUid}`,
+                    from: envelope?.from ? this.parseAddresses(envelope.from) : [{ address: 'unknown@example.com' }],
+                    to: envelope?.to ? this.parseAddresses(envelope.to) : [],
+                    date: Date.now(),
+                    body: '',
+                    flags: flags || [],
+                    isRead: false,
+                    isStarred: false,
+                    attachments: [],
+                    createdAt: Date.now(),
+                    updatedAt: Date.now()
+                  } as Email
+                })
+                emails.push(email)
+                resolveMsg(email)
+              }
+            })
+          })
+          ;(fetch as any)._messagePromises = (fetch as any)._messagePromises || []
+          ;(fetch as any)._messagePromises.push(messagePromise)
+        } else {
+          // For metadata-only, synchronous processing
+          msg.once('end', async () => {
+            try {
+              const email = await processMessage()
               emails.push(email)
             } catch (messageErr) {
-              console.error(`Error processing metadata for seq ${seqno}:`, messageErr)
+              if (verbose) {
+                console.error(`${logPrefix} Error processing metadata:`, messageErr)
+              }
             }
           })
-        })
+        }
+      })
 
-        const onFetchError = (err: Error) => {
-          cleanup()
-          fetch.removeListener('error', onFetchError)
-          fetch.removeListener('end', onFetchEnd)
+      const onFetchError = (err: Error) => {
+        fetch.removeListener('error', onFetchError)
+        fetch.removeListener('end', onFetchEnd)
+        if (verbose) {
+          console.error(`${logPrefix} Fetch error:`, err)
+        }
           reject(err)
+      }
+
+      const onFetchEnd = async () => {
+        fetch.removeListener('error', onFetchError)
+        fetch.removeListener('end', onFetchEnd)
+
+        if (fullBody && (fetch as any)._messagePromises) {
+          if (verbose) {
+            console.log(`${logPrefix} Waiting for message processing...`)
+          }
+          await Promise.all((fetch as any)._messagePromises)
         }
 
-        const onFetchEnd = () => {
-          cleanup()
-          fetch.removeListener('error', onFetchError)
-          fetch.removeListener('end', onFetchEnd)
           // Maintain newest-first ordering for downstream consumers
           const sorted = emails.sort((a, b) => b.uid - a.uid)
-          console.log(`Fetched ${sorted.length} metadata entries from ${path}`)
-          resolve(sorted)
+        if (verbose) {
+          console.log(`${logPrefix} Message processing complete, got ${sorted.length} email(s)`)
         }
+          resolve(sorted)
+      }
 
-        fetch.once('error', onFetchError)
-        fetch.once('end', onFetchEnd)
-      })
+      fetch.once('error', onFetchError)
+      fetch.once('end', onFetchEnd)
     })
   }
 
@@ -637,188 +899,19 @@ export class IMAPClient {
 
             console.log(`Fetching ${uidsToFetch.length} emails from ${path}${hasExplicitUids ? ' (explicit UID list)' : ''}`)
 
-            const emails: Email[] = []
-            let emailCount = 0
-            const totalToFetch = uidsToFetch.length
-            const messagePromises: Promise<void>[] = []
-            let fetchEnded = false
-
-            const fetch = connection.fetch(uidsToFetch, {
-              bodies: '',
-              struct: true,
-              envelope: true
+            this.fetchAndBuildEmails(connection, folderName, uidsToFetch, {
+              fullBody: true
             })
-
-            const checkComplete = () => {
-              if (emailCount === totalToFetch && fetchEnded) {
+              .then((emails) => {
                 cleanup()
-                console.log(`Finished fetching emails from ${path}: got ${emails.length} emails out of ${totalToFetch} requested`)
+                console.log(`Finished fetching emails from ${path}: got ${emails.length} emails out of ${uidsToFetch.length} requested`)
                 resolve(emails)
-              }
-            }
-
-            fetch.on('message', (msg, seqno) => {
-              let uid: number | null = null
-              let flags: string[] = []
-              let envelope: any = null
-              let body = ''
-              let bodyPromise: Promise<void> | null = null
-
-              msg.on('body', (stream) => {
-                let buffer = Buffer.alloc(0)
-                bodyPromise = new Promise<void>((resolveBody) => {
-                  stream.on('data', (chunk: Buffer) => {
-                    buffer = Buffer.concat([buffer, chunk])
-                  })
-                  stream.once('end', () => {
-                    body = buffer.toString('utf8')
-                    resolveBody()
-                  })
-                })
               })
-
-              msg.on('attributes', (attrs) => {
-                uid = attrs.uid
-                flags = attrs.flags || []
-                envelope = (attrs as any).envelope
-              })
-
-              const messagePromise = new Promise<void>(async (resolveMsg) => {
-                msg.once('end', async () => {
-                  try {
-                    if (bodyPromise) {
-                      await bodyPromise
-                    }
-
-                    try {
-                      let parsed: any = null
-                      if (body && body.length > 0) {
-                        parsed = await simpleParser(body)
-                      }
-
-                      let headers: Record<string, string | string[]> | undefined = undefined
-                      if (parsed?.headers) {
-                        headers = {}
-                        for (const [key, value] of Object.entries(parsed.headers)) {
-                          headers[key.toLowerCase()] = Array.isArray(value) ? value : [value]
-                        }
-                      }
-
-                      const email: Email = {
-                        id: `${this.account.id}-${folderName}-${uid || seqno}`,
-                        accountId: this.account.id,
-                        folderId: folderName,
-                        uid: uid || seqno,
-                        messageId: parsed?.messageId || envelope?.messageId || `msg-${seqno}`,
-                        subject: parsed?.subject || envelope?.subject || `Message ${seqno}`,
-                        from: parsed?.from ? this.parseAddresses(parsed.from) : (envelope?.from ? this.parseAddresses(envelope.from) : [{ address: 'unknown@example.com' }]),
-                        to: parsed?.to ? this.parseAddresses(parsed.to) : (envelope?.to ? this.parseAddresses(envelope.to) : []),
-                        cc: parsed?.cc ? this.parseAddresses(parsed.cc) : (envelope?.cc ? this.parseAddresses(envelope.cc) : undefined),
-                        bcc: parsed?.bcc ? this.parseAddresses(parsed.bcc) : (envelope?.bcc ? this.parseAddresses(envelope.bcc) : undefined),
-                        replyTo: parsed?.replyTo ? this.parseAddresses(parsed.replyTo) : (envelope?.replyTo ? this.parseAddresses(envelope.replyTo) : undefined),
-                        date: parsed?.date ? parsed.date.getTime() : (envelope?.date ? new Date(envelope.date).getTime() : Date.now()),
-                        body: parsed?.html || parsed?.text || '',
-                        htmlBody: parsed?.html || undefined,
-                        textBody: parsed?.text,
-                        attachments: parsed?.attachments?.map((att: any) => ({
-                          id: `${this.account.id}-${uid || seqno}-${att.filename}`,
-                          emailId: `${this.account.id}-${uid || seqno}`,
-                          filename: att.filename || 'attachment',
-                          contentType: att.contentType || 'application/octet-stream',
-                          size: att.size || 0,
-                          contentId: att.contentId,
-                          data: att.content as Buffer
-                        })) || [],
-                        flags: flags,
-                        isRead: flags.includes('\\Seen'),
-                        isStarred: flags.includes('\\Flagged'),
-                        threadId: parsed?.inReplyTo || envelope?.inReplyTo || undefined,
-                        inReplyTo: parsed?.inReplyTo || envelope?.inReplyTo || undefined,
-                        references: parsed?.references ? (Array.isArray(parsed.references) ? parsed.references : [parsed.references]) : (envelope?.references ? (Array.isArray(envelope.references) ? envelope.references : [envelope.references]) : undefined),
-                        encrypted: false,
-                        signed: false,
-                        signatureVerified: undefined,
-                        headers: headers,
-                        createdAt: Date.now(),
-                        updatedAt: Date.now()
-                      }
-
-                      emails.push(email)
-                      emailCount++
-                      console.log(`Processed email ${emailCount}/${totalToFetch} (UID: ${uid || seqno}) in ${folderName}`)
-                      checkComplete()
-                    } catch (parseErr) {
-                      console.error(`Error parsing message ${seqno} (UID: ${uid || seqno}):`, parseErr)
-                      const email: Email = {
-                        id: `${this.account.id}-${folderName}-${uid || seqno}`,
-                        accountId: this.account.id,
-                        folderId: folderName,
-                        uid: uid || seqno,
-                        messageId: envelope?.messageId || `msg-${seqno}`,
-                        subject: envelope?.subject || `Message ${seqno}`,
-                        from: envelope?.from ? this.parseAddresses(envelope.from) : [{ address: 'unknown@example.com' }],
-                        to: envelope?.to ? this.parseAddresses(envelope.to) : [],
-                        cc: envelope?.cc ? this.parseAddresses(envelope.cc) : undefined,
-                        bcc: envelope?.bcc ? this.parseAddresses(envelope.bcc) : undefined,
-                        replyTo: envelope?.replyTo ? this.parseAddresses(envelope.replyTo) : undefined,
-                        date: envelope?.date ? new Date(envelope.date).getTime() : Date.now(),
-                        body: body,
-                        htmlBody: undefined,
-                        textBody: undefined,
-                        attachments: [],
-                        flags: flags,
-                        isRead: flags.includes('\\Seen'),
-                        isStarred: flags.includes('\\Flagged'),
-                        threadId: envelope?.inReplyTo || undefined,
-                        inReplyTo: envelope?.inReplyTo || undefined,
-                        references: envelope?.references ? (Array.isArray(envelope.references) ? envelope.references : [envelope.references]) : undefined,
-                        encrypted: false,
-                        signed: false,
-                        signatureVerified: undefined,
-                        headers: undefined,
-                        createdAt: Date.now(),
-                        updatedAt: Date.now()
-                      }
-
-                      emails.push(email)
-                      emailCount++
-                      console.log(`Processed email ${emailCount}/${totalToFetch} (UID: ${uid || seqno}, envelope only) in ${folderName}`)
-                      checkComplete()
-                    }
-                  } catch (err) {
-                    console.error(`Error processing message ${seqno} (UID: ${uid || seqno}):`, err)
-                    emailCount++
-                    checkComplete()
-                  } finally {
-                    resolveMsg()
-                  }
-                })
-              })
-
-              messagePromises.push(messagePromise)
-            })
-
-            const onFetchError = (err: Error) => {
+              .catch((err) => {
               cleanup()
-              fetch.removeListener('error', onFetchError)
-              fetch.removeListener('end', onFetchEnd)
               console.error('IMAP fetch error:', err)
               reject(err)
-            }
-
-            const onFetchEnd = async () => {
-              fetchEnded = true
-              fetch.removeListener('error', onFetchError)
-              fetch.removeListener('end', onFetchEnd)
-              console.log(`Fetch stream ended for ${path}, waiting for ${messagePromises.length} messages to process...`)
-              await Promise.all(messagePromises)
-              console.log(`All messages processed for ${path}: got ${emails.length} emails out of ${totalToFetch} requested`)
-              cleanup()
-              resolve(emails)
-            }
-
-            fetch.once('error', onFetchError)
-            fetch.once('end', onFetchEnd)
+            })
           } catch (err) {
             cleanup()
             reject(err)
@@ -842,6 +935,7 @@ export class IMAPClient {
         const connection = this.getConnectionOrThrow()
         const timeout = setTimeout(() => {
           console.error(`[IMAPClient.fetchEmailByUid] Timeout after 30s for UID ${uid} in folder ${folderName}`)
+          cleanup()
           reject(new Error('IMAP fetch timeout'))
         }, 30000)
 
@@ -860,172 +954,24 @@ export class IMAPClient {
 
         console.log(`[IMAPClient.fetchEmailByUid] Fetching UID ${uid} from ${path}`)
 
-        const fetch = connection.fetch([uid], {
-          bodies: '',
-          struct: true,
-          envelope: true
+        this.fetchAndBuildEmails(connection, folderName, [uid], {
+          fullBody: true,
+          verbose: true
         })
-
-        console.log(`[IMAPClient.fetchEmailByUid] Fetch started for UID ${uid}`)
-
-        let email: Email | null = null
-        let flags: string[] = []
-        let envelope: any = null
-        let body = ''
-        let messageProcessingPromise: Promise<void> | null = null
-
-        fetch.on('message', (msg, seqno) => {
-          console.log(`[IMAPClient.fetchEmailByUid] Message event received for UID ${uid}, seqno ${seqno}`)
-
-          let bodyPromise: Promise<void> | null = null
-
-          msg.on('body', (stream) => {
-            console.log(`[IMAPClient.fetchEmailByUid] Body stream started for UID ${uid}`)
-            let buffer = Buffer.alloc(0)
-            bodyPromise = new Promise<void>((resolveBody) => {
-              stream.on('data', (chunk: Buffer) => {
-                buffer = Buffer.concat([buffer, chunk])
-              })
-              stream.once('end', () => {
-                body = buffer.toString('utf8')
-                console.log(`[IMAPClient.fetchEmailByUid] Body stream ended for UID ${uid}, length: ${body.length}`)
-                resolveBody()
-              })
-            })
-          })
-
-          msg.on('attributes', (attrs) => {
-            flags = attrs.flags || []
-            envelope = (attrs as any).envelope
-            console.log(`[IMAPClient.fetchEmailByUid] Attributes received for UID ${uid}, actual UID from attrs: ${attrs.uid}`)
-          })
-
-          messageProcessingPromise = new Promise<void>(async (resolveProcessing) => {
-            msg.once('end', async () => {
-              console.log(`[IMAPClient.fetchEmailByUid] Message end event for UID ${uid}, body length: ${body.length}, bodyPromise exists: ${!!bodyPromise}`)
-              if (bodyPromise) {
-                console.log(`[IMAPClient.fetchEmailByUid] Waiting for body promise to complete...`)
-                await bodyPromise
-                console.log(`[IMAPClient.fetchEmailByUid] Body promise completed, body length: ${body.length}`)
-              }
-
-              try {
-                console.log(`[IMAPClient.fetchEmailByUid] Starting to parse body for UID ${uid}, length: ${body.length}`)
-                let parsed: any = null
-                if (body && body.length > 0) {
-                  parsed = await simpleParser(body)
-                  console.log(`[IMAPClient.fetchEmailByUid] Body parsed successfully for UID ${uid}`)
-                } else {
-                  console.warn(`[IMAPClient.fetchEmailByUid] No body content to parse for UID ${uid}`)
-                }
-
-                console.log(`[IMAPClient.fetchEmailByUid] Creating email object for UID ${uid}`)
-                email = {
-                  id: `${this.account.id}-${folderName}-${uid}`,
-                  accountId: this.account.id,
-                  folderId: folderName,
-                  uid: uid,
-                  messageId: parsed?.messageId || envelope?.messageId || `msg-${uid}`,
-                  subject: parsed?.subject || envelope?.subject || `Message ${uid}`,
-                  from: parsed?.from ? this.parseAddresses(parsed.from) : (envelope?.from ? this.parseAddresses(envelope.from) : [{ address: 'unknown@example.com' }]),
-                  to: parsed?.to ? this.parseAddresses(parsed.to) : (envelope?.to ? this.parseAddresses(envelope.to) : []),
-                  cc: parsed?.cc ? this.parseAddresses(parsed.cc) : (envelope?.cc ? this.parseAddresses(envelope.cc) : undefined),
-                  bcc: parsed?.bcc ? this.parseAddresses(parsed.bcc) : (envelope?.bcc ? this.parseAddresses(envelope.bcc) : undefined),
-                  replyTo: parsed?.replyTo ? this.parseAddresses(parsed.replyTo) : (envelope?.replyTo ? this.parseAddresses(envelope.replyTo) : undefined),
-                  date: parsed?.date ? parsed.date.getTime() : (envelope?.date ? new Date(envelope.date).getTime() : Date.now()),
-                  body: parsed?.html || parsed?.text || '',
-                  htmlBody: parsed?.html || undefined,
-                  textBody: parsed?.text,
-                  attachments: parsed?.attachments?.map((att: any) => ({
-                    id: `${this.account.id}-${uid}-${att.filename}`,
-                    emailId: `${this.account.id}-${uid}`,
-                    filename: att.filename || 'attachment',
-                    contentType: att.contentType || 'application/octet-stream',
-                    size: att.size || 0,
-                    contentId: att.contentId,
-                    data: att.content as Buffer
-                  })) || [],
-                  flags: flags,
-                  isRead: flags.includes('\\Seen'),
-                  isStarred: flags.includes('\\Flagged'),
-                  threadId: parsed?.inReplyTo || envelope?.inReplyTo || undefined,
-                  inReplyTo: parsed?.inReplyTo || envelope?.inReplyTo || undefined,
-                  references: parsed?.references ? (Array.isArray(parsed.references) ? parsed.references : [parsed.references]) : (envelope?.references ? (Array.isArray(envelope.references) ? envelope.references : [envelope.references]) : undefined),
-                  encrypted: false,
-                  signed: false,
-                  signatureVerified: undefined,
-                  headers: parsed?.headers ? Object.fromEntries(
-                    Array.from(parsed.headers.entries()).map(([k, v]) => [k.toLowerCase(), v])
-                  ) : undefined,
-                  createdAt: Date.now(),
-                  updatedAt: Date.now()
-                }
-                console.log(`[IMAPClient.fetchEmailByUid] Email object created for UID ${uid}`)
-              } catch (parseErr) {
-                console.error(`[IMAPClient.fetchEmailByUid] Error parsing message body for UID ${uid}:`, parseErr)
-                email = {
-                  id: `${this.account.id}-${folderName}-${uid}`,
-                  accountId: this.account.id,
-                  folderId: folderName,
-                  uid: uid,
-                  messageId: envelope?.messageId || `msg-${uid}`,
-                  subject: envelope?.subject || `Message ${uid}`,
-                  from: envelope?.from ? this.parseAddresses(envelope.from) : [{ address: 'unknown@example.com' }],
-                  to: envelope?.to ? this.parseAddresses(envelope.to) : [],
-                  cc: envelope?.cc ? this.parseAddresses(envelope.cc) : undefined,
-                  bcc: envelope?.bcc ? this.parseAddresses(envelope.bcc) : undefined,
-                  replyTo: envelope?.replyTo ? this.parseAddresses(envelope.replyTo) : undefined,
-                  date: envelope?.date ? new Date(envelope.date).getTime() : Date.now(),
-                  body: '',
-                  htmlBody: undefined,
-                  textBody: undefined,
-                  attachments: [],
-                  flags: flags,
-                  isRead: flags.includes('\Seen'),
-                  isStarred: flags.includes('\Flagged'),
-                  threadId: envelope?.inReplyTo || undefined,
-                  inReplyTo: envelope?.inReplyTo || undefined,
-                  references: envelope?.references ? (Array.isArray(envelope.references) ? envelope.references : [envelope.references]) : undefined,
-                  encrypted: false,
-                  signed: false,
-                  signatureVerified: undefined,
-                  createdAt: Date.now(),
-                  updatedAt: Date.now()
-                }
-              }
-
-              resolveProcessing()
-            })
-          })
-        })
-
-        const onFetchEnd = async () => {
-          fetch.removeListener('error', onFetchError)
-          fetch.removeListener('end', onFetchEnd)
-          console.log(`[IMAPClient.fetchEmailByUid] Fetch end event for UID ${uid}, waiting for message processing...`)
-
-          if (messageProcessingPromise) {
-            await messageProcessingPromise
-          }
-
+          .then((emails) => {
           cleanup()
+            const email = emails[0] ?? null
           console.log(`[IMAPClient.fetchEmailByUid] Message processing complete for UID ${uid}, email object: ${email ? 'created' : 'NULL'}`)
           if (!email) {
             console.warn(`[IMAPClient.fetchEmailByUid] No message received for UID ${uid} in folder ${path}. This could mean the UID doesn't exist in this folder.`)
           }
           resolve(email)
-        }
-
-        const onFetchError = (err: Error) => {
-          cleanup()
-          fetch.removeListener('error', onFetchError)
-          fetch.removeListener('end', onFetchEnd)
-          console.error(`[IMAPClient.fetchEmailByUid] Fetch error for UID ${uid}:`, err)
-          reject(err)
-        }
-
-        fetch.once('error', onFetchError)
-        fetch.once('end', onFetchEnd)
+        })
+          .catch((err) => {
+            cleanup()
+            console.error(`[IMAPClient.fetchEmailByUid] Fetch error for UID ${uid}:`, err)
+            reject(err)
+          })
       })
     })
   }
