@@ -4,11 +4,11 @@ import { accountManager } from './account-manager'
 import type { Account } from '../shared/types'
 import type { Email, EmailAddress, Attachment } from '../shared/types'
 
-interface ConnectionPool {
-  [accountId: string]: Imap | null
+interface ClientPool {
+  [accountId: string]: IMAPClient | null
 }
 
-const connectionPool: ConnectionPool = {}
+const clientPool: ClientPool = {}
 const METADATA_HEADER_FIELDS =
   'HEADER.FIELDS (DATE SUBJECT FROM TO CC BCC REPLY-TO MESSAGE-ID REFERENCES IN-REPLY-TO LIST-ID X-PRIORITY X-MAILER)'
 
@@ -19,6 +19,13 @@ export class IMAPClient {
 
   constructor(account: Account) {
     this.account = account
+  }
+
+  /**
+   * Check if the client has a valid, connected IMAP connection
+   */
+  isConnected(): boolean {
+    return this.connection !== null && this.connection.state !== 'disconnected'
   }
 
   private async getInboxPath(): Promise<string> {
@@ -115,8 +122,8 @@ export class IMAPClient {
 
       this.connection = new Imap(imapConfig)
 
-      this.connection.once('ready', () => {
-        connectionPool[this.account.id] = this.connection
+      const onReady = () => {
+        this.connection!.removeListener('error', onError)
         // Ensure connection is fully ready before resolving
         if (this.connection && this.connection.state === 'authenticated') {
           resolve()
@@ -130,9 +137,10 @@ export class IMAPClient {
             }
           }, 100)
         }
-      })
+      }
 
-      this.connection.once('error', (err: Error) => {
+      const onError = (err: Error) => {
+        this.connection!.removeListener('ready', onReady)
         // Provide better error messages for Gmail
         let errorMessage = err.message
         const errLower = err.message.toLowerCase()
@@ -168,7 +176,10 @@ export class IMAPClient {
           }
         }
         reject(new Error(errorMessage))
-      })
+      }
+
+      this.connection.once('ready', onReady)
+      this.connection.once('error', onError)
 
       this.connection.connect()
     })
@@ -178,7 +189,10 @@ export class IMAPClient {
     if (this.connection) {
       this.connection.end()
       this.connection = null
-      delete connectionPool[this.account.id]
+    }
+    // Remove from pool when disconnecting
+    if (clientPool[this.account.id] === this) {
+      clientPool[this.account.id] = null
     }
   }
 
@@ -202,38 +216,51 @@ export class IMAPClient {
           return
         }
 
-        this.connection!.once('ready', () => {
+        const onReady = () => {
           clearTimeout(timeout)
+          this.connection!.removeListener('error', onError)
           resolve()
-        })
+        }
 
-        this.connection!.once('error', (err) => {
+        const onError = (err: Error) => {
           clearTimeout(timeout)
+          this.connection!.removeListener('ready', onReady)
           reject(err)
-        })
+        }
+
+        this.connection!.once('ready', onReady)
+        this.connection!.once('error', onError)
       })
     }
 
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
+        cleanup()
         reject(new Error('IMAP list timeout'))
       }, 30000)
 
-      this.connection!.once('error', (err) => {
-        clearTimeout(timeout)
+      const onError = (err: Error) => {
+        cleanup()
         reject(err)
-      })
+      }
+
+      const cleanup = () => {
+        clearTimeout(timeout)
+        this.connection!.removeListener('error', onError)
+      }
+
+      this.connection!.once('error', onError)
 
       try {
         const getBoxesMethod = (this.connection as any).getBoxes
         if (typeof getBoxesMethod !== 'function') {
-          clearTimeout(timeout)
+          cleanup()
           reject(new Error(`IMAP connection does not have getBoxes method. Connection state: ${this.connection.state}`))
           return
         }
 
         getBoxesMethod.call(this.connection, (err: Error | null, boxes: any) => {
-          clearTimeout(timeout)
+          cleanup()
           if (err) {
             reject(err)
             return
@@ -286,8 +313,14 @@ export class IMAPClient {
     await this.ensureConnected()
 
     return new Promise((resolve, reject) => {
-      this.connection!.once('error', reject)
+      const onError = (err: Error) => {
+        this.connection!.removeListener('error', onError)
+        reject(err)
+      }
+
+      this.connection!.once('error', onError)
       this.connection!.status(folderName, (err, status) => {
+        this.connection!.removeListener('error', onError)
         if (err) {
           reject(err)
           return
@@ -449,18 +482,25 @@ export class IMAPClient {
           })
         })
 
-        fetch.once('error', (err) => {
+        const onFetchError = (err: Error) => {
           cleanup()
+          fetch.removeListener('error', onFetchError)
+          fetch.removeListener('end', onFetchEnd)
           reject(err)
-        })
+        }
 
-        fetch.once('end', () => {
+        const onFetchEnd = () => {
           cleanup()
+          fetch.removeListener('error', onFetchError)
+          fetch.removeListener('end', onFetchEnd)
           // Maintain newest-first ordering for downstream consumers
           const sorted = emails.sort((a, b) => b.uid - a.uid)
           console.log(`Fetched ${sorted.length} metadata entries from ${path}`)
           resolve(sorted)
-        })
+        }
+
+        fetch.once('error', onFetchError)
+        fetch.once('end', onFetchEnd)
       })
     })
   }
@@ -758,20 +798,27 @@ export class IMAPClient {
               messagePromises.push(messagePromise)
             })
 
-            fetch.once('error', (err) => {
+            const onFetchError = (err: Error) => {
               cleanup()
+              fetch.removeListener('error', onFetchError)
+              fetch.removeListener('end', onFetchEnd)
               console.error('IMAP fetch error:', err)
               reject(err)
-            })
+            }
 
-            fetch.once('end', async () => {
+            const onFetchEnd = async () => {
               fetchEnded = true
+              fetch.removeListener('error', onFetchError)
+              fetch.removeListener('end', onFetchEnd)
               console.log(`Fetch stream ended for ${path}, waiting for ${messagePromises.length} messages to process...`)
               await Promise.all(messagePromises)
               console.log(`All messages processed for ${path}: got ${emails.length} emails out of ${totalToFetch} requested`)
               cleanup()
               resolve(emails)
-            })
+            }
+
+            fetch.once('error', onFetchError)
+            fetch.once('end', onFetchEnd)
           } catch (err) {
             cleanup()
             reject(err)
@@ -899,8 +946,8 @@ export class IMAPClient {
                     data: att.content as Buffer
                   })) || [],
                   flags: flags,
-                  isRead: flags.includes('\Seen'),
-                  isStarred: flags.includes('\Flagged'),
+                  isRead: flags.includes('\\Seen'),
+                  isStarred: flags.includes('\\Flagged'),
                   threadId: parsed?.inReplyTo || envelope?.inReplyTo || undefined,
                   inReplyTo: parsed?.inReplyTo || envelope?.inReplyTo || undefined,
                   references: parsed?.references ? (Array.isArray(parsed.references) ? parsed.references : [parsed.references]) : (envelope?.references ? (Array.isArray(envelope.references) ? envelope.references : [envelope.references]) : undefined),
@@ -952,13 +999,9 @@ export class IMAPClient {
           })
         })
 
-        fetch.once('error', (err) => {
-          cleanup()
-          console.error(`[IMAPClient.fetchEmailByUid] Fetch error for UID ${uid}:`, err)
-          reject(err)
-        })
-
-        fetch.once('end', async () => {
+        const onFetchEnd = async () => {
+          fetch.removeListener('error', onFetchError)
+          fetch.removeListener('end', onFetchEnd)
           console.log(`[IMAPClient.fetchEmailByUid] Fetch end event for UID ${uid}, waiting for message processing...`)
 
           if (messageProcessingPromise) {
@@ -971,7 +1014,18 @@ export class IMAPClient {
             console.warn(`[IMAPClient.fetchEmailByUid] No message received for UID ${uid} in folder ${path}. This could mean the UID doesn't exist in this folder.`)
           }
           resolve(email)
-        })
+        }
+
+        const onFetchError = (err: Error) => {
+          cleanup()
+          fetch.removeListener('error', onFetchError)
+          fetch.removeListener('end', onFetchEnd)
+          console.error(`[IMAPClient.fetchEmailByUid] Fetch error for UID ${uid}:`, err)
+          reject(err)
+        }
+
+        fetch.once('error', onFetchError)
+        fetch.once('end', onFetchEnd)
       })
     })
   }
@@ -997,11 +1051,15 @@ export class IMAPClient {
           })
         })
 
-        fetch.once('error', (error) => {
+        const onFetchError = (error: Error) => {
+          fetch.removeListener('error', onFetchError)
+          fetch.removeListener('end', onFetchEnd)
           reject(error)
-        })
+        }
 
-        fetch.once('end', () => {
+        const onFetchEnd = () => {
+          fetch.removeListener('error', onFetchError)
+          fetch.removeListener('end', onFetchEnd)
           if (!envelope) {
             resolve(null)
             return
@@ -1014,7 +1072,10 @@ export class IMAPClient {
             bcc: this.parseAddresses(envelope.bcc),
             replyTo: this.parseAddresses(envelope.replyTo)
           })
-        })
+        }
+
+        fetch.once('error', onFetchError)
+        fetch.once('end', onFetchEnd)
       })
     })
   }
@@ -1203,5 +1264,14 @@ export class IMAPClient {
 }
 
 export function getIMAPClient(account: Account): IMAPClient {
-  return new IMAPClient(account)
+  // Reuse existing client instance for this account if available and connection is still valid
+  const existingClient = clientPool[account.id]
+  if (existingClient && existingClient.isConnected()) {
+    return existingClient
+  }
+
+  // Create new client instance and add to pool
+  const client = new IMAPClient(account)
+  clientPool[account.id] = client
+  return client
 }
