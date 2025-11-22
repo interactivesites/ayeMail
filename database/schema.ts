@@ -338,6 +338,18 @@ export function createDatabase(): Database.Database {
   } catch (error) {
     console.error('Error migrating account_from_addresses table:', error)
   }
+
+  // Migration: Add certificate validation columns to accounts table
+  try {
+    ensureColumn('accounts', 'imap_allow_invalid_certs', 'INTEGER DEFAULT 0')
+    ensureColumn('accounts', 'imap_custom_ca', 'TEXT')
+    ensureColumn('accounts', 'pop3_allow_invalid_certs', 'INTEGER DEFAULT 0')
+    ensureColumn('accounts', 'pop3_custom_ca', 'TEXT')
+    ensureColumn('accounts', 'smtp_allow_invalid_certs', 'INTEGER DEFAULT 0')
+    ensureColumn('accounts', 'smtp_custom_ca', 'TEXT')
+  } catch (error) {
+    console.error('Error migrating accounts table for certificate validation columns:', error)
+  }
   
   return db
 }

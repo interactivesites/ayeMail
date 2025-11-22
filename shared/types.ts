@@ -7,16 +7,22 @@ export interface Account {
     host: string
     port: number
     secure: boolean
+    allowInvalidCerts?: boolean // Default: false (secure by default)
+    customCa?: string // Custom CA certificate bundle (PEM format)
   }
   pop3?: {
     host: string
     port: number
     secure: boolean
+    allowInvalidCerts?: boolean // Default: false (secure by default)
+    customCa?: string // Custom CA certificate bundle (PEM format)
   }
   smtp: {
     host: string
     port: number
     secure: boolean
+    allowInvalidCerts?: boolean // Default: false (secure by default)
+    customCa?: string // Custom CA certificate bundle (PEM format)
   }
   authType: 'oauth2' | 'password'
   oauth2?: {

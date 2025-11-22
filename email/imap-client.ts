@@ -61,6 +61,9 @@ export class IMAPClient {
       throw new Error('IMAP configuration missing')
     }
 
+    // TypeScript: we've checked imap exists above, so it's safe to use non-null assertion
+    const imapSettings = this.account.imap!
+
     let password: string | null = null
     if (this.account.authType === 'password') {
       password = await accountManager.getPassword(this.account.id)
@@ -87,12 +90,13 @@ export class IMAPClient {
       // Build IMAP config - for OAuth2, don't set password
       const imapConfig: any = {
         user: this.account.email,
-        host: this.account.imap.host,
-        port: this.account.imap.port,
-        tls: this.account.imap.secure,
+        host: imapSettings.host,
+        port: imapSettings.port,
+        tls: imapSettings.secure,
         tlsOptions: { 
-          rejectUnauthorized: false, // Allow connections through proxies/VPNs that inject certificates
-          minVersion: 'TLSv1.2'
+          rejectUnauthorized: imapSettings.allowInvalidCerts !== true, // Default: true (secure). Only false if explicitly enabled
+          minVersion: 'TLSv1.2',
+          ca: imapSettings.customCa || undefined
         }
       }
 

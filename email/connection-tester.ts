@@ -11,11 +11,15 @@ type ConnectionTestAccount = {
     host: string
     port: number
     secure: boolean
+    allowInvalidCerts?: boolean
+    customCa?: string
   }
   pop3?: {
     host: string
     port: number
     secure: boolean
+    allowInvalidCerts?: boolean
+    customCa?: string
   }
   authType: 'oauth2' | 'password'
   oauth2?: Account['oauth2']
@@ -86,8 +90,9 @@ function testIMAPConnection(account: ConnectionTestAccount): Promise<ConnectionR
       port: account.imap.port,
       tls: account.imap.secure,
       tlsOptions: { 
-        rejectUnauthorized: false, // Allow connections through proxies/VPNs that inject certificates
-        minVersion: 'TLSv1.2'
+        rejectUnauthorized: account.imap.allowInvalidCerts !== true, // Default: true (secure). Only false if explicitly enabled
+        minVersion: 'TLSv1.2',
+        ca: account.imap.customCa || undefined
       }
     }
 

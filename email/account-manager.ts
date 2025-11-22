@@ -23,11 +23,15 @@ export class AccountManager {
     const stmt = this.db.prepare(`
       INSERT INTO accounts (
         id, name, email, type, imap_host, imap_port, imap_secure,
-        pop3_host, pop3_port, pop3_secure, smtp_host, smtp_port, smtp_secure,
+        imap_allow_invalid_certs, imap_custom_ca,
+        pop3_host, pop3_port, pop3_secure,
+        pop3_allow_invalid_certs, pop3_custom_ca,
+        smtp_host, smtp_port, smtp_secure,
+        smtp_allow_invalid_certs, smtp_custom_ca,
         auth_type, oauth2_provider, oauth2_access_token_encrypted,
         oauth2_refresh_token_encrypted, oauth2_expires_at, password_encrypted,
         created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
 
     stmt.run(
@@ -38,12 +42,18 @@ export class AccountManager {
       account.imap?.host || null,
       account.imap?.port || null,
       account.imap?.secure ? 1 : 0,
+      account.imap?.allowInvalidCerts ? 1 : 0,
+      account.imap?.customCa || null,
       account.pop3?.host || null,
       account.pop3?.port || null,
       account.pop3?.secure ? 1 : 0,
+      account.pop3?.allowInvalidCerts ? 1 : 0,
+      account.pop3?.customCa || null,
       account.smtp.host,
       account.smtp.port,
       account.smtp.secure ? 1 : 0,
+      account.smtp.allowInvalidCerts ? 1 : 0,
+      account.smtp.customCa || null,
       account.authType,
       account.oauth2?.provider || null,
       account.oauth2?.accessToken ? encryption.encryptCredential(account.oauth2.accessToken) : null,
@@ -69,6 +79,72 @@ export class AccountManager {
     if (updates.email) {
       dbUpdates.push('email = ?')
       values.push(updates.email)
+    }
+    if (updates.imap) {
+      if (updates.imap.host !== undefined) {
+        dbUpdates.push('imap_host = ?')
+        values.push(updates.imap.host)
+      }
+      if (updates.imap.port !== undefined) {
+        dbUpdates.push('imap_port = ?')
+        values.push(updates.imap.port)
+      }
+      if (updates.imap.secure !== undefined) {
+        dbUpdates.push('imap_secure = ?')
+        values.push(updates.imap.secure ? 1 : 0)
+      }
+      if (updates.imap.allowInvalidCerts !== undefined) {
+        dbUpdates.push('imap_allow_invalid_certs = ?')
+        values.push(updates.imap.allowInvalidCerts ? 1 : 0)
+      }
+      if (updates.imap.customCa !== undefined) {
+        dbUpdates.push('imap_custom_ca = ?')
+        values.push(updates.imap.customCa || null)
+      }
+    }
+    if (updates.pop3) {
+      if (updates.pop3.host !== undefined) {
+        dbUpdates.push('pop3_host = ?')
+        values.push(updates.pop3.host)
+      }
+      if (updates.pop3.port !== undefined) {
+        dbUpdates.push('pop3_port = ?')
+        values.push(updates.pop3.port)
+      }
+      if (updates.pop3.secure !== undefined) {
+        dbUpdates.push('pop3_secure = ?')
+        values.push(updates.pop3.secure ? 1 : 0)
+      }
+      if (updates.pop3.allowInvalidCerts !== undefined) {
+        dbUpdates.push('pop3_allow_invalid_certs = ?')
+        values.push(updates.pop3.allowInvalidCerts ? 1 : 0)
+      }
+      if (updates.pop3.customCa !== undefined) {
+        dbUpdates.push('pop3_custom_ca = ?')
+        values.push(updates.pop3.customCa || null)
+      }
+    }
+    if (updates.smtp) {
+      if (updates.smtp.host !== undefined) {
+        dbUpdates.push('smtp_host = ?')
+        values.push(updates.smtp.host)
+      }
+      if (updates.smtp.port !== undefined) {
+        dbUpdates.push('smtp_port = ?')
+        values.push(updates.smtp.port)
+      }
+      if (updates.smtp.secure !== undefined) {
+        dbUpdates.push('smtp_secure = ?')
+        values.push(updates.smtp.secure ? 1 : 0)
+      }
+      if (updates.smtp.allowInvalidCerts !== undefined) {
+        dbUpdates.push('smtp_allow_invalid_certs = ?')
+        values.push(updates.smtp.allowInvalidCerts ? 1 : 0)
+      }
+      if (updates.smtp.customCa !== undefined) {
+        dbUpdates.push('smtp_custom_ca = ?')
+        values.push(updates.smtp.customCa || null)
+      }
     }
     if (updates.oauth2?.accessToken) {
       dbUpdates.push('oauth2_access_token_encrypted = ?')
@@ -132,17 +208,23 @@ export class AccountManager {
       imap: dbAccount.imap_host ? {
         host: dbAccount.imap_host,
         port: dbAccount.imap_port,
-        secure: dbAccount.imap_secure === 1
+        secure: dbAccount.imap_secure === 1,
+        allowInvalidCerts: dbAccount.imap_allow_invalid_certs === 1,
+        customCa: dbAccount.imap_custom_ca || undefined
       } : undefined,
       pop3: dbAccount.pop3_host ? {
         host: dbAccount.pop3_host,
         port: dbAccount.pop3_port,
-        secure: dbAccount.pop3_secure === 1
+        secure: dbAccount.pop3_secure === 1,
+        allowInvalidCerts: dbAccount.pop3_allow_invalid_certs === 1,
+        customCa: dbAccount.pop3_custom_ca || undefined
       } : undefined,
       smtp: {
         host: dbAccount.smtp_host,
         port: dbAccount.smtp_port,
-        secure: dbAccount.smtp_secure === 1
+        secure: dbAccount.smtp_secure === 1,
+        allowInvalidCerts: dbAccount.smtp_allow_invalid_certs === 1,
+        customCa: dbAccount.smtp_custom_ca || undefined
       },
       authType: dbAccount.auth_type,
       oauth2: dbAccount.oauth2_provider ? {
