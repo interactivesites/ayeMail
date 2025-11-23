@@ -126,7 +126,9 @@ export class IMAPClient {
       this.connection = new Imap(imapConfig)
 
       const onReady = () => {
-        this.connection!.removeListener('error', onError)
+        if (this.connection) {
+          this.connection.removeListener('error', onError)
+        }
         // Ensure connection is fully ready before resolving
         if (this.connection && this.connection.state === 'authenticated') {
           resolve()
@@ -143,7 +145,9 @@ export class IMAPClient {
       }
 
       const onError = (err: Error) => {
-        this.connection!.removeListener('ready', onReady)
+        if (this.connection) {
+          this.connection.removeListener('ready', onReady)
+        }
         // Provide better error messages for Gmail
         let errorMessage = err.message
         const errLower = err.message.toLowerCase()
@@ -221,13 +225,17 @@ export class IMAPClient {
 
         const onReady = () => {
           clearTimeout(timeout)
-          this.connection!.removeListener('error', onError)
+          if (this.connection) {
+            this.connection.removeListener('error', onError)
+          }
           resolve()
         }
 
         const onError = (err: Error) => {
           clearTimeout(timeout)
-          this.connection!.removeListener('ready', onReady)
+          if (this.connection) {
+            this.connection.removeListener('ready', onReady)
+          }
           reject(err)
         }
 
@@ -249,7 +257,9 @@ export class IMAPClient {
 
       const cleanup = () => {
         clearTimeout(timeout)
-        this.connection!.removeListener('error', onError)
+        if (this.connection) {
+          this.connection.removeListener('error', onError)
+        }
       }
 
       this.connection!.once('error', onError)
@@ -317,13 +327,17 @@ export class IMAPClient {
 
     return new Promise((resolve, reject) => {
       const onError = (err: Error) => {
-        this.connection!.removeListener('error', onError)
+        if (this.connection) {
+          this.connection.removeListener('error', onError)
+        }
         reject(err)
       }
 
       this.connection!.once('error', onError)
       this.connection!.status(folderName, (err, status) => {
-        this.connection!.removeListener('error', onError)
+        if (this.connection) {
+          this.connection.removeListener('error', onError)
+        }
         if (err) {
           reject(err)
           return
@@ -376,7 +390,9 @@ export class IMAPClient {
 
         const cleanup = () => {
           clearTimeout(timeout)
-          connection.removeListener('error', errorHandler)
+          if (connection) {
+            connection.removeListener('error', errorHandler)
+          }
         }
 
         connection.once('error', errorHandler)
@@ -873,7 +889,9 @@ export class IMAPClient {
 
         const cleanup = () => {
           clearTimeout(timeout)
-          connection.removeListener('error', errorHandler)
+          if (connection) {
+            connection.removeListener('error', errorHandler)
+          }
         }
 
         connection.once('error', errorHandler)
@@ -973,7 +991,9 @@ export class IMAPClient {
 
         const cleanup = () => {
           clearTimeout(timeout)
-          connection.removeListener('error', errorHandler)
+          if (connection) {
+            connection.removeListener('error', errorHandler)
+          }
         }
 
         const errorHandler = (err: Error) => {
