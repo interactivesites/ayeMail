@@ -43,6 +43,27 @@
         </div>
       </div>
 
+      <!-- Trash Icon (shown in Deleted/Trash folder) -->
+      <div v-else-if="isDeletedFolder" class="flex-shrink-0 self-center relative">
+        <div
+          class="w-5 h-5 rounded-full border-2 flex items-center justify-center"
+          :class="selected
+            ? 'bg-white dark:bg-white border-white dark:border-white'
+            : 'bg-primary-600 dark:bg-primary-500 border-primary-600 dark:border-primary-500'"
+          :title="$t('emailList.deleted')"
+        >
+          <svg
+            class="w-3 h-3"
+            :class="selected ? 'text-primary-600 dark:text-primary-500' : 'text-white'"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+          </svg>
+        </div>
+      </div>
+
       <!-- Archive Button (shown when email is selected) -->
       <div v-else-if="selected" class="flex-shrink-0 self-center relative">
         <button
@@ -150,7 +171,7 @@
       </div>
 
       <!-- Bottom Action Icons - Right aligned, show only on hover, no circles -->
-      <div v-if="!isSpamFolder" class="hidden group-hover:flex absolute bottom-2 right-4 items-center gap-2 transition-all duration-200" @click.stop>
+      <div v-if="!isSpamFolder && !isDeletedFolder" class="hidden group-hover:flex absolute bottom-2 right-4 items-center gap-2 transition-all duration-200" @click.stop>
         <button @click.stop="emit('archive-selected')" class="p-1 transition-colors" :class="selected
           ? 'text-white/80 hover:text-white'
           : 'text-gray-500 hover:text-gray-700'" :title="$t('navigation.archive')">
@@ -189,7 +210,7 @@
         </button>
       </div>
       <!-- Un-spam button - Show only in spam/junk folder -->
-      <div v-if="isSpamFolder" class="hidden group-hover:flex absolute bottom-2 right-4 items-center gap-2 transition-all duration-200" @click.stop>
+      <div v-if="isSpamFolder || isDeletedFolder" class="hidden group-hover:flex absolute bottom-2 right-4 items-center gap-2 transition-all duration-200" @click.stop>
         <button v-if="email.accountId" @click.stop="emit('unspam-selected')" class="p-1 transition-colors" :class="selected
           ? 'text-white/80 hover:text-white'
           : 'text-gray-500 hover:text-gray-700'" :title="$t('emailList.moveToInbox')">
@@ -211,6 +232,7 @@ const props = defineProps<{
   emailGlobalIndex: number
   selected: boolean
   isArchiveFolder: boolean
+  isDeletedFolder: boolean
   isSpamFolder: boolean
   previewLevel: number
   unread: boolean

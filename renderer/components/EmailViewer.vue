@@ -6,7 +6,9 @@
     <div v-else-if="loading && !email" class="flex-1 flex items-center justify-center">
       <div class="flex flex-col items-center space-y-4">
         <div class="w-8 h-8 border-4 border-primary-600 dark:border-primary-500 border-t-transparent rounded-full animate-spin"></div>
-        <p class="text-gray-600 dark:text-dark-gray-400">Loading email...</p>
+        <p class="text-gray-600 dark:text-dark-gray-400">
+          {{ waitingForSync ? 'Waiting for sync to finish…' : 'Loading email...' }}
+        </p>
       </div>
     </div>
     <div v-else-if="email" class="flex flex-col h-full">
@@ -159,7 +161,7 @@
 import { Logger } from '@shared/logger'
 
 const logger = Logger.create('Component')
-import { ref, watch, computed, nextTick } from 'vue'
+import { ref, watch, computed, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { formatDate, formatSize, formatAddresses } from '../utils/formatters'
 import { EmailAddress } from '../../shared/types'
 import { checkUrlSecurity } from '../utils/url-security'
@@ -188,6 +190,7 @@ const emit = defineEmits<{
 const emailCacheStore = useEmailCacheStore()
 const email = ref<any>(null)
 const loading = ref(false)
+const waitingForSync = ref(false)
 const downloading = ref<string | null>(null)
 const emailIframe = ref<HTMLIFrameElement | null>(null)
 const threadEmails = ref<any[]>([])
@@ -264,30 +267,73 @@ const sanitizedHtml = computed(() => {
   return `<!DOCTYPE html><html><head>${baseStyles}</head><body>${html}</body></html>`
 })
 
+let currentLoadToken = 0
+let pendingRetryTimer: ReturnType<typeof setTimeout> | null = null
+let removeSyncListener: (() => void) | null = null
+
+const isTimeoutError = (err: any) => err && typeof err === 'object' && err.message === 'Email loading timeout'
+
+const scheduleRetry = (token: number, delayMs = 8000) => {
+  if (pendingRetryTimer) {
+    clearTimeout(pendingRetryTimer)
+    pendingRetryTimer = null
+  }
+  pendingRetryTimer = setTimeout(() => {
+    if (token === currentLoadToken) {
+      loadEmail()
+    }
+  }, delayMs)
+}
+
+const attachSyncRetry = (token: number) => {
+  if (removeSyncListener) return
+  if (window?.electronAPI?.emails?.onSyncProgress) {
+    removeSyncListener = window.electronAPI.emails.onSyncProgress(() => {
+      // Any progress event while we're waiting can trigger a quick retry
+      if (token === currentLoadToken && waitingForSync.value) {
+        scheduleRetry(token, 500)
+      }
+    })
+  }
+}
+
+onBeforeUnmount(() => {
+  if (pendingRetryTimer) clearTimeout(pendingRetryTimer)
+  if (removeSyncListener) {
+    removeSyncListener()
+    removeSyncListener = null
+  }
+})
+
 const loadEmail = async () => {
+  const myToken = ++currentLoadToken
   if (!props.emailId) {
     // Clear email content when emailId is empty/null
     email.value = null
     threadEmails.value = []
     loading.value = false
+    waitingForSync.value = false
     return
   }
 
   // Set loading state immediately to show loading indicator
   loading.value = true
   email.value = null // Clear previous email immediately
+  waitingForSync.value = false
   
   try {
     // Add timeout to prevent hanging (30 seconds)
     const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('Email loading timeout')), 30000)
+      setTimeout(() => reject(new Error('Email loading timeout')), 120000)
     )
     
     // Race between email loading (from cache or API) and timeout
-    email.value = await Promise.race([
+    const result = await Promise.race([
       emailCacheStore.getEmail(props.emailId),
       timeoutPromise
     ]) as any
+    if (myToken !== currentLoadToken) return
+    email.value = result
     
     // Load thread emails after loading the main email (don't block on this)
     loadThreadEmails().catch(error => {
@@ -295,11 +341,24 @@ const loadEmail = async () => {
       // Don't fail the whole email load if thread loading fails
     })
   } catch (error) {
-    logger.error('Error loading email:', error)
-    email.value = null
-    threadEmails.value = []
+    if (myToken !== currentLoadToken) return
+    if (isTimeoutError(error)) {
+      // Likely syncing; don't treat as hard error
+      logger.warn('Email load timed out; likely due to ongoing sync. Will retry shortly.')
+      waitingForSync.value = true
+      // Try again soon and also on sync progress
+      attachSyncRetry(myToken)
+      scheduleRetry(myToken, 8000)
+      return // Keep loading spinner visible
+    } else {
+      logger.error('Error loading email:', error)
+      email.value = null
+      threadEmails.value = []
+    }
   } finally {
-    loading.value = false
+    if (myToken === currentLoadToken && !waitingForSync.value) {
+      loading.value = false
+    }
   }
 }
 

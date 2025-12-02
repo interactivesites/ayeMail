@@ -71,6 +71,7 @@
   },
   "emailList": {
     "archived": "Archived",
+    "deleted": "Deleted",
     "starred": "Starred",
     "hasAttachments": "Has attachments",
     "thread": "Thread",

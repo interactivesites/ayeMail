@@ -44,6 +44,7 @@
               :email-global-index="getEmailGlobalIndex(group.emails, emailIndex, group)"
               :selected="selectedEmailIds.has(email.id)"
               :is-archive-folder="isArchiveFolder"
+              :is-deleted-folder="isDeletedFolder"
               :is-spam-folder="isSpamFolder"
               :preview-level="previewLevel"
               :unread="isEmailUnread(email)"
