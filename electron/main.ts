@@ -15,6 +15,42 @@ import { Logger } from '../shared/logger'
 
 const logger = Logger.create('Main')
 
+// Handle uncaught exceptions and unhandled promise rejections
+// This prevents the app from crashing on network errors like ETIMEDOUT
+process.on('uncaughtException', (error: Error) => {
+  // Suppress ETIMEDOUT and other network timeout errors
+  const errorCode = (error as any).code
+  if (error.message?.includes('ETIMEDOUT') || 
+      error.message?.includes('timeout') ||
+      errorCode === 'ETIMEDOUT' ||
+      errorCode === 'ECONNRESET' ||
+      errorCode === 'ECONNREFUSED') {
+    logger.warn('Suppressed network timeout error:', error.message)
+    return
+  }
+  
+  // Log other uncaught exceptions but don't crash
+  logger.error('Uncaught exception:', error)
+})
+
+process.on('unhandledRejection', (reason: any, promise: Promise<any>) => {
+  // Suppress ETIMEDOUT and other network timeout errors
+  const errorMessage = reason?.message || String(reason)
+  const errorCode = reason?.code
+  
+  if (errorMessage?.includes('ETIMEDOUT') || 
+      errorMessage?.includes('timeout') ||
+      errorCode === 'ETIMEDOUT' ||
+      errorCode === 'ECONNRESET' ||
+      errorCode === 'ECONNREFUSED') {
+    logger.warn('Suppressed unhandled promise rejection (network timeout):', errorMessage)
+    return
+  }
+  
+  // Log other unhandled rejections but don't crash
+  logger.error('Unhandled promise rejection:', reason)
+})
+
 // In CommonJS, __dirname is automatically available
 // TypeScript needs this declaration for type checking, but it won't be emitted
 declare const __dirname: string

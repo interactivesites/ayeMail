@@ -209,6 +209,8 @@ const syncProgress = ref<{ show: boolean; current: number; total: number | undef
 const backgroundSyncing = ref(false)
 const currentSyncFolderId = ref<string | null>(null)
 const currentSyncRemoveListener = ref<(() => void) | null>(null)
+let globalSyncProgressRemove: (() => void) | null = null
+let syncIndicatorTimeout: NodeJS.Timeout | null = null
 const preferences = usePreferencesStore()
 const emailCacheStore = useEmailCacheStore()
 const isGridLayout = computed(() => preferences.mailLayout === 'grid' || preferences.mailLayout === 'calm')
@@ -637,6 +639,28 @@ const showNewEmailNotification = (data: { accountId: string; count: number; emai
   }
 }
 
+const handleGlobalSyncProgress = (data: any) => {
+  if (!data?.folderId) return
+
+  currentSyncFolderId.value = data.folderId
+
+  if (syncIndicatorTimeout) {
+    clearTimeout(syncIndicatorTimeout)
+  }
+
+  // Clear after a grace period so the spinner is visible even if UI loads slowly
+  syncIndicatorTimeout = setTimeout(() => {
+    if (currentSyncFolderId.value === data.folderId) {
+      currentSyncFolderId.value = null
+    }
+  }, 15000)
+}
+
+// Register global sync progress listener immediately so startup sync is captured
+if (!globalSyncProgressRemove && window?.electronAPI?.emails?.onSyncProgress) {
+  globalSyncProgressRemove = window.electronAPI.emails.onSyncProgress(handleGlobalSyncProgress)
+}
+
 const syncEmailsForFolder = async (accountId: string, folderId: string) => {
   // Cancel any ongoing sync for a different folder
   if (syncing.value && currentSyncFolderId.value !== folderId) {
@@ -948,6 +972,14 @@ onBeforeUnmount(() => {
   // Cleanup resize listener
   if (resizeHandler) {
     window.removeEventListener('resize', resizeHandler)
+  }
+  if (globalSyncProgressRemove) {
+    globalSyncProgressRemove()
+    globalSyncProgressRemove = null
+  }
+  if (syncIndicatorTimeout) {
+    clearTimeout(syncIndicatorTimeout)
+    syncIndicatorTimeout = null
   }
   // Cleanup compose reply listener if in compose mode
   if (composeReplyListener) {

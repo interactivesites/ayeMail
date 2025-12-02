@@ -66,12 +66,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getUncategorized: (accountId: string, limit?: number) =>
       ipcRenderer.invoke('emails:getUncategorized', accountId, limit),
     onSyncProgress: (callback: (data: any) => void) => {
-      ipcRenderer.on('emails:sync-progress', (_, data) => callback(data))
-      return () => ipcRenderer.removeAllListeners('emails:sync-progress')
+      const listener = (_: any, data: any) => callback(data)
+      ipcRenderer.on('emails:sync-progress', listener)
+      return () => ipcRenderer.removeListener('emails:sync-progress', listener)
     },
     onNewEmails: (callback: (data: any) => void) => {
-      ipcRenderer.on('emails:new-emails', (_, data) => callback(data))
-      return () => ipcRenderer.removeAllListeners('emails:new-emails')
+      const listener = (_: any, data: any) => callback(data)
+      ipcRenderer.on('emails:new-emails', listener)
+      return () => ipcRenderer.removeListener('emails:new-emails', listener)
     },
     onAutoSyncRefresh: (callback: () => void) => {
       ipcRenderer.on('auto-sync:refresh-needed', () => callback())

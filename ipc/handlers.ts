@@ -1212,57 +1212,78 @@ export function registerEmailHandlers() {
   })
 
   ipcMain.handle('emails:get', async (_, id: string) => {
-    logger.log(`[emails:get] Fetching email ${id} with fetchRemoteBody=true, timeout=60s`)
-    const email = await emailStorage.getEmail(id, { fetchRemoteBody: true, fetchTimeoutMs: 60000 })
-    if (!email) {
-      logger.warn(`[emails:get] Email ${id} not found`)
+    try {
+      logger.log(`[emails:get] Fetching email ${id} with fetchRemoteBody=true, timeout=60s`)
+      
+      // Wrap in a timeout to ensure we always send a reply, even if the operation hangs
+      const handlerPromise = (async () => {
+        const email = await emailStorage.getEmail(id, { fetchRemoteBody: true, fetchTimeoutMs: 60000 })
+        if (!email) {
+          logger.warn(`[emails:get] Email ${id} not found`)
+          return null
+        }
+
+        // Check if body was loaded
+        const hasBody = email.body && email.body.trim().length > 0
+        const hasHtmlBody = email.htmlBody && email.htmlBody.trim().length > 0
+        const hasTextBody = email.textBody && email.textBody.trim().length > 0
+        logger.log(`[emails:get] Email ${id} body status: hasBody=${hasBody}, hasHtmlBody=${hasHtmlBody}, hasTextBody=${hasTextBody}`)
+
+        // Load attachments
+        const db = getDatabase()
+        const attachments = db.prepare('SELECT * FROM attachments WHERE email_id = ?').all(id) as any[]
+        email.attachments = attachments.map((att: any) => {
+          let data: Buffer | null = null
+          
+          // Try to decrypt attachment data, handle errors gracefully
+          if (att.data_encrypted) {
+            try {
+              // Check if data_encrypted is a Buffer or needs to be converted
+              const encryptedBuffer = Buffer.isBuffer(att.data_encrypted) 
+                ? att.data_encrypted 
+                : Buffer.from(att.data_encrypted)
+              
+              // Verify buffer has minimum required size (IV + TAG = 32 bytes)
+              if (encryptedBuffer.length >= 32) {
+                data = encryption.decryptBuffer(encryptedBuffer)
+              } else {
+                logger.warn(`Attachment ${att.id} has invalid encrypted data size: ${encryptedBuffer.length}`)
+              }
+            } catch (error) {
+              logger.error(`Error decrypting attachment ${att.id} (${att.filename}):`, error)
+              // Continue without data - attachment will be unavailable but won't crash the app
+            }
+          }
+          
+          return {
+            id: att.id,
+            emailId: att.email_id,
+            filename: att.filename,
+            contentType: att.content_type,
+            size: att.size,
+            contentId: att.content_id,
+            data: data
+          }
+        })
+
+        return email
+      })()
+      
+      // Add an outer timeout (65 seconds) to ensure we always respond
+      const timeoutPromise = new Promise<null>((resolve) => {
+        setTimeout(() => {
+          logger.warn(`[emails:get] Handler timeout for email ${id} after 65s, returning null`)
+          resolve(null)
+        }, 65000)
+      })
+      
+      return await Promise.race([handlerPromise, timeoutPromise])
+    } catch (error: any) {
+      logger.error(`[emails:get] Error fetching email ${id}:`, error)
+      // Return null instead of throwing to ensure reply is always sent
+      // This prevents "reply was never sent" errors
       return null
     }
-
-    // Check if body was loaded
-    const hasBody = email.body && email.body.trim().length > 0
-    const hasHtmlBody = email.htmlBody && email.htmlBody.trim().length > 0
-    const hasTextBody = email.textBody && email.textBody.trim().length > 0
-    logger.log(`[emails:get] Email ${id} body status: hasBody=${hasBody}, hasHtmlBody=${hasHtmlBody}, hasTextBody=${hasTextBody}`)
-
-    // Load attachments
-    const db = getDatabase()
-    const attachments = db.prepare('SELECT * FROM attachments WHERE email_id = ?').all(id) as any[]
-    email.attachments = attachments.map((att: any) => {
-      let data: Buffer | null = null
-      
-      // Try to decrypt attachment data, handle errors gracefully
-      if (att.data_encrypted) {
-        try {
-          // Check if data_encrypted is a Buffer or needs to be converted
-          const encryptedBuffer = Buffer.isBuffer(att.data_encrypted) 
-            ? att.data_encrypted 
-            : Buffer.from(att.data_encrypted)
-          
-          // Verify buffer has minimum required size (IV + TAG = 32 bytes)
-          if (encryptedBuffer.length >= 32) {
-            data = encryption.decryptBuffer(encryptedBuffer)
-          } else {
-            logger.warn(`Attachment ${att.id} has invalid encrypted data size: ${encryptedBuffer.length}`)
-          }
-        } catch (error) {
-          logger.error(`Error decrypting attachment ${att.id} (${att.filename}):`, error)
-          // Continue without data - attachment will be unavailable but won't crash the app
-        }
-      }
-      
-      return {
-        id: att.id,
-        emailId: att.email_id,
-        filename: att.filename,
-        contentType: att.content_type,
-        size: att.size,
-        contentId: att.content_id,
-        data: data
-      }
-    })
-
-    return email
   })
 
   ipcMain.handle('emails:getThread', async (_, emailId: string) => {

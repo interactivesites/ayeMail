@@ -50,8 +50,8 @@
           </div>
 
           <!-- Email Items -->
-          <div class="divide-y divide-gray-100 dark:divide-dark-gray-700 mx-2">
-            <button v-for="(email, emailIndex) in group.emails" :key="email.id" :data-email-id="email.id" :data-email-index="getEmailGlobalIndex(group.emails, emailIndex, group)" draggable="true" @click="handleEmailClick($event, email.id, getEmailGlobalIndex(group.emails, emailIndex, group))" @dblclick="handleEmailDoubleClick(email.id)" @dragstart="handleDragStart($event, email)" @dragend="handleDragEnd" @mouseenter="handleEmailMouseEnter(email.id)" @mouseleave="handleEmailMouseLeave" class="w-full text-left px-4 pt-3 pb-3 my-2 transition-all duration-200 rounded-lg relative cursor-grab active:cursor-grabbing group hover:pb-10" :class="{
+          <div class="mx-2">
+            <button v-for="(email, emailIndex) in group.emails" :key="email.id" :data-email-id="email.id" :data-email-index="getEmailGlobalIndex(group.emails, emailIndex, group)" draggable="true" @click="handleEmailClick($event, email.id, getEmailGlobalIndex(group.emails, emailIndex, group))" @dblclick="handleEmailDoubleClick(email.id)" @dragstart="handleDragStart($event, email)" @dragend="handleDragEnd" @mouseenter="handleEmailMouseEnter(email.id)" @mouseleave="handleEmailMouseLeave" class="w-full text-left px-4 pt-3 pb-3 my-0.5 transition-all duration-200 rounded-lg relative cursor-grab active:cursor-grabbing group hover:pb-10" :class="{
               'bg-primary-900 dark:bg-primary-800 text-white': selectedEmailIds.has(email.id),
               'hover:bg-primary-800/20 dark:hover:bg-primary-900/30': !selectedEmailIds.has(email.id),
               'border-l-2 border-primary-600 dark:border-primary-500': isEmailUnread(email),
@@ -99,13 +99,13 @@
 
                 <!-- Email Content -->
                 <div class="flex-1 min-w-0">
-                  <div class="flex items-start justify-between gap-2">
+                  <div class="flex items-start justify-between gap-1">
                     <div class="flex-1 min-w-0">
                       <!-- Sender Name -->
                       <div class="flex items-center gap-2">
                         <span class="text-sm font-semibold truncate" :class="selectedEmailIds.has(email.id)
                           ? 'text-white'
-                          : (isEmailUnread(email) ? 'text-primary-600 dark:text-primary-400' : 'text-gray-900 dark:text-dark-gray-100')">
+                          : (isEmailUnread(email) ? 'text-primary-600 dark:text-primary-400' : 'text-gray-900 dark:text-gray-400')">
                           {{ email.from[0]?.name || email.from[0]?.address }}
                         </span>
                         <span v-if="email.encrypted" class="text-xs" :class="selectedEmailIds.has(email.id) ? 'text-white/80' : 'text-primary-600'" :title="$t('email.encrypted')">🔒</span>
