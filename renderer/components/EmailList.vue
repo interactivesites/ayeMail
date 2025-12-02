@@ -313,12 +313,17 @@ const syncProgressUnsubscribe = ref<null | (() => void)>(null)
 const selectedEmailIds = ref<Set<string>>(new Set())
 const lastSelectedIndex = ref<number>(-1) // For Shift+click range selection
 
+// Helper to ensure Vue reactivity when mutating the Set
+const setSelected = (fn: (current: Set<string>) => Set<string>) => {
+  selectedEmailIds.value = fn(new Set(selectedEmailIds.value))
+}
+
 // Sync with prop for backward compatibility
 watch(() => props.selectedEmailId, (newId) => {
   if (newId) {
     selectedEmailIds.value = new Set([newId])
   } else if (!newId && selectedEmailIds.value.size === 1 && selectedEmailIds.value.has(props.selectedEmailId || '')) {
-    selectedEmailIds.value.clear()
+    setSelected(() => new Set())
   }
 }, { immediate: true })
 
@@ -449,22 +454,30 @@ const handleEmailClick = (event: MouseEvent, emailId: string, emailIndex: number
 
     for (let i = start; i <= end; i++) {
       if (flatEmails[i]) {
-        selectedEmailIds.value.add(flatEmails[i].id)
+        setSelected(set => {
+          set.add(flatEmails[i].id)
+          return set
+        })
       }
     }
     lastSelectedIndex.value = emailIndex
   } else if (isCtrlOrCmd) {
     // Toggle selection
     if (selectedEmailIds.value.has(emailId)) {
-      selectedEmailIds.value.delete(emailId)
+      setSelected(set => {
+        set.delete(emailId)
+        return set
+      })
     } else {
-      selectedEmailIds.value.add(emailId)
+      setSelected(set => {
+        set.add(emailId)
+        return set
+      })
     }
     lastSelectedIndex.value = emailIndex
   } else {
     // Single selection
-    selectedEmailIds.value.clear()
-    selectedEmailIds.value.add(emailId)
+    setSelected(() => new Set([emailId]))
     lastSelectedIndex.value = emailIndex
     // Emit for backward compatibility
     emit('select-email', emailId)
@@ -746,6 +759,12 @@ const handleArchiveSelected = async () => {
     // For multiple, skip confirmation and archive all
   }
 
+  // Get flat list and find index before removal
+  const flatEmailsBefore = getAllEmailsFlat()
+  const firstRemovedIndex = idsToArchive.length > 0 
+    ? flatEmailsBefore.findIndex(e => e.id === idsToArchive[0])
+    : -1
+
   // Optimistically remove emails instantly
   const emailsToRemove = idsToArchive.map(id => {
     const emailToRemove = emails.value.find(e => e.id === id)
@@ -757,11 +776,8 @@ const handleArchiveSelected = async () => {
 
   emails.value = emails.value.filter(e => !idsToArchive.includes(e.id))
 
-  // Clear selection
-  selectedEmailIds.value.clear()
-  lastSelectedIndex.value = -1
-  emit('select-email', '')
-  emit('select-emails', [])
+  // Select next email after removal
+  selectNextEmailAfterRemoval(idsToArchive, firstRemovedIndex)
 
   try {
     // Archive all selected emails
@@ -818,33 +834,21 @@ const confirmArchive = async (emailId: string) => {
     return
   }
 
+  // Get flat list and find index before removal
+  const flatEmailsBefore = getAllEmailsFlat()
+  const currentIndex = flatEmailsBefore.findIndex(e => e.id === emailId)
+
   // Optimistically remove email instantly
   const emailToRemove = emails.value.find(e => e.id === emailId)
   if (emailToRemove) {
     removedEmails.value.set(emailId, emailToRemove)
   }
 
-  // Get flat list before filtering to find next email
-  const flatEmails = getAllEmailsFlat()
-  const currentIndex = flatEmails.findIndex(e => e.id === emailId)
-
   emails.value = emails.value.filter(e => e.id !== emailId)
 
-  // Update selection if archived email was selected
+  // Select next email after removal
   if (selectedEmailIds.value.has(emailId)) {
-    selectedEmailIds.value.delete(emailId)
-    const remainingEmails = getAllEmailsFlat()
-    if (remainingEmails.length > 0) {
-      // Select next email, or previous if at end
-      const nextIndex = currentIndex < remainingEmails.length ? currentIndex : remainingEmails.length - 1
-      const nextId = remainingEmails[nextIndex].id
-      selectedEmailIds.value.clear()
-      selectedEmailIds.value.add(nextId)
-      emit('select-email', nextId)
-    } else {
-      emit('select-email', '')
-    }
-    emit('select-emails', Array.from(selectedEmailIds.value))
+    selectNextEmailAfterRemoval([emailId], currentIndex)
   }
 
   try {
@@ -877,6 +881,12 @@ const handleDeleteSelected = async () => {
   const idsToDelete = Array.from(selectedEmailIds.value)
   if (idsToDelete.length === 0) return
 
+  // Get flat list and find index before removal
+  const flatEmailsBefore = getAllEmailsFlat()
+  const firstRemovedIndex = idsToDelete.length > 0 
+    ? flatEmailsBefore.findIndex(e => e.id === idsToDelete[0])
+    : -1
+
   // Optimistically remove emails instantly
   const emailsToRemove = idsToDelete.map(id => {
     const emailToRemove = emails.value.find(e => e.id === id)
@@ -888,11 +898,8 @@ const handleDeleteSelected = async () => {
 
   emails.value = emails.value.filter(e => !idsToDelete.includes(e.id))
 
-  // Clear selection
-  selectedEmailIds.value.clear()
-  lastSelectedIndex.value = -1
-  emit('select-email', '')
-  emit('select-emails', [])
+  // Select next email after removal
+  selectNextEmailAfterRemoval(idsToDelete, firstRemovedIndex)
 
   try {
     // Delete all selected emails
@@ -949,34 +956,21 @@ const handleDeleteEmail = async (emailId: string) => {
     return
   }
 
+  // Get flat list and find index before removal
+  const flatEmailsBefore = getAllEmailsFlat()
+  const currentIndex = flatEmailsBefore.findIndex(e => e.id === emailId)
+
   // Optimistically remove email instantly
   const emailToRemove = emails.value.find(e => e.id === emailId)
   if (emailToRemove) {
     removedEmails.value.set(emailId, emailToRemove)
   }
 
-  // Get flat list before filtering to find next email
-  const flatEmails = getAllEmailsFlat()
-  const currentIndex = flatEmails.findIndex(e => e.id === emailId)
-
   emails.value = emails.value.filter(e => e.id !== emailId)
 
-  // Update selection if deleted email was selected
+  // Select next email after removal
   if (selectedEmailIds.value.has(emailId)) {
-    selectedEmailIds.value.delete(emailId)
-    const remainingEmails = getAllEmailsFlat()
-    if (remainingEmails.length > 0) {
-      // Select next email, or previous if at end, or first if we were at first
-      const nextIndex = currentIndex < remainingEmails.length ? currentIndex : remainingEmails.length - 1
-      const nextId = remainingEmails[nextIndex].id
-      selectedEmailIds.value.clear()
-      selectedEmailIds.value.add(nextId)
-      emit('select-email', nextId)
-    } else {
-      selectedEmailIds.value.clear()
-      emit('select-email', '')
-    }
-    emit('select-emails', Array.from(selectedEmailIds.value))
+    selectNextEmailAfterRemoval([emailId], currentIndex)
   }
 
   try {
@@ -1009,6 +1003,12 @@ const handleSpamSelected = async () => {
   const idsToSpam = Array.from(selectedEmailIds.value)
   if (idsToSpam.length === 0) return
 
+  // Get flat list and find index before removal
+  const flatEmailsBefore = getAllEmailsFlat()
+  const firstRemovedIndex = idsToSpam.length > 0 
+    ? flatEmailsBefore.findIndex(e => e.id === idsToSpam[0])
+    : -1
+
   // Optimistically remove emails instantly
   const emailsToRemove = idsToSpam.map(id => {
     const emailToRemove = emails.value.find(e => e.id === id)
@@ -1020,11 +1020,8 @@ const handleSpamSelected = async () => {
 
   emails.value = emails.value.filter(e => !idsToSpam.includes(e.id))
 
-  // Clear selection
-  selectedEmailIds.value.clear()
-  lastSelectedIndex.value = -1
-  emit('select-email', '')
-  emit('select-emails', [])
+  // Select next email after removal
+  selectNextEmailAfterRemoval(idsToSpam, firstRemovedIndex)
 
   try {
     // Spam all selected emails
@@ -1081,34 +1078,21 @@ const handleSpamEmail = async (emailId: string) => {
     return
   }
 
+  // Get flat list and find index before removal
+  const flatEmailsBefore = getAllEmailsFlat()
+  const currentIndex = flatEmailsBefore.findIndex(e => e.id === emailId)
+
   // Optimistically remove email instantly
   const emailToRemove = emails.value.find(e => e.id === emailId)
   if (emailToRemove) {
     removedEmails.value.set(emailId, emailToRemove)
   }
 
-  // Get flat list before filtering to find next email
-  const flatEmails = getAllEmailsFlat()
-  const currentIndex = flatEmails.findIndex(e => e.id === emailId)
-
   emails.value = emails.value.filter(e => e.id !== emailId)
 
-  // Update selection if spammed email was selected
+  // Select next email after removal
   if (selectedEmailIds.value.has(emailId)) {
-    selectedEmailIds.value.delete(emailId)
-    const remainingEmails = getAllEmailsFlat()
-    if (remainingEmails.length > 0) {
-      // Select next email, or previous if at end, or first if we were at first
-      const nextIndex = currentIndex < remainingEmails.length ? currentIndex : remainingEmails.length - 1
-      const nextId = remainingEmails[nextIndex].id
-      selectedEmailIds.value.clear()
-      selectedEmailIds.value.add(nextId)
-      emit('select-email', nextId)
-    } else {
-      selectedEmailIds.value.clear()
-      emit('select-email', '')
-    }
-    emit('select-emails', Array.from(selectedEmailIds.value))
+    selectNextEmailAfterRemoval([emailId], currentIndex)
   }
 
   try {
@@ -1155,6 +1139,12 @@ const handleUnspamSelected = async () => {
     }
   })
 
+  // Get flat list and find index before removal
+  const flatEmailsBefore = getAllEmailsFlat()
+  const firstRemovedIndex = idsToUnspam.length > 0 
+    ? flatEmailsBefore.findIndex(e => e.id === idsToUnspam[0])
+    : -1
+
   // Optimistically remove emails instantly
   const emailsToRemove = idsToUnspam.map(id => {
     const emailToRemove = emails.value.find(e => e.id === id)
@@ -1166,11 +1156,8 @@ const handleUnspamSelected = async () => {
 
   emails.value = emails.value.filter(e => !idsToUnspam.includes(e.id))
 
-  // Clear selection
-  selectedEmailIds.value.clear()
-  lastSelectedIndex.value = -1
-  emit('select-email', '')
-  emit('select-emails', [])
+  // Select next email after removal
+  selectNextEmailAfterRemoval(idsToUnspam, firstRemovedIndex)
 
   try {
     // Get inbox folders for all accounts
@@ -1288,11 +1275,21 @@ const handleDeleteAllEmails = async () => {
       }
     }
 
-    // Clear selection
-    selectedEmailIds.value.clear()
-    lastSelectedIndex.value = -1
-    emit('select-email', '')
-    emit('select-emails', [])
+    // Select next email after deletion (or clear if none remain)
+    const remainingEmails = getAllEmailsFlat()
+    if (remainingEmails.length > 0) {
+      // Select first remaining email
+      setSelected(() => new Set([remainingEmails[0].id]))
+      lastSelectedIndex.value = 0
+      emit('select-email', remainingEmails[0].id)
+      emit('select-emails', [remainingEmails[0].id])
+    } else {
+      // No emails left, clear selection
+      setSelected(() => new Set())
+      lastSelectedIndex.value = -1
+      emit('select-email', '')
+      emit('select-emails', [])
+    }
 
     // Refresh email list
     window.dispatchEvent(new CustomEvent('refresh-emails'))
@@ -1498,6 +1495,12 @@ const handleMoveToAsideSelected = async () => {
     }
   })
 
+  // Get flat list and find index before removal
+  const flatEmailsBefore = getAllEmailsFlat()
+  const firstRemovedIndex = idsToMove.length > 0 
+    ? flatEmailsBefore.findIndex(e => e.id === idsToMove[0])
+    : -1
+
   // Optimistically remove emails instantly
   const emailsToRemove = emailsToMove.map(email => {
     const emailToRemove = emails.value.find(e => e.id === email.id)
@@ -1508,6 +1511,9 @@ const handleMoveToAsideSelected = async () => {
   })
 
   emails.value = emails.value.filter(e => !idsToMove.includes(e.id))
+
+  // Select next email after removal
+  selectNextEmailAfterRemoval(idsToMove, firstRemovedIndex)
 
   try {
     // Get or create Aside folders for all accounts
@@ -1576,12 +1582,6 @@ const handleMoveToAsideSelected = async () => {
 
     emails.value.sort((a, b) => (b.date || 0) - (a.date || 0))
 
-    // Clear selection
-    selectedEmailIds.value.clear()
-    lastSelectedIndex.value = -1
-    emit('select-email', '')
-    emit('select-emails', [])
-
     // Refresh email list
     window.dispatchEvent(new CustomEvent('refresh-emails'))
   } catch (error: any) {
@@ -1610,34 +1610,21 @@ const handleMoveToAside = async (emailId: string) => {
     return
   }
 
-  // Optimistically remove email instantly
-  const emailToRemove = emails.value.find(e => e.id === emailId)
-  if (emailToRemove) {
-    // Get flat list before filtering to find next email
-    const flatEmails = getAllEmailsFlat()
-    const currentIndex = flatEmails.findIndex(e => e.id === emailId)
+    // Get flat list and find index before removal
+    const flatEmailsBefore = getAllEmailsFlat()
+    const currentIndex = flatEmailsBefore.findIndex(e => e.id === emailId)
 
-    removedEmails.value.set(emailId, emailToRemove)
-    emails.value = emails.value.filter(e => e.id !== emailId)
+    // Optimistically remove email instantly
+    const emailToRemove = emails.value.find(e => e.id === emailId)
+    if (emailToRemove) {
+      removedEmails.value.set(emailId, emailToRemove)
+      emails.value = emails.value.filter(e => e.id !== emailId)
 
-    // Update selection if moved email was selected
-    if (selectedEmailIds.value.has(emailId)) {
-      selectedEmailIds.value.delete(emailId)
-      const remainingEmails = getAllEmailsFlat()
-      if (remainingEmails.length > 0) {
-        // Select next email, or previous if at end
-        const nextIndex = currentIndex < remainingEmails.length ? currentIndex : remainingEmails.length - 1
-        const nextId = remainingEmails[nextIndex].id
-        selectedEmailIds.value.clear()
-        selectedEmailIds.value.add(nextId)
-        emit('select-email', nextId)
-      } else {
-        selectedEmailIds.value.clear()
-        emit('select-email', '')
+      // Select next email after removal
+      if (selectedEmailIds.value.has(emailId)) {
+        selectNextEmailAfterRemoval([emailId], currentIndex)
       }
-      emit('select-emails', Array.from(selectedEmailIds.value))
     }
-  }
 
   try {
     // Find or create Aside folder for this account
@@ -1688,6 +1675,12 @@ const handleFolderSelected = async (folderId: string) => {
     ? Array.from(selectedEmailIds.value)
     : [emailId]
 
+  // Get flat list and find index before removal
+  const flatEmailsBefore = getAllEmailsFlat()
+  const firstRemovedIndex = idsToMove.length > 0 
+    ? flatEmailsBefore.findIndex(e => e.id === idsToMove[0])
+    : -1
+
   // Optimistically remove emails instantly
   const emailsToRemove = idsToMove.map(id => {
     const emailToRemove = emails.value.find(e => e.id === id)
@@ -1698,6 +1691,9 @@ const handleFolderSelected = async (folderId: string) => {
   })
 
   emails.value = emails.value.filter(e => !idsToMove.includes(e.id))
+
+  // Select next email after removal
+  selectNextEmailAfterRemoval(idsToMove, firstRemovedIndex)
 
   try {
     // Move all selected emails to the folder
@@ -1724,12 +1720,6 @@ const handleFolderSelected = async (folderId: string) => {
     })
 
     emails.value.sort((a, b) => b.date - a.date)
-
-    // Clear selection
-    selectedEmailIds.value.clear()
-    lastSelectedIndex.value = -1
-    emit('select-email', '')
-    emit('select-emails', [])
 
     // Refresh email list
     window.dispatchEvent(new CustomEvent('refresh-emails'))
@@ -1759,6 +1749,43 @@ const handleFolderSelected = async (folderId: string) => {
 // Get all emails as a flat array (for navigation)
 const getAllEmailsFlat = (): any[] => {
   return groupedEmails.value.flatMap(group => group.emails)
+}
+
+// Helper function to select next email after removal
+// removedEmailIds: array of email IDs that were removed
+// originalIndex: optional index of the first removed email BEFORE removal (for better positioning)
+const selectNextEmailAfterRemoval = (removedEmailIds: string[], originalIndex?: number) => {
+  const flatEmails = getAllEmailsFlat()
+  
+  // Use provided index or try to find from lastSelectedIndex
+  let currentIndex = originalIndex !== undefined ? originalIndex : lastSelectedIndex.value
+  
+  // If we still don't have an index, try to find the first removed email's position
+  // by checking if any selected email matches (for single selection cases)
+  if (currentIndex === -1 && removedEmailIds.length > 0) {
+    // For single removal, we can estimate: if we had a selection, it was likely at lastSelectedIndex
+    // But since emails are already removed, we'll just use 0 or lastSelectedIndex if valid
+    currentIndex = lastSelectedIndex.value >= 0 ? lastSelectedIndex.value : 0
+  }
+  
+  // Select next email, or previous if at end, or first if we were at first
+  if (flatEmails.length > 0) {
+    // Clamp index to valid range
+    const nextIndex = currentIndex >= 0 && currentIndex < flatEmails.length 
+      ? currentIndex 
+      : flatEmails.length - 1
+    const nextId = flatEmails[nextIndex].id
+    setSelected(() => new Set([nextId]))
+    lastSelectedIndex.value = nextIndex
+    emit('select-email', nextId)
+    emit('select-emails', [nextId])
+  } else {
+    // No emails left, clear selection
+    setSelected(() => new Set())
+    lastSelectedIndex.value = -1
+    emit('select-email', '')
+    emit('select-emails', [])
+  }
 }
 
 // Navigate to next/previous email
@@ -1792,8 +1819,7 @@ const navigateEmail = (direction: 'up' | 'down') => {
     // Ensure container is focused before selecting
     containerRef.value?.focus()
     // Clear selection and select new email
-    selectedEmailIds.value.clear()
-    selectedEmailIds.value.add(newEmail.id)
+    setSelected(() => new Set([newEmail.id]))
     lastSelectedIndex.value = newIndex
     emit('select-email', newEmail.id)
     emit('select-emails', [newEmail.id])
@@ -2317,7 +2343,7 @@ const refreshEmails = async () => {
         emit('select-email', flatEmails[0].id)
         emit('select-emails', [flatEmails[0].id])
       } else {
-        selectedEmailIds.value.clear()
+        setSelected(() => new Set())
         emit('select-email', '')
         emit('select-emails', [])
       }
@@ -2334,7 +2360,7 @@ const refreshEmails = async () => {
         emit('select-emails', [flatEmails[0].id])
       } else {
         // No emails left, clear selection
-        selectedEmailIds.value.clear()
+        setSelected(() => new Set())
         emit('select-email', '')
         emit('select-emails', [])
       }
@@ -2347,9 +2373,9 @@ const handleRemoveEmailOptimistic = (event: CustomEvent) => {
   const emailToRemove = emails.value.find(e => e.id === emailId)
 
   if (emailToRemove) {
-    // Get flat list before filtering to find next email
-    const flatEmails = getAllEmailsFlat()
-    const currentIndex = flatEmails.findIndex(e => e.id === emailId)
+    // Get flat list and find index before removal
+    const flatEmailsBefore = getAllEmailsFlat()
+    const currentIndex = flatEmailsBefore.findIndex(e => e.id === emailId)
 
     // Store email for potential restoration
     removedEmails.value.set(emailId, emailToRemove)
@@ -2358,25 +2384,18 @@ const handleRemoveEmailOptimistic = (event: CustomEvent) => {
 
     // Update selection if removed email was selected
     if (selectedEmailIds.value.has(emailId)) {
-      selectedEmailIds.value.delete(emailId)
-      const remainingEmails = getAllEmailsFlat()
-
-      if (remainingEmails.length > 0 && selectedEmailIds.value.size === 0) {
-        // No more selections, select next email
-        const nextIndex = currentIndex < remainingEmails.length ? currentIndex : remainingEmails.length - 1
-        const nextId = remainingEmails[nextIndex].id
-        selectedEmailIds.value.add(nextId)
-        emit('select-email', nextId)
-        emit('select-emails', [nextId])
-      } else if (selectedEmailIds.value.size > 0) {
-        // Still have other selections
+      // If this was the only selected email, select next
+      if (selectedEmailIds.value.size === 1) {
+        selectNextEmailAfterRemoval([emailId], currentIndex)
+      } else {
+        // Multiple selections - remove this one and keep others
+        setSelected(set => {
+          set.delete(emailId)
+          return set
+        })
         const firstId = Array.from(selectedEmailIds.value)[0]
         emit('select-email', firstId)
         emit('select-emails', Array.from(selectedEmailIds.value))
-      } else {
-        // No emails left
-        emit('select-email', '')
-        emit('select-emails', [])
       }
     }
   }
@@ -2488,7 +2507,10 @@ watch(() => emails.value.length, () => {
       if (selectedEmailIds.value.size === 0 && !props.selectedEmailId) {
         const flatEmails = getAllEmailsFlat()
         if (flatEmails.length > 0) {
-          selectedEmailIds.value.add(flatEmails[0].id)
+          setSelected(set => {
+            set.add(flatEmails[0].id)
+            return set
+          })
           lastSelectedIndex.value = 0
           emit('select-email', flatEmails[0].id)
           emit('select-emails', [flatEmails[0].id])
