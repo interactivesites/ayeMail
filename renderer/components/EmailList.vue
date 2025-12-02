@@ -1,39 +1,16 @@
 <template>
   <div ref="containerRef" tabindex="0" class="flex flex-col h-full outline-none" @keydown="handleKeyDown" @focus="handleFocus" @click="handleContainerClick">
-    <div class="p-4 border-b border-gray-200 dark:border-dark-gray-700 flex items-center justify-between">
-      <h2 class="text-lg font-semibold text-gray-900 dark:text-dark-gray-100">{{ folderName }}</h2>
-      <div class="flex items-center space-x-2">
-        <div class="flex items-center space-x-1 bg-gray-100 dark:bg-dark-gray-800 rounded-full p-0.5">
-          <button type="button" @click="handlePreviewLevelChange(1)" :aria-pressed="previewLevel === 1" class="p-1.5 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600" :class="previewLevel === 1 ? 'bg-white dark:bg-dark-gray-700 text-gray-900 dark:text-dark-gray-100 shadow-sm' : 'text-gray-600 dark:text-dark-gray-400 hover:text-gray-900 dark:hover:text-dark-gray-100'" :title="$t('email.titleOnly')">
-            <span class="text-xs font-medium w-4 h-4 flex items-center justify-center">1</span>
-          </button>
-          <button type="button" @click="handlePreviewLevelChange(2)" :aria-pressed="previewLevel === 2" class="p-1.5 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600" :class="previewLevel === 2 ? 'bg-white dark:bg-dark-gray-700 text-gray-900 dark:text-dark-gray-100 shadow-sm' : 'text-gray-600 dark:text-dark-gray-400 hover:text-gray-900 dark:hover:text-dark-gray-100'" :title="$t('email.twoLinesPreview')">
-            <span class="text-xs font-medium w-4 h-4 flex items-center justify-center">2</span>
-          </button>
-        </div>
-        <button type="button" @click="toggleThreadView" :aria-pressed="threadView" class="p-1.5 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600" :class="threadView ? 'bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300' : 'bg-gray-100 dark:bg-dark-gray-800 text-gray-600 dark:text-dark-gray-400 hover:text-gray-900 dark:hover:text-dark-gray-100'" :title="$t('email.threadView')">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-          </svg>
-        </button>
-        <button v-if="showDeleteAllButton" type="button" @click="handleDeleteAllEmails" :disabled="deletingAllEmails || emails.length === 0" class="px-3 py-1.5 text-sm font-medium rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600 disabled:opacity-50 disabled:cursor-not-allowed" :class="deletingAllEmails || emails.length === 0
-          ? 'bg-gray-200 dark:bg-dark-gray-700 text-gray-400 dark:text-dark-gray-500'
-          : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/50'" :title="$t('email.deleteAllEmails')">
-          <span v-if="deletingAllEmails" class="flex items-center gap-2">
-            <svg class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-            {{ $t('email.deleting') }}
-          </span>
-          <span v-else class="flex items-center gap-2">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-            </svg>
-            {{ $t('email.deleteAll') }} ({{ emails.length }})
-          </span>
-        </button>
-      </div>
-    </div>
+    <EmailListHeader
+      :folder-name="folderName"
+      :preview-level="previewLevel"
+      :thread-view="threadView"
+      :show-delete-all-button="showDeleteAllButton"
+      :deleting-all-emails="deletingAllEmails"
+      :emails-count="emails.length"
+      @change-preview-level="handlePreviewLevelChange"
+      @toggle-thread-view="toggleThreadView"
+      @delete-all="handleDeleteAllEmails"
+    />
     <ThinScrollbar class="flex-1">
       <div v-if="loading" class="p-4 text-center text-gray-500 dark:text-dark-gray-400">
         {{ $t('email.loadingEmails') }}
@@ -51,166 +28,48 @@
 
           <!-- Email Items -->
           <div class="mx-2">
-            <button v-for="(email, emailIndex) in group.emails" :key="email.id" :data-email-id="email.id" :data-email-index="getEmailGlobalIndex(group.emails, emailIndex, group)" draggable="true" @click="handleEmailClick($event, email.id, getEmailGlobalIndex(group.emails, emailIndex, group))" @dblclick="handleEmailDoubleClick(email.id)" @dragstart="handleDragStart($event, email)" @dragend="handleDragEnd" @mouseenter="handleEmailMouseEnter(email.id)" @mouseleave="handleEmailMouseLeave" class="w-full text-left px-4 pt-3 pb-3 my-0.5 transition-all duration-200 rounded-lg relative cursor-grab active:cursor-grabbing group hover:pb-10" :class="{
-              'bg-primary-900 dark:bg-primary-800 text-white': selectedEmailIds.has(email.id),
-              'hover:bg-primary-800/20 dark:hover:bg-primary-900/30': !selectedEmailIds.has(email.id),
-              'border-l-2 border-primary-600 dark:border-primary-500': isEmailUnread(email),
-              'opacity-50': isDragging === email.id
-            }">
-              <span class="email-popover-anchor absolute top-1/2 right-3 w-0 h-0 transform -translate-y-1/2 pointer-events-none" :data-email-anchor="email.id"></span>
-              <div class="flex items-start gap-3">
-                <!-- Checked Circle (shown in Archive folder) -->
-                <div v-if="isArchiveFolder" class="flex-shrink-0 self-center relative">
-                  <div class="w-5 h-5 rounded-full border-2 flex items-center justify-center" :class="selectedEmailIds.has(email.id)
-                    ? 'bg-white dark:bg-white border-white dark:border-white'
-                    : 'bg-primary-600 dark:bg-primary-500 border-primary-600 dark:border-primary-500'" :title="$t('emailList.archived')">
-                    <svg class="w-3 h-3" :class="selectedEmailIds.has(email.id) ? 'text-primary-600 dark:text-primary-500' : 'text-white'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
-                    </svg>
-                  </div>
-                </div>
-                <!-- Archive Button (shown when email is selected) -->
-                <div v-else-if="selectedEmailIds.has(email.id)" class="flex-shrink-0 self-center relative">
-                  <button @click.stop="showArchiveConfirm(email.id)" class="w-5 h-5 rounded-full border-2 border-gray-300 dark:border-dark-gray-600 flex items-center justify-center transition-colors hover:border-primary-600 dark:hover:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-600 focus:ring-offset-1" :class="{
-                    'bg-primary-600 dark:bg-primary-500 border-primary-600 dark:border-primary-500': archiveConfirmId === email.id,
-                    'hover:bg-gray-50 dark:hover:bg-dark-gray-700': archiveConfirmId !== email.id
-                  }" :title="$t('email.archiveEmail')">
-                    <svg v-if="archiveConfirmId === email.id" class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
-                    </svg>
-                  </button>
-
-                  <!-- Archive Confirmation Popover -->
-                  <Teleport to="body">
-                    <div v-if="archiveConfirmId === email.id" :ref="(el: HTMLElement | null) => { if (el) { archivePopoverRefs.set(email.id, el) } else { archivePopoverRefs.delete(email.id) } }" class="popover-panel fixed z-50 bg-white dark:bg-dark-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-dark-gray-700 p-3 min-w-[220px]" @click.stop>
-                      <div class="popover-arrow bg-white dark:bg-dark-gray-800 border border-gray-200 dark:border-dark-gray-700 absolute -z-10 -mt-6" :ref="(el: HTMLElement | null) => { if (el) { archiveArrowRefs.set(email.id, el) } else { archiveArrowRefs.delete(email.id) } }"></div>
-                      <div class="flex items-center gap-2 relative z-10">
-                        <button @click="cancelArchive" class="px-3 py-1.5 text-sm rounded bg-gray-200 dark:bg-dark-gray-700 text-gray-700 dark:text-dark-gray-200 hover:bg-gray-300 dark:hover:bg-dark-gray-600 transition-colors">
-                          {{ $t('common.cancel') }}
-                        </button>
-                        <button @click="confirmArchive(email.id)" class="px-3 py-1.5 text-sm rounded bg-primary-600 dark:bg-primary-500 text-white hover:bg-primary-700 dark:hover:bg-primary-600 transition-colors w-full">
-                          {{ $t('common.complete') }}
-                        </button>
-                      </div>
-                      <!-- <p class="text-xs text-gray-500 dark:text-dark-gray-400">Disable confirmation messages in Preferences</p> -->
-                    </div>
-                  </Teleport>
-                </div>
-
-                <!-- Email Content -->
-                <div class="flex-1 min-w-0">
-                  <div class="flex items-start justify-between gap-1">
-                    <div class="flex-1 min-w-0">
-                      <!-- Sender Name -->
-                      <div class="flex items-center gap-2">
-                        <span class="text-sm font-semibold truncate" :class="selectedEmailIds.has(email.id)
-                          ? 'text-white'
-                          : (isEmailUnread(email) ? 'text-primary-600 dark:text-primary-400' : 'text-gray-900 dark:text-gray-400')">
-                          {{ email.from[0]?.name || email.from[0]?.address }}
-                        </span>
-                        <span v-if="email.encrypted" class="text-xs" :class="selectedEmailIds.has(email.id) ? 'text-white/80' : 'text-primary-600'" :title="$t('email.encrypted')">🔒</span>
-                        <span v-if="email.signed" class="text-xs" :class="selectedEmailIds.has(email.id) ? 'text-green-300' : 'text-green-600'" :title="$t('email.signed')">✓</span>
-                      </div>
-
-                      <!-- Subject -->
-                      <div class="mt-0.5">
-                        <span class="text-sm text-balance break-words whitespace-normal" :class="selectedEmailIds.has(email.id)
-                          ? 'text-white'
-                          : (isEmailUnread(email) ? 'text-gray-900 dark:text-dark-gray-100 font-medium' : 'text-gray-600 dark:text-dark-gray-300')">
-                          {{ email.subject || '(No subject)' }}
-                        </span>
-                      </div>
-
-                      <!-- Preview Text -->
-                      <div v-if="previewLevel > 1 && getEmailPreview(email)" class="mt-1 text-xs" :class="[
-                        previewLevel === 3 ? 'line-clamp-4' : 'line-clamp-2',
-                        selectedEmailIds.has(email.id) ? 'text-white/70' : 'text-gray-500 dark:text-dark-gray-400'
-                      ]">
-                        {{ getEmailPreview(email) }}
-                      </div>
-                    </div>
-
-                    <!-- Right Side: Reminder Icon or Time and Status Icons -->
-                    <div class="flex items-center gap-2 flex-shrink-0">
-                      <!-- Reminder Icon (if email has reminder - active or completed) -->
-                      <!-- Shows for active reminders (in Reminders folder) and completed reminders (moved back to inbox) -->
-                      <svg v-if="email.hasReminder" class="w-4 h-4" :class="selectedEmailIds.has(email.id) ? 'text-white/80' : 'text-primary-600 dark:text-primary-400'" fill="none" stroke="currentColor" viewBox="0 0 24 24" :title="email.reminderCompleted ? $t('emailList.reminderCompleted') : $t('reminder.reminderSet')">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      <!-- Time Display (if no reminder) -->
-                      <span v-else class="text-xs" :class="selectedEmailIds.has(email.id) ? 'text-white/60' : 'text-gray-500 dark:text-dark-gray-400'">
-                        {{ formatTime(email.date) }}
-                      </span>
-
-                      <!-- Attachment Icon - Always visible when email has attachments -->
-                      <svg v-if="email.attachmentCount && email.attachmentCount > 0" class="w-4 h-4" :class="selectedEmailIds.has(email.id) ? 'text-white/80' : 'text-gray-500 dark:text-dark-gray-400'" fill="none" stroke="currentColor" viewBox="0 0 24 24" :title="$t('emailList.hasAttachments')">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                      </svg>
-
-                      <!-- Status Icons - Show only on hover -->
-                      <div class="hidden group-hover:flex items-center gap-2 transition-all duration-200">
-                        <span v-if="email.isStarred" class="text-yellow-500 text-sm" :title="$t('emailList.starred')">★</span>
-                        <span v-if="email.threadCount && email.threadCount > 1" class="text-xs" :class="selectedEmailId === email.id ? 'text-white/80' : 'text-gray-500 dark:text-dark-gray-400'" :title="$t('emailList.thread')">
-                          {{ email.threadCount }}
-                        </span>
-                        <svg v-if="email.isDraft" class="w-4 h-4" :class="selectedEmailId === email.id ? 'text-white/60' : 'text-gray-400 dark:text-dark-gray-500'" fill="none" stroke="currentColor" viewBox="0 0 24 24" :title="$t('emailList.draft')">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                        </svg>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Bottom Action Icons - Right aligned, show only on hover, no circles -->
-                <div v-if="!isSpamFolder" class="hidden group-hover:flex absolute bottom-2 right-4 items-center gap-2 transition-all duration-200" @click.stop>
-                  <button @click.stop="handleArchiveSelected" class="p-1 transition-colors" :class="selectedEmailIds.has(email.id)
-                    ? 'text-white/80 hover:text-white'
-                    : 'text-gray-500 hover:text-gray-700'" :title="$t('navigation.archive')">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
-                    </svg>
-                  </button>
-                  <button @click.stop="handleDeleteSelected" class="p-1 transition-colors" :class="selectedEmailIds.has(email.id)
-                    ? 'text-white/80 hover:text-white'
-                    : 'text-gray-500 hover:text-gray-700'" :title="$t('common.delete')">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </button>
-                  <button v-if="email.accountId" @click.stop="handleReminderSelected" class="p-1 transition-colors" :class="selectedEmailIds.has(email.id)
-                    ? 'text-white/80 hover:text-white'
-                    : 'text-gray-500 hover:text-gray-700'" :title="$t('navigation.setReminder')">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                  </button>
-                  <button v-if="email.accountId" @click.stop="handleMoveToAsideSelected" class="p-1 transition-colors" :class="selectedEmailIds.has(email.id)
-                    ? 'text-white/80 hover:text-white'
-                    : 'text-gray-500 hover:text-gray-700'" :title="$t('emailList.moveToAsideShort')">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                    </svg>
-                  </button>
-                  <button v-if="email.accountId" @click.stop="handleMoveToFolderSelected" class="p-1 transition-colors" :class="selectedEmailIds.has(email.id)
-                    ? 'text-white/80 hover:text-white'
-                    : 'text-gray-500 hover:text-gray-700'" :title="$t('navigation.moveToFolder') + ' (M)'">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-                    </svg>
-                  </button>
-                </div>
-                <!-- Un-spam button - Show only in spam/junk folder -->
-                <div v-if="isSpamFolder" class="hidden group-hover:flex absolute bottom-2 right-4 items-center gap-2 transition-all duration-200" @click.stop>
-                  <button v-if="email.accountId" @click.stop="handleUnspamSelected" class="p-1 transition-colors" :class="selectedEmailIds.has(email.id)
-                    ? 'text-white/80 hover:text-white'
-                    : 'text-gray-500 hover:text-gray-700'" :title="$t('emailList.moveToInbox')">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                    </svg>
-                  </button>
-                </div>
-              </div>
-            </button>
+            <EmailListItem
+              v-for="(email, emailIndex) in group.emails"
+              :key="email.id"
+              v-memo="[
+                email.id,
+                selectedEmailIds.has(email.id),
+                isEmailUnread(email),
+                previewLevel,
+                isDragging === email.id,
+                selectedEmailId === email.id,
+                archiveConfirmId === email.id
+              ]"
+              :email="email"
+              :email-global-index="getEmailGlobalIndex(group.emails, emailIndex, group)"
+              :selected="selectedEmailIds.has(email.id)"
+              :is-archive-folder="isArchiveFolder"
+              :is-spam-folder="isSpamFolder"
+              :preview-level="previewLevel"
+              :unread="isEmailUnread(email)"
+              :is-dragging="isDragging === email.id"
+              :is-primary-selected="selectedEmailId === email.id"
+              :archive-confirm-active="archiveConfirmId === email.id"
+              :preview-text="getEmailPreview(email)"
+              :time-text="formatTime(email.date)"
+              :set-archive-popover-ref="(id: string, el: HTMLElement | null) => { if (el) { archivePopoverRefs.set(id, el) } else { archivePopoverRefs.delete(id) } }"
+              :set-archive-arrow-ref="(id: string, el: HTMLElement | null) => { if (el) { archiveArrowRefs.set(id, el) } else { archiveArrowRefs.delete(id) } }"
+              @row-click="(e, payload) => handleEmailClick(e, payload.id, payload.index)"
+              @row-dblclick="(payload) => handleEmailDoubleClick(payload.id)"
+              @row-dragstart="(e, payload) => handleDragStart(e, payload.email)"
+              @row-dragend="handleDragEnd"
+              @row-mouseenter="(payload) => handleEmailMouseEnter(payload.id)"
+              @row-mouseleave="handleEmailMouseLeave"
+              @show-archive-confirm="(payload) => showArchiveConfirm(payload.id)"
+              @cancel-archive="cancelArchive"
+              @confirm-archive="(payload) => confirmArchive(payload.id)"
+              @archive-selected="handleArchiveSelected"
+              @delete-selected="handleDeleteSelected"
+              @reminder-selected="handleReminderSelected"
+              @move-to-aside-selected="handleMoveToAsideSelected"
+              @move-to-folder-selected="handleMoveToFolderSelected"
+              @unspam-selected="handleUnspamSelected"
+            />
           </div>
         </div>
       </div>
@@ -266,6 +125,8 @@
 </template>
 
 <script setup lang="ts">
+import EmailListHeader from './email/EmailListHeader.vue'
+import EmailListItem from './email/EmailListItem.vue'
 import { ref, computed, onMounted, watch, onUnmounted, nextTick } from 'vue'
 import type { Ref } from 'vue'
 import { storeToRefs } from 'pinia'
@@ -761,7 +622,7 @@ const handleArchiveSelected = async () => {
 
   // Get flat list and find index before removal
   const flatEmailsBefore = getAllEmailsFlat()
-  const firstRemovedIndex = idsToArchive.length > 0 
+  const firstRemovedIndex = idsToArchive.length > 0
     ? flatEmailsBefore.findIndex(e => e.id === idsToArchive[0])
     : -1
 
@@ -809,9 +670,7 @@ const handleArchiveSelected = async () => {
     })
 
     emails.value.sort((a, b) => (b.date || 0) - (a.date || 0))
-
-    // Refresh email list
-    window.dispatchEvent(new CustomEvent('refresh-emails'))
+    // Avoid global refresh to prevent list flicker; local optimistic update already applied
   } catch (error) {
     logger.error('Error archiving emails:', error)
     // Restore all emails on error
@@ -854,8 +713,7 @@ const confirmArchive = async (emailId: string) => {
   try {
     const result = await window.electronAPI.emails.archive(emailId)
     if (result.success) {
-      // Refresh email list
-      window.dispatchEvent(new CustomEvent('refresh-emails'))
+      // Avoid global refresh to prevent list flicker; local optimistic update already applied
     } else {
       logger.error('Failed to archive email:', result.message)
       // Restore email on failure
@@ -883,7 +741,7 @@ const handleDeleteSelected = async () => {
 
   // Get flat list and find index before removal
   const flatEmailsBefore = getAllEmailsFlat()
-  const firstRemovedIndex = idsToDelete.length > 0 
+  const firstRemovedIndex = idsToDelete.length > 0
     ? flatEmailsBefore.findIndex(e => e.id === idsToDelete[0])
     : -1
 
@@ -931,9 +789,7 @@ const handleDeleteSelected = async () => {
     })
 
     emails.value.sort((a, b) => (b.date || 0) - (a.date || 0))
-
-    // Refresh email list
-    window.dispatchEvent(new CustomEvent('refresh-emails'))
+    // Avoid global refresh to prevent list flicker; local optimistic update already applied
   } catch (error) {
     logger.error('Error deleting emails:', error)
     // Restore all emails on error
@@ -976,8 +832,7 @@ const handleDeleteEmail = async (emailId: string) => {
   try {
     const result = await window.electronAPI.emails.delete(emailId)
     if (result.success) {
-      // Refresh email list
-      window.dispatchEvent(new CustomEvent('refresh-emails'))
+      // Avoid global refresh to prevent list flicker; local optimistic update already applied
     } else {
       logger.error('Failed to delete email:', result.message)
       // Restore email on failure
@@ -1005,7 +860,7 @@ const handleSpamSelected = async () => {
 
   // Get flat list and find index before removal
   const flatEmailsBefore = getAllEmailsFlat()
-  const firstRemovedIndex = idsToSpam.length > 0 
+  const firstRemovedIndex = idsToSpam.length > 0
     ? flatEmailsBefore.findIndex(e => e.id === idsToSpam[0])
     : -1
 
@@ -1053,9 +908,7 @@ const handleSpamSelected = async () => {
     })
 
     emails.value.sort((a, b) => (b.date || 0) - (a.date || 0))
-
-    // Refresh email list
-    window.dispatchEvent(new CustomEvent('refresh-emails'))
+    // Avoid global refresh to prevent list flicker; local optimistic update already applied
   } catch (error) {
     logger.error('Error marking emails as spam:', error)
     // Restore all emails on error
@@ -1098,8 +951,7 @@ const handleSpamEmail = async (emailId: string) => {
   try {
     const result = await window.electronAPI.emails.spam(emailId)
     if (result.success) {
-      // Refresh email list
-      window.dispatchEvent(new CustomEvent('refresh-emails'))
+      // Avoid global refresh to prevent list flicker; local optimistic update already applied
     } else {
       logger.error('Failed to mark email as spam:', result.message)
       // Restore email on failure
@@ -1141,7 +993,7 @@ const handleUnspamSelected = async () => {
 
   // Get flat list and find index before removal
   const flatEmailsBefore = getAllEmailsFlat()
-  const firstRemovedIndex = idsToUnspam.length > 0 
+  const firstRemovedIndex = idsToUnspam.length > 0
     ? flatEmailsBefore.findIndex(e => e.id === idsToUnspam[0])
     : -1
 
@@ -1211,9 +1063,7 @@ const handleUnspamSelected = async () => {
     })
 
     emails.value.sort((a, b) => (b.date || 0) - (a.date || 0))
-
-    // Refresh email list
-    window.dispatchEvent(new CustomEvent('refresh-emails'))
+    // Avoid global refresh to prevent list flicker; local optimistic update already applied
   } catch (error) {
     logger.error('Error un-spamming emails:', error)
     // Restore all emails on error
@@ -1291,8 +1141,7 @@ const handleDeleteAllEmails = async () => {
       emit('select-emails', [])
     }
 
-    // Refresh email list
-    window.dispatchEvent(new CustomEvent('refresh-emails'))
+    // Avoid global refresh to prevent list flicker; local optimistic update already applied
 
     if (errorCount > 0) {
       alert($t('emailList.deleteAllResult', {
@@ -1497,7 +1346,7 @@ const handleMoveToAsideSelected = async () => {
 
   // Get flat list and find index before removal
   const flatEmailsBefore = getAllEmailsFlat()
-  const firstRemovedIndex = idsToMove.length > 0 
+  const firstRemovedIndex = idsToMove.length > 0
     ? flatEmailsBefore.findIndex(e => e.id === idsToMove[0])
     : -1
 
@@ -1581,9 +1430,7 @@ const handleMoveToAsideSelected = async () => {
     })
 
     emails.value.sort((a, b) => (b.date || 0) - (a.date || 0))
-
-    // Refresh email list
-    window.dispatchEvent(new CustomEvent('refresh-emails'))
+    // Avoid global refresh to prevent list flicker; local optimistic update already applied
   } catch (error: any) {
     logger.error('Error moving emails to Aside:', error)
     // Restore all emails on error
@@ -1651,8 +1498,7 @@ const handleMoveToAside = async (emailId: string) => {
 
     if (asideFolder) {
       await window.electronAPI.emails.moveToFolder(emailId, asideFolder.id)
-      // Refresh email list
-      window.dispatchEvent(new CustomEvent('refresh-emails'))
+      // Avoid global refresh to prevent list flicker; local optimistic update already applied
     }
   } catch (error: any) {
     logger.error('Error moving email to Aside folder:', error)
@@ -1677,7 +1523,7 @@ const handleFolderSelected = async (folderId: string) => {
 
   // Get flat list and find index before removal
   const flatEmailsBefore = getAllEmailsFlat()
-  const firstRemovedIndex = idsToMove.length > 0 
+  const firstRemovedIndex = idsToMove.length > 0
     ? flatEmailsBefore.findIndex(e => e.id === idsToMove[0])
     : -1
 
@@ -1720,9 +1566,7 @@ const handleFolderSelected = async (folderId: string) => {
     })
 
     emails.value.sort((a, b) => b.date - a.date)
-
-    // Refresh email list
-    window.dispatchEvent(new CustomEvent('refresh-emails'))
+    // Avoid global refresh to prevent list flicker; local optimistic update already applied
 
     if (failed.length > 0) {
       alert($t('emailList.moveFailed', {
@@ -1756,10 +1600,10 @@ const getAllEmailsFlat = (): any[] => {
 // originalIndex: optional index of the first removed email BEFORE removal (for better positioning)
 const selectNextEmailAfterRemoval = (removedEmailIds: string[], originalIndex?: number) => {
   const flatEmails = getAllEmailsFlat()
-  
+
   // Use provided index or try to find from lastSelectedIndex
   let currentIndex = originalIndex !== undefined ? originalIndex : lastSelectedIndex.value
-  
+
   // If we still don't have an index, try to find the first removed email's position
   // by checking if any selected email matches (for single selection cases)
   if (currentIndex === -1 && removedEmailIds.length > 0) {
@@ -1767,12 +1611,12 @@ const selectNextEmailAfterRemoval = (removedEmailIds: string[], originalIndex?: 
     // But since emails are already removed, we'll just use 0 or lastSelectedIndex if valid
     currentIndex = lastSelectedIndex.value >= 0 ? lastSelectedIndex.value : 0
   }
-  
+
   // Select next email, or previous if at end, or first if we were at first
   if (flatEmails.length > 0) {
     // Clamp index to valid range
-    const nextIndex = currentIndex >= 0 && currentIndex < flatEmails.length 
-      ? currentIndex 
+    const nextIndex = currentIndex >= 0 && currentIndex < flatEmails.length
+      ? currentIndex
       : flatEmails.length - 1
     const nextId = flatEmails[nextIndex].id
     setSelected(() => new Set([nextId]))
@@ -2469,8 +2313,7 @@ onMounted(() => {
   window.addEventListener('restore-email', handleRestoreEmail as EventListener)
   // Listen for clicks outside to close popover
   document.addEventListener('click', handleClickOutside)
-  // Listen for global keyboard events when EmailList is active
-  window.addEventListener('keydown', handleKeyDown)
+
   // Auto-focus the container
   nextTick(() => {
     containerRef.value?.focus()
@@ -2654,7 +2497,7 @@ onUnmounted(() => {
   window.removeEventListener('remove-email-optimistic', handleRemoveEmailOptimistic as EventListener)
   window.removeEventListener('restore-email', handleRestoreEmail as EventListener)
   document.removeEventListener('click', handleClickOutside)
-  window.removeEventListener('keydown', handleKeyDown)
+
   if (hoverTimeout) {
     clearTimeout(hoverTimeout)
     hoverTimeout = null
